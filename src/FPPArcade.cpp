@@ -24,6 +24,8 @@ extern "C" {
 #include <cstring>
 #include <list>
 #include <vector>
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <fcntl.h>
 #include <mutex>
@@ -203,6 +205,49 @@ void FPPArcadeGame::stop() {
         m->setRunningEffect(new ClearRunningEffect(m), 10);
     }
 }
+
+class GameTitleEffect : public FPPArcadeGameEffect {
+public:
+    GameTitleEffect(PixelOverlayModel *m, const std::string &titleText)
+        : FPPArcadeGameEffect(m), title(titleText) {
+        std::string upper;
+        upper.reserve(title.size());
+        for (char ch : title) {
+            upper.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(ch))));
+        }
+        title.swap(upper);
+        int width = 0;
+        int height = 0;
+        m->getSize(width, height);
+        offsetX = 0;
+        offsetY = 0;
+        scale = 1;
+    }
+
+    const std::string &name() const override {
+        static std::string NAME = "ArcadeTitle";
+        return NAME;
+    }
+
+    int32_t update() override {
+        int scl = scale <= 0 ? 1 : scale;
+        int rows = std::max(1, model->getHeight() / scl);
+        model->setState(PixelOverlayState(PixelOverlayState::PixelState::TransparentRGB));
+        model->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
+        model->clearOverlayBuffer();
+        int x = centerTextX(title, scl);
+        int y = (rows - 5) / 2;
+        if (y < 0) {
+            y = 0;
+        }
+        outputString(title, x, y, 255, 255, 255, scl);
+        model->flushOverlayBuffer();
+        return 100;
+    }
+
+private:
+    std::string title;
+};
 //default behavior will map the axis directions to button presses
 void FPPArcadeGame::axis(const std::string &axis, int value) {
     std::string btn = "";
@@ -272,6 +317,14 @@ static const std::map<uint8_t, std::vector<uint8_t>> LETTERS = {
     {'O', {1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1}},
     {'V', {1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0}},
     {'R', {1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1}},
+    {'T', {1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0}},
+    {'S', {1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1}},
+    {'P', {1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0}},
+    {'B', {1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1}},
+    {'K', {1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1}},
+    {'L', {1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1}},
+    {'C', {0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1}},
+    {'H', {1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1}},
 
     {'Y', {1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0}},
     {'U', {1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1}},
@@ -297,6 +350,7 @@ static const std::map<uint8_t, std::vector<uint8_t>> LETTERS = {
 class Letter {
 public:
     Letter(int l) {
+        data.assign(15, 0);
         set(l);
     }
     
@@ -311,6 +365,9 @@ private:
         auto it = LETTERS.find(l);
         if (it != LETTERS.end()) {
             data = it->second;
+        }
+        if (data.size() != 15) {
+            data.assign(15, 0);
         }
     }
     
@@ -520,8 +577,22 @@ public:
         return nullptr;
     }
     
+    void displayGameTitle(FPPArcadeGame *game) {
+        if (!game || game->isRunning()) {
+            return;
+        }
+        PixelOverlayModel *model = PixelOverlayManager::INSTANCE.getModel(game->getModelName());
+        if (!model) {
+            return;
+        }
+        model->setRunningEffect(new GameTitleEffect(model, game->getName()), 20);
+    }
+    
 
     void handleButton(std::list<FPPArcadeGame *> &games, const std::string &button, const std::vector<std::string> &args) {
+        if (games.empty()) {
+            return;
+        }
         if (button == "Start - Pressed" || button == "Select - Pressed") {
             if (games.front()->isRunning()) {
                 games.front()->stop();
@@ -534,6 +605,9 @@ public:
             FPPArcadeGame *g = games.front();
             games.pop_front();
             games.push_back(g);
+            if (!games.empty() && !games.front()->isRunning()) {
+                displayGameTitle(games.front());
+            }
         } else {
             games.front()->button(button);
         }
@@ -551,6 +625,9 @@ public:
         for (int x = 0; x < max; x++) {
             FPPArcadeGame *g = games[model].front();
             if (g->getIdx() == idx) {
+                if (!g->isRunning()) {
+                    displayGameTitle(g);
+                }
                 return std::make_unique<Command::Result>("FPP Arcade Game " + g->getName() + " Selected");
             } else {
                 games[model].pop_front();

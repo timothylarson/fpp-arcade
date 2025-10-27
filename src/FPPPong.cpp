@@ -265,8 +265,8 @@ void FPPPong::button(const std::string &button) {
             } else {
                 m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
             }
-            int controls = std::stoi(findOption("Controls", "1"));
             int pixelScaling = std::stoi(findOption("Pixel Scaling", "1"));
+            int controls = std::stoi(findOption("Controls", "1"));
             effect = new PongEffect(pixelScaling, controls, m);
             effect->button(button);
             m->setRunningEffect(effect, 50);

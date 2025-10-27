@@ -21,6 +21,7 @@ public:
 
     int getIdx() const { return idx; };
     void setIdx(int i) { idx = i; }
+    const std::string &getModelName() const { return modelName; }
 protected:
     std::string findOption(const std::string &s, const std::string &def = "");
     

@@ -152,11 +152,12 @@ public:
         CopyToModel();
         if (!GameOn) {
             GameOn = false;
-            outputString("GAME", cols/ 2 - 8, rows/2-9);
-            outputString("OVER", cols/ 2 - 8, rows/2-3);
+            int scl = scale == 0 ? 1 : scale;
+            outputString("GAME", centerTextX("GAME", scl), rows/2-9, 255, 255, 255, scl);
+            outputString("OVER", centerTextX("OVER", scl), rows/2-3, 255, 255, 255, scl);
             char buf[25];
             snprintf(buf, sizeof(buf), "%u", (uint32_t)snake.size());
-            outputString(buf, (cols)/ 2 - 4, rows/2+3);
+            outputString(buf, centerTextX(buf, scl), rows/2+3, 255, 255, 255, scl);
             model->flushOverlayBuffer();
             return 2000;
         }
@@ -166,13 +167,13 @@ public:
     
     
     void button(const std::string &button) {
-        if (button == "Left - Pressed") {
+        if (button == "Left - Pressed" && direction != 2) {
             direction = 0;
-        } else if (button == "Right - Pressed") {
+        } else if (button == "Right - Pressed" && direction != 0) {
             direction = 2;
-        } else if (button == "Up - Pressed") {
+        } else if (button == "Up - Pressed" && direction != 3) {
             direction = 1;
-        } else if (button == "Down - Pressed") {
+        } else if (button == "Down - Pressed" && direction != 1) {
             direction = 3;
         }
     }

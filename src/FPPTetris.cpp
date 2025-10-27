@@ -1,6 +1,7 @@
 #include <fpp-pch.h>
 
 #include "FPPTetris.h"
+#include <algorithm>
 #include <array>
 #include <random>
 
@@ -54,6 +55,12 @@ public:
                 set(x, y, d2[ny * width + x]);
             }
         }
+    }
+    void rotateCounterClockwise() {
+        // Reverse rotation by applying CW transform three times (shapes are small enough).
+        rotate();
+        rotate();
+        rotate();
     }
     
     int getWidth() { return width;}
@@ -187,6 +194,7 @@ public:
     
     void CheckLines() {
         int count = 0;
+        int cleared = 0;
         for(int i = 0; i < rows; i++) {
             int sum = 0;
             for(int j = 0; j < cols; j++) {
@@ -196,6 +204,7 @@ public:
             }
             if (sum == cols){
                 score++;
+                cleared++;
 
                 for (int k = i; k >= 1; k--) {
                     for (int l = 0; l < cols; l++) {
@@ -207,9 +216,19 @@ public:
                 }
             }
         }
-        timer -= 10;
-        if (timer < 30) {
-            timer = 30;
+        if (cleared > 0) {
+            increaseSpeed(cleared);
+        }
+    }
+
+    void increaseSpeed(int lines) {
+        accumulatedDrop += lines * perLineDrop;
+        if (accumulatedDrop > maxSpeedDrop) {
+            accumulatedDrop = maxSpeedDrop;
+        }
+        timer = initialTimer - accumulatedDrop;
+        if (timer < minTimer) {
+            timer = minTimer;
         }
     }
     
@@ -261,28 +280,29 @@ public:
                 delete currentShape;
                 currentShape = nullptr;
                 model->clearOverlayBuffer();
-                outputLetter(0, 0, 'G');
-                outputLetter(4, 0, 'A');
-                outputLetter(8, 0, 'M');
-                outputLetter(12, 0, 'E');
-                outputLetter(0, 6, 'O');
-                outputLetter(4, 6, 'V');
-                outputLetter(8, 6, 'E');
-                outputLetter(12, 6, 'R');
+                int prevScale = scale;
+                int prevOffsetX = offsetX;
+                int prevOffsetY = offsetY;
+                scale = 1;
+                offsetX = 0;
+                offsetY = 0;
+
+                int totalHeight = 5 + 2 + 5 + 6; // GAME + spacing + OVER + score spacing
+                int startY = (model->getHeight() - totalHeight) / 2;
+                if (startY < 0) startY = 0;
+                int yGame = startY;
+                int yOver = yGame + 7;
+                int yScore = yOver + 7;
+                outputString("GAME", centerTextX("GAME", 1), yGame);
+                outputString("OVER", centerTextX("OVER", 1), yOver);
 
                 char buf[20];
                 snprintf(buf, sizeof(buf), "%d", score);
-                int x = 4;
-                if (score < 10) {
-                    x = 6;
-                }
-                char *b2 = buf;
-                while (*b2) {
-                    outputLetter(x, 13, *b2);
-                    x += 4;
-                    b2++;
-                }
+                outputString(buf, centerTextX(buf, 1), yScore);
 
+                scale = prevScale;
+                offsetX = prevOffsetX;
+                offsetY = prevOffsetY;
                 model->flushOverlayBuffer();
                 return 3000;
             }
@@ -296,43 +316,146 @@ public:
             WaitingUntilOutput = true;
             return -1;
         }
-        button("Down - Pressed");
-        return timer;
+        long long frameInterval = std::max(minFrameInterval, timer / 2);
+        if (frameInterval <= 0) {
+            frameInterval = minFrameInterval;
+        }
+
+        fallAccumulator += frameInterval;
+        while (fallAccumulator >= timer) {
+            fallAccumulator -= timer;
+            dropOneRow();
+        }
+
+        if (softDropHeld) {
+            softDropAccumulator += frameInterval;
+            while (softDropAccumulator >= softDropInterval) {
+                softDropAccumulator -= softDropInterval;
+                dropOneRow();
+            }
+        } else {
+            softDropAccumulator = 0;
+        }
+
+        handleHeldMovement(frameInterval);
+        return frameInterval;
     }
     
     void button(const std::string &button) {
-        if (!GameOn) {
+        if (!GameOn || !currentShape) {
             return;
         }
-        Shape tmp(*currentShape);
+
         if (button == "Left - Pressed") {
-            tmp.col--;  //move left
-            if (CheckPosition(&tmp)) {
-                currentShape->col--;
-            }
+            moveHorizontal(-1);
+            leftHeld = true;
+            leftAccumulator = 0;
+            leftInitialDelay = true;
+        } else if (button == "Left - Released") {
+            leftHeld = false;
+            leftAccumulator = 0;
+            leftInitialDelay = true;
         } else if (button == "Right - Pressed") {
-            tmp.col++;  //move left
-            if (CheckPosition(&tmp)) {
-                currentShape->col++;
-            }
-        } else if (button == "Up - Pressed") {
+            moveHorizontal(1);
+            rightHeld = true;
+            rightAccumulator = 0;
+            rightInitialDelay = true;
+        } else if (button == "Right - Released") {
+            rightHeld = false;
+            rightAccumulator = 0;
+            rightInitialDelay = true;
+        } else if (button == "Up - Pressed" || button == "A Button - Pressed" || button == "Fire - Pressed") {
+            Shape tmp(*currentShape);
             tmp.rotate();
             if (CheckPosition(&tmp)) {
                 currentShape->rotate();
             }
-        } else if (button == "Down - Pressed") {
-            tmp.row++;  //move down
+        } else if (button == "B Button - Pressed") {
+            Shape tmp(*currentShape);
+            tmp.rotateCounterClockwise();
             if (CheckPosition(&tmp)) {
-                currentShape->row++;
-            } else {
-                WriteToTable();
-                CheckLines(); //check full lines, after putting it down
-                newShape();
+                currentShape->rotateCounterClockwise();
             }
-        //} else {
-            //printf("Unknown -%s-\n", button.c_str());
+        } else if (button == "Down - Pressed") {
+            softDropHeld = true;
+            dropOneRow();
+        } else if (button == "Down - Released") {
+            softDropHeld = false;
         }
         CopyToModel();
+    }
+
+    bool moveHorizontal(int delta) {
+        if (!currentShape) {
+            return false;
+        }
+        Shape tmp(*currentShape);
+        tmp.col += delta;
+        if (CheckPosition(&tmp)) {
+            currentShape->col += delta;
+            return true;
+        }
+        return false;
+    }
+
+    void dropOneRow() {
+        if (!currentShape) {
+            return;
+        }
+        Shape tmp(*currentShape);
+        tmp.row++;
+        if (CheckPosition(&tmp)) {
+            currentShape->row++;
+            CopyToModel();
+        } else {
+            WriteToTable();
+            CheckLines();
+            newShape();
+            CopyToModel();
+        }
+    }
+
+    void handleHeldMovement(long long elapsed) {
+        bool moved = false;
+        if (leftHeld && !rightHeld) {
+            leftAccumulator += elapsed;
+            long long threshold = leftInitialDelay ? holdInitialDelay : holdRepeatInterval;
+            while (leftAccumulator >= threshold) {
+                if (!moveHorizontal(-1)) {
+                    leftAccumulator = threshold;
+                    break;
+                }
+                leftAccumulator -= threshold;
+                leftInitialDelay = false;
+                threshold = holdRepeatInterval;
+                moved = true;
+            }
+        } else {
+            leftAccumulator = 0;
+            leftInitialDelay = true;
+        }
+
+        if (rightHeld && !leftHeld) {
+            rightAccumulator += elapsed;
+            long long threshold = rightInitialDelay ? holdInitialDelay : holdRepeatInterval;
+            while (rightAccumulator >= threshold) {
+                if (!moveHorizontal(1)) {
+                    rightAccumulator = threshold;
+                    break;
+                }
+                rightAccumulator -= threshold;
+                rightInitialDelay = false;
+                threshold = holdRepeatInterval;
+                moved = true;
+            }
+        } else {
+            rightAccumulator = 0;
+            rightInitialDelay = true;
+        }
+
+        if (moved) {
+            CopyToModel();
+        }
     }
     
     
@@ -346,6 +469,24 @@ public:
     
     Shape *currentShape = nullptr;
     long long timer = 500; //half second
+    const long long initialTimer = 500;
+    const long long perLineDrop = 25;
+    const long long maxSpeedDrop = 360;
+    const long long minTimer = 150;
+    const long long minFrameInterval = 80;
+    long long fallAccumulator = 0;
+    long long accumulatedDrop = 0;
+    bool leftHeld = false;
+    bool rightHeld = false;
+    long long leftAccumulator = 0;
+    long long rightAccumulator = 0;
+    bool leftInitialDelay = true;
+    bool rightInitialDelay = true;
+    const long long holdInitialDelay = 200;
+    const long long holdRepeatInterval = 90;
+    bool softDropHeld = false;
+    long long softDropAccumulator = 0;
+    const long long softDropInterval = 60;
 
 };
 

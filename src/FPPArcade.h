@@ -39,6 +39,7 @@ public:
 
     void outputString(const std::string &s, int x, int y, int r = 255, int g = 255, int b = 255, int scl = -1);
     void outputLetter(int x, int y, char letter, int r = 255, int g = 255, int b = 255, int scl = -1);
+    int centerTextX(const std::string &s, int scl = -1);
     void outputPixel(int x, int y, int r, int g, int b, int scl = -1);
     
     int scale;

@@ -56,7 +56,8 @@ static std::vector<std::string> BUTTONS({
     "Up/Right - Pressed", "Up/Right - Released",
     "Down/Left - Pressed", "Down/Left - Released",
     "Down/Right - Pressed", "Down/Right - Released",
-    "Fire - Pressed", "Fire - Released",
+    "A Button - Pressed", "A Button - Released",
+    "B Button - Pressed", "B Button - Released",
     "Select - Pressed", "Select - Released",
     "Start - Pressed", "Start - Released",
 });
@@ -348,6 +349,19 @@ void FPPArcadeGameEffect::outputString(const std::string &s, int x, int y, int r
         outputLetter(x, y, ch, r, g, b, scl);
         x += 4;
     }
+}
+
+int FPPArcadeGameEffect::centerTextX(const std::string &s, int scl) {
+    if (scl == -1) {
+        scl = scale == 0 ? 1 : scale;
+    }
+    int gridWidth = std::max(1, model->getWidth() / scl);
+    int textWidth = static_cast<int>(s.size()) * 4;
+    int x = (gridWidth - textWidth) / 2;
+    if (x < 0) {
+        x = 0;
+    }
+    return x;
 }
 
 class FPPArcadePlugin : public FPPPlugins::Plugin, public FPPPlugins::APIProviderPlugin {

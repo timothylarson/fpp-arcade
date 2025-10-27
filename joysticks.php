@@ -83,7 +83,8 @@ function SaveJoystickInputs() {
     
 }
 var GPMAPPING = {
-    "1": "Fire",
+    "0": "B Button",
+    "1": "A Button",
     "8": "Select",
     "9": "Start",
     "11": "Up",
@@ -116,7 +117,7 @@ function SetDefaultsForController() {
     js["multisyncCommand"] = false,
     js["multisyncHosts"] = "",
     js["args"] = Array();
-    js["args"].push("Fire - Pressed");
+    js["args"].push("A Button - Pressed");
     js["args"].push(target);
 
     var jsa = Array();

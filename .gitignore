@@ -32,3 +32,7 @@
 *.exe
 *.out
 *.app
+
+# Local build / generated files to ignore
+# Ignore the FPPBreaker sound assets/build output directory (local only)
+src/FPPBreaker-sfx/

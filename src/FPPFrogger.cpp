@@ -93,7 +93,13 @@ public:
         if (elapsedMs <= 0.0) elapsedMs = baseFrameMs;
         double frameScalar = std::clamp(elapsedMs / baseFrameMs, 0.1, 5.0);
 
-        if (!gameOn) {
+            if (isPaused()) {
+                drawPauseMenu();
+                model->flushOverlayBuffer();
+                return 50;
+            }
+
+            if (!gameOn) {
             model->clearOverlayBuffer();
             drawGameOver();
             model->flushOverlayBuffer();
@@ -163,10 +169,17 @@ public:
             (button=="Fire Button - Pressed");
         const bool startPress = (button=="Start - Pressed") || (button=="Start");
 
+        // allow base pause menu handling while game is active
+        if (gameOn) {
+            FPPArcadeGameEffect::button(button);
+            if (isPaused()) return;
+        }
+
         if (startPress) {
             if (!gameOn) {
                 resetGame(/*newGame=*/true);
             } else {
+                // if we're here, base didn't handle Start (e.g., base not used), toggle local pause
                 paused = !paused;
             }
             return;
@@ -252,6 +265,12 @@ private:
         frog.gw = frog.gh = 1;
         frog.gx = std::clamp(gridCols / 2, 0, gridCols - 1);
         frog.gy = std::clamp(startRow,      0, gridRows - 1);
+    }
+
+    void restart() override {
+        // Use the existing reset helper to restart the game cleanly
+        resetGame(/*newGame=*/true);
+        resetFrameTimer();
     }
 
     void loseLife() {

@@ -3,8 +3,10 @@
 
 #include <string>
 #include <chrono>
+#include <cstdint>
 
 #include "overlays/PixelOverlayEffects.h"
+#include "FPPArcadePause.h"
 
 class FPPArcadeGame {
 public:
@@ -38,17 +40,32 @@ public:
     FPPArcadeGameEffect(PixelOverlayModel *m);
     virtual ~FPPArcadeGameEffect();
     
+    virtual void button(const std::string &button);
 
     void outputString(const std::string &s, int x, int y, int r = 255, int g = 255, int b = 255, int scl = -1);
     void outputLetter(int x, int y, char letter, int r = 255, int g = 255, int b = 255, int scl = -1);
+    void drawUnderline(int x, int y, int length, int r = 255, int g = 255, int b = 255, int scl = -1);
     int centerTextX(const std::string &s, int scl = -1);
     void outputPixel(int x, int y, int r, int g, int b, int scl = -1);
     double consumeElapsedMs(double fallbackMs, double maxClampMs = 250.0);
     void resetFrameTimer();
     
+    // Pause menu methods
+    virtual void pause();
+    virtual void resume();
+    virtual void restart();
+    bool isPaused() const { return paused; }
+    
     int scale;
     int offsetX;
     int offsetY;
+protected:
+    void drawPauseMenu();
+    virtual void handlePauseInput(const std::string &button);
+
+    bool paused = false;
+    PauseMenu pauseMenu;
+
 private:
     std::chrono::steady_clock::time_point lastFrameTime;
     bool firstFrame = true;

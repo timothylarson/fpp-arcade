@@ -194,10 +194,35 @@ static const std::vector<LevelDefinition> LEVEL_LAYOUTS = {
     }
 };
 
-FPPBreakout::FPPBreakout(Json::Value &config) : FPPArcadeGame(config) {
-    std::srand(time(NULL));
-}
-FPPBreakout::~FPPBreakout() {
+FPPBreakout::FPPBreakout(Json::Value &config)
+    : FPPArcadeGame(config)
+{
+    // Defaults
+    brickPixelWidth = 2;
+    brickSpacing = true;
+    maxBricksPerRow = 15;
+    paddleWidth = 0; // 0 means auto-size based on model width
+    ballSpeed = 1.0f;  // default speed multiplier
+
+    // Look for 'options' array and parse values
+    if (config.isMember("options") && config["options"].isArray()) {
+        for (const auto &opt : config["options"]) {
+            if (!opt.isMember("name") || !opt.isMember("value")) continue;
+            std::string name = opt["name"].asString();
+            std::string value = opt["value"].asString();
+            if (name == "Brick Width") {
+                brickPixelWidth = std::stoi(value);
+            } else if (name == "Brick Spacing") {
+                brickSpacing = (value == "1" || value == "true" || value == "True");
+            } else if (name == "Max Bricks") {
+                maxBricksPerRow = std::stoi(value);
+            } else if (name == "Paddle Width") {
+                paddleWidth = std::stoi(value);
+            } else if (name == "Ball Speed") {
+                ballSpeed = std::stof(value);
+            }
+        }
+    }
 }
 
 struct Block {
@@ -249,6 +274,7 @@ struct Ball {
     float speed = 1.0f;
     bool stuck = false;
     float stickOffset = 0; // relative to paddle center
+    double stuckTimerMs = 0.0; // time the ball has been stuck (ms)
 
     float left() const { return x; }
     float right() const { return x + width - 0.1f; }
@@ -281,10 +307,10 @@ public:
                 r = 0; g = 200; b = 255;
                 break;
             case Type::Slow:
-                r = 255; g = 165; b = 0;
+                r = 255; g = 100; b = 0;
                 break;
             case Type::Break:
-                r = 255; g = 0; b = 255;
+                r = 255; g = 255; b = 0;
                 break;
             case Type::Sticky:
                 r = 0; g = 255; b = 120;
@@ -299,7 +325,7 @@ public:
                 r = 255; g = 255; b = 255;
                 break;
             case Type::Portal:
-                r = 255; g = 20;  b = 147;
+                r = 255; g = 0;  b = 255;
                 break;
         }
     }
@@ -331,10 +357,25 @@ public:
 
 class BreakoutEffect : public FPPArcadeGameEffect {
 public:
-    BreakoutEffect(PixelOverlayModel *m) : FPPArcadeGameEffect(m) {
+    int userBrickWidth = 2;
+    bool spacingEnabled = true;
+    int maxBricksPerRow = 15;
+    int userPaddleWidth = 0;
+        BreakoutEffect(PixelOverlayModel *m, int brickW, bool spacing, int maxBricks, int paddleW, float initialBallSpeed)
+        : FPPArcadeGameEffect(m),
+            userBrickWidth(brickW),
+            spacingEnabled(spacing),
+            maxBricksPerRow(maxBricks),
+            userPaddleWidth(paddleW),
+            ballSpeedMultiplier(initialBallSpeed)
+    {
         int w = m->getWidth();
         int h = m->getHeight();
-        paddle.width = w / 8;
+        if (userPaddleWidth > 0) {
+            paddle.width = userPaddleWidth;
+        } else {
+            paddle.width = w / 8;
+        }
         paddle.x = (w - paddle.width) / 2;
         paddle.height = h / 64;
         if (paddle.height < 1) {
@@ -370,6 +411,7 @@ public:
         ball.directionY = -0.7f;
         vec2_norm(ball.directionX, ball.directionY);
         ball.stuck = stuck;
+        ball.stuckTimerMs = 0.0;
         if (stuck) {
             float ballCenter = ball.x + ball.width / 2.0f;
             float paddleCenter = paddle.x + paddle.width / 2.0f;
@@ -380,14 +422,13 @@ public:
         balls.push_back(ball);
         setAllBallSpeeds();
     }
-
     void loadLevel(int levelIndex) {
         currentLevel = levelIndex;
         const LevelDefinition &level = LEVEL_LAYOUTS[currentLevel % LEVEL_LAYOUTS.size()];
 
         blocks.clear();
         powerUps.clear();
-        lasers.clear();
+        lasers.clear(); 
         bricksAlive.clear();
         columnStarts.clear();
         rowStarts.clear();
@@ -417,16 +458,27 @@ public:
         float w = static_cast<float>(model->getWidth());
         float h = static_cast<float>(model->getHeight());
 
-        float computedWidth = std::max(2.0f, std::floor((w * 0.8f) / brickCols));
-        brickWidth = static_cast<int>(computedWidth);
+        int brickW = std::max(1, userBrickWidth);
+        int maxBricks = std::max(1, maxBricksPerRow);
+
+        // Determine final brick and spacing layout
+        brickWidth = brickW;
+        brickCols = std::min(brickCols, maxBricks);
+
         float remainingWidth = w - brickWidth * brickCols;
-        float horizontalGap = std::max(1.0f, std::floor(remainingWidth / (brickCols + 1)));
-        float curX = horizontalGap;
+        // Fix: No black pixel gap when spacing is disabled
+        float horizontalGap = 0.0f;
+        if (spacingEnabled) {
+            horizontalGap = std::max(1.0f, std::floor(remainingWidth / (brickCols + 1)));
+        }
+        // Calculate X positions for each column
+        float curX = spacingEnabled ? horizontalGap : 0;
         for (int c = 0; c < brickCols; ++c) {
             columnStarts[c] = curX;
             curX += brickWidth + horizontalGap;
         }
 
+        // Calculate Y positions for each row
         float computedHeight = std::max(1.0f, std::floor((h * 0.35f) / brickRows));
         brickHeight = static_cast<int>(computedHeight);
         float playableHeight = static_cast<float>(paddle.y) - brickHeight;
@@ -438,6 +490,7 @@ public:
             curY += brickHeight + verticalGap;
         }
 
+        // Build blocks based on the level definition
         for (int row = 0; row < brickRows; ++row) {
             const std::string &line = level.rows[row];
             for (int col = 0; col < brickCols && col < (int)line.size(); ++col) {
@@ -446,25 +499,39 @@ public:
                 if (tmplIt == BRICK_TYPES.end()) {
                     continue;
                 }
+
                 const BrickTemplate &tmpl = tmplIt->second;
                 if (tmpl.hitPoints <= 0) {
                     continue;
                 }
+
                 Block b;
                 b.x = columnStarts[col];
                 b.y = rowStarts[row];
                 b.width = brickWidth;
                 b.height = brickHeight;
-                b.r = (tmpl.color >> 16) & 0xFF;
-                b.g = (tmpl.color >> 8) & 0xFF;
-                b.b =  tmpl.color        & 0xFF;
+                // Extract base RGB and apply alternating dimming if spacing is disabled
+                int baseR = (tmpl.color >> 16) & 0xFF;
+                int baseG = (tmpl.color >> 8) & 0xFF;
+                int baseB = tmpl.color & 0xFF;
+
+                float brightnessFactor = 1.0f;
+                if (!spacingEnabled && (col % 2 == 1)) {
+                    brightnessFactor = 0.5f;
+                }
+
+                b.r = std::clamp(static_cast<int>(baseR * brightnessFactor), 0, 255);
+                b.g = std::clamp(static_cast<int>(baseG * brightnessFactor), 0, 255);
+                b.b = std::clamp(static_cast<int>(baseB * brightnessFactor), 0, 255);
                 b.row = row;
                 b.col = col;
                 b.hitPoints = tmpl.hitPoints;
                 b.maxHitPoints = tmpl.hitPoints;
                 b.indestructible = tmpl.indestructible;
+
                 blocks.push_back(b);
                 bricksAlive[row][col] = true;
+
                 if (!b.indestructible) {
                     ++remainingDestructible;
                 }
@@ -484,6 +551,7 @@ public:
         LogInfo(VB_PLUGIN, "[Breakout] Level %d loaded: destructible=%d, totalBlocks=%zu",
                 currentLevel + 1, remainingDestructible, blocks.size());
     }
+
 
     void moveBalls(float frameScalar) {
         constexpr float gapPadding = 1.0f;
@@ -685,12 +753,12 @@ public:
     bool pickPowerUp(PowerUp::Type &type) {
         struct Entry { PowerUp::Type type; int weight; };
         static const std::array<Entry, 8> table = {{
-            {PowerUp::Type::Break,     12},
-            {PowerUp::Type::Expand,    12},
-            {PowerUp::Type::Slow,       5},
-            {PowerUp::Type::Sticky,     5},
+            {PowerUp::Type::Triple,    12},
+            {PowerUp::Type::Expand,    10},
+            {PowerUp::Type::Slow,       7},
+            {PowerUp::Type::Sticky,     6},
             {PowerUp::Type::Laser,      5},
-            {PowerUp::Type::Triple,     4},
+            {PowerUp::Type::Break,      4},
             {PowerUp::Type::ExtraLife,  2},
             {PowerUp::Type::Portal,     2}
         }};
@@ -749,8 +817,8 @@ public:
             model->setOverlayPixelValue(i, 0, 255, 255, 255);
         }
 
-        // Draw the portal if open: three pulsing vertical pixels at bottom-right
-        if (portalOpenTimerMs > 0.0) {
+        // Draw the portal if open/active/touched: three pulsing vertical pixels at bottom-right
+        if (portalOpenTimerMs > 0.0 || portalActive || portalTouched) {
             int x = std::max(0, model->getWidth() - 1);
             int h = model->getHeight();
             float pulse = 0.5f + 0.5f * std::sin(portalPulsePhase);
@@ -892,28 +960,29 @@ public:
 
     void releaseStuckBalls(bool keepEffect = false) {
         for (auto &ball : balls) {
-            if (ball.stuck) {
-                ball.stuck = false;
-                float offsetNorm = 0.0f;
-                if (paddle.width > 0.0f) {
-                    offsetNorm = ball.stickOffset / (paddle.width * 0.5f);
-                }
-                offsetNorm = std::clamp(offsetNorm, -1.0f, 1.0f);
-                if (std::fabs(offsetNorm) < 0.1f) {
-                    if (ball.stickOffset > 0.0f)      offsetNorm = 0.2f;
-                    else if (ball.stickOffset < 0.0f) offsetNorm = -0.2f;
-                    else                                offsetNorm = 0.0f;
-                }
-                ball.directionX = offsetNorm;
-
-                float dirY = ball.directionY;
-                if (std::fabs(dirY) < 0.1f) dirY = -0.75f;
-                dirY = -std::fabs(dirY);
-                ball.directionY = dirY;
-                vec2_norm(ball.directionX, ball.directionY);
-                ball.x = (paddle.x + paddle.width / 2.0f) + ball.stickOffset - ball.width / 2.0f;
-                ball.y = paddle.y - ball.height;
+            if (!ball.stuck) continue;
+            // release immediately if minStuckMs < 0 (default behavior)
+            ball.stuck = false;
+            float offsetNorm = 0.0f;
+            if (paddle.width > 0.0f) {
+                offsetNorm = ball.stickOffset / (paddle.width * 0.5f);
             }
+            offsetNorm = std::clamp(offsetNorm, -1.0f, 1.0f);
+            if (std::fabs(offsetNorm) < 0.1f) {
+                if (ball.stickOffset > 0.0f)      offsetNorm = 0.2f;
+                else if (ball.stickOffset < 0.0f) offsetNorm = -0.2f;
+                else                                offsetNorm = 0.0f;
+            }
+            ball.directionX = offsetNorm;
+
+            float dirY = ball.directionY;
+            if (std::fabs(dirY) < 0.1f) dirY = -0.75f;
+            dirY = -std::fabs(dirY);
+            ball.directionY = dirY;
+            vec2_norm(ball.directionX, ball.directionY);
+            ball.x = (paddle.x + paddle.width / 2.0f) + ball.stickOffset - ball.width / 2.0f;
+            ball.y = paddle.y - ball.height;
+            ball.stuckTimerMs = 0.0;
         }
         if (!keepEffect) {
             stickyActive = false;
@@ -943,7 +1012,7 @@ public:
     void fireLasers() {
         if (!laserActive) return;
         float centerX = paddle.x + paddle.width / 2.0f;
-        lasers.push_back({centerX, paddle.y - 1, 4.0f});
+        lasers.emplace_back(centerX, paddle.y - 1, 4.0f);
     }
 
     void updateLasers(float frameScalar) {
@@ -1011,6 +1080,12 @@ public:
     }
 
     virtual int32_t update() override {
+        if (isPaused()) {
+            drawPauseMenu();
+            model->flushOverlayBuffer();
+            return 50;
+        }
+
         if (!GameOn) {
             model->clearOverlayBuffer();
             model->flushOverlayBuffer();
@@ -1042,11 +1117,45 @@ public:
             return 50;
         }
 
-        // Advance portal pulse and handle timed jump to next level.
+        // Advance portal pulse and handle portal open / touch mechanics.
         portalPulsePhase += elapsedMs * 0.02;
+        // If opening animation timer is running, decrement it. When it finishes, make portal active.
         if (portalOpenTimerMs > 0.0) {
             portalOpenTimerMs -= elapsedMs;
             if (portalOpenTimerMs <= 0.0) {
+                portalOpenTimerMs = 0.0;
+                portalActive = true;
+            }
+        }
+
+        // If portal is active and not yet touched, check for paddle overlap to trigger the suck animation.
+        if (portalActive && !portalTouched) {
+            int portalX = std::max(0, model->getWidth() - 1);
+            int portalTop = std::max(0, model->getHeight() - 1 - 2);
+            float paddleRight = paddle.x + paddle.width;
+            if (paddleRight >= portalX - 0.5f && (paddle.y + paddle.height) >= portalTop) {
+                portalTouched = true;
+                portalTouchedTimerMs = portalTouchDurationMs;
+                portalTouchStartX = paddle.x;
+                portalTouchStartY = paddle.y;
+            }
+        }
+
+        // If portal was touched, animate the paddle being sucked into the portal and delay level advance.
+        if (portalTouched) {
+            portalTouchedTimerMs -= elapsedMs;
+            double progress = 1.0 - std::max(0.0, portalTouchedTimerMs) / portalTouchDurationMs;
+            int portalX = std::max(0, model->getWidth() - 1);
+            float targetX = portalX + 4.0f;
+            float targetY = (float)model->getHeight() + 4.0f;
+            // Lerp paddle position towards target
+            paddle.x = portalTouchStartX + (targetX - portalTouchStartX) * (float)progress;
+            paddle.y = portalTouchStartY + (targetY - portalTouchStartY) * (float)progress;
+            // Gradually shrink the paddle visually while being sucked
+            paddle.width = std::max(1.0f, basePaddleWidth * (1.0f - 0.6f * (float)progress));
+            // Don't enforce horizontal bounds while animating; allow moving off-screen vertically
+
+            if (portalTouchedTimerMs <= 0.0) {
                 return handleLevelClear();
             }
         }
@@ -1054,6 +1163,35 @@ public:
         paddle.x += direction * paddle.height * frameScalar;
         if (paddle.x < 0) paddle.x = 0;
         else if ((paddle.x + paddle.width) >= model->getWidth()) paddle.x = model->getWidth() - paddle.width;
+
+        // Auto-release any ball that has been stuck to the paddle for >= 3000 ms
+        for (auto &ball : balls) {
+            if (!ball.stuck) continue;
+            ball.stuckTimerMs += elapsedMs;
+            if (ball.stuckTimerMs >= 3000.0) {
+                // Release this ball now (same logic as releaseStuckBalls)
+                ball.stuck = false;
+                float offsetNorm = 0.0f;
+                if (paddle.width > 0.0f) {
+                    offsetNorm = ball.stickOffset / (paddle.width * 0.5f);
+                }
+                offsetNorm = std::clamp(offsetNorm, -1.0f, 1.0f);
+                if (std::fabs(offsetNorm) < 0.1f) {
+                    if (ball.stickOffset > 0.0f)      offsetNorm = 0.2f;
+                    else if (ball.stickOffset < 0.0f) offsetNorm = -0.2f;
+                    else                                offsetNorm = 0.0f;
+                }
+                ball.directionX = offsetNorm;
+                float dirY = ball.directionY;
+                if (std::fabs(dirY) < 0.1f) dirY = -0.75f;
+                dirY = -std::fabs(dirY);
+                ball.directionY = dirY;
+                vec2_norm(ball.directionX, ball.directionY);
+                ball.x = (paddle.x + paddle.width / 2.0f) + ball.stickOffset - ball.width / 2.0f;
+                ball.y = paddle.y - ball.height;
+                ball.stuckTimerMs = 0.0;
+            }
+        }
 
         moveBalls((float)frameScalar);
         updatePowerUps((float)frameScalar);
@@ -1075,6 +1213,7 @@ public:
                     float paddleCenter = paddle.x + paddle.width / 2.0f;
                     ball.stickOffset = ballCenter - paddleCenter;
                     ball.y = paddle.y - ball.height;
+                    ball.stuckTimerMs = 0.0;
                 }
             }
         }
@@ -1171,6 +1310,17 @@ public:
     }
 
     void button(const std::string &button) {
+        // If we're in a pause state, let base class handle ALL input
+        if (GameOn && isPaused()) {
+            FPPArcadeGameEffect::button(button);
+            return;
+        }
+        // For non-paused state, let base handle pause toggling first
+        if (GameOn) {
+            FPPArcadeGameEffect::button(button);
+            // If that put us into pause, we're done
+            if (isPaused()) return;
+        }
         // Normalize a couple common variants so we're tolerant of old/new emitters.
         const bool isPressed = (button.find("Pressed") != std::string::npos) || (button == "Fire");
         const bool isLeftPress   = (button == "Left - Pressed");
@@ -1207,11 +1357,33 @@ public:
         }
     }
 
-    Block paddle;
+    void restart() override {
+        // Reset to initial game state: full lives and first level
+        lives = 3;
+        currentLevel = 0;
+        // Clear all powerups and effects
+        powerUps.clear();
+        lasers.clear();
+        powerBallActive = false;
+        stickyActive = false;
+        laserActive = false;
+        slowTimerMs = 0.0;
+        expandTimerMs = 0.0;
+        breakTimerMs = 0.0;
+        stickyTimerMs = 0.0;
+        laserTimerMs = 0.0;
+        ballSpeedMultiplier = 1.0f;
+        // Reset game state
+        loadLevel(0);
+        GameOn = true;
+        WaitingUntilOutput = false;
+        resetFrameTimer();
+    }
     std::list<Block> blocks;
     std::vector<Ball> balls;
     std::list<PowerUp> powerUps;
     std::vector<Laser> lasers;
+    Block paddle;  // The player's paddle
     int brickRows = 0;
     int brickCols = 0;
     int brickWidth = 0;
@@ -1246,10 +1418,16 @@ public:
     // Portal visuals/timer
     double portalOpenTimerMs = 0.0;
     double portalPulsePhase = 0.0;
+    bool portalActive = false;         // true when portal is open and awaiting touch
+    bool portalTouched = false;        // true when paddle has touched portal and animation is running
+    double portalTouchedTimerMs = 0.0; // countdown for the suck animation
+    double portalTouchDurationMs = 1000.0; // animation duration (ms)
+    float portalTouchStartX = 0.0f;
+    float portalTouchStartY = 0.0f;
 };
 
 const std::string &FPPBreakout::getName() {
-    static const std::string name = "Breakout";
+    static std::string name = "Breakout";
     return name;
 }
 
@@ -1263,7 +1441,14 @@ void FPPBreakout::button(const std::string &button) {
             } else {
                 m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
             }
-            effect = new BreakoutEffect(m);
+            effect = new BreakoutEffect(
+                m,
+                getBrickPixelWidth(),
+                getBrickSpacing(),
+                getMaxBricksPerRow(),
+                getPaddleWidth(),
+                getBallSpeed()
+            );
             m->setRunningEffect(effect, 50);
         } else {
             effect->button(button);

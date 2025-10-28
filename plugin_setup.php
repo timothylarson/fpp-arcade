@@ -55,7 +55,13 @@ function GetSnakeOptions() {
     return html;
 }
 function GetBreakoutOptions() {
-    var html = "";
+    var html = "Brick Width (px): <input type='number' value='2' min='1' max='10' class='option1' data-optionname='Brick Width'/>&nbsp;";
+    html += "Black Spacing Between Bricks: <select class='option2' data-optionname='Brick Spacing'>";
+    html += "<option value='1'>Yes</option>";
+    html += "<option value='0'>No</option>";
+    html += "</select>&nbsp;";
+    html += "Max Bricks Per Row: <input type='number' value='15' min='1' max='100' class='option3' data-optionname='Max Bricks'/>&nbsp;";
+    html += "Paddle Width (px, 0 = auto): <input type='number' value='0' min='0' max='100' class='option4' data-optionname='Paddle Width'/>&nbsp;";
     return html;
 }
 function GetFroggerOptions() {

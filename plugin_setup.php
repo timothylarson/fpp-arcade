@@ -58,6 +58,14 @@ function GetBreakoutOptions() {
     var html = "";
     return html;
 }
+function GetFroggerOptions() {
+    var html  = "Pixel Scaling: <input type='number' value='1' min='1' max='20' class='option1' data-optionname='Pixel Scaling'/>&nbsp;";
+    html     += "Lanes: <input type='number' value='5' min='1' max='20' class='option2' data-optionname='Lanes'/>&nbsp;";
+    html     += "River Speed: <input type='number' value='1' min='1' max='10' class='option4' data-optionname='River Speed'/>&nbsp;";
+    html     += "Road Speed: <input type='number' value='1' min='1' max='10' class='option5' data-optionname='Road Speed'/>";
+    html     += "Speed Variability (%): <input type='number' value='20' min='0' max='100' class='option6' data-optionname='Speed Variability'/>";
+    return html;
+}
 
 function GameChanged(sel) {
     var val = $(sel).val();
@@ -70,6 +78,8 @@ function GameChanged(sel) {
         html = GetSnakeOptions();
     } else if (val == "Breakout") {
         html = GetBreakoutOptions();
+    } else if (val == "Frogger") {
+        html = GetFroggerOptions();
     }
     $(sel).parent().parent().find(".GameOptions").html(html);
 }
@@ -88,6 +98,7 @@ function AddArcade() {
     html += "<option value='Pong'>Pong</option>";
     html += "<option value='Snake'>Snake</option>";
     html += "<option value='Breakout'>Breakout</option>";
+    html += "<option value='Frogger'>Frogger</option>";
     html += "</select></td>";
     html += "<td><select class='model'>";
     html += modelOptions;

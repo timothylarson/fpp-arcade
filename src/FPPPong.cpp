@@ -1,6 +1,7 @@
 #include <fpp-pch.h>
 
 #include "FPPPong.h"
+#include <algorithm>
 #include <array>
 #include <cmath>
 
@@ -27,6 +28,8 @@ public:
             racketSize = 3;
         }
         racketP1Pos = racketP2Pos = (rows - racketSize)/2;
+        racketP1PosF = static_cast<float>(racketP1Pos);
+        racketP2PosF = static_cast<float>(racketP2Pos);
         offsetX = 0;
         offsetY = 0;
         
@@ -66,9 +69,20 @@ public:
     }
 
     virtual int32_t update() override {
+        double frameScalar = 1.0;
         if (GameOn) {
-            moveRackets();
-            moveBall();
+            double elapsedMs = consumeElapsedMs(static_cast<double>(timer));
+            if (elapsedMs <= 0.0) {
+                elapsedMs = static_cast<double>(timer);
+            }
+            frameScalar = std::clamp(elapsedMs / static_cast<double>(timer), 0.1, 5.0);
+        } else {
+            // Ensure timer resets when restarting after game over.
+            resetFrameTimer();
+        }
+        if (GameOn) {
+            moveRackets(frameScalar);
+            moveBall(frameScalar);
         }
         CopyToModel();
         if (!GameOn) {
@@ -93,23 +107,20 @@ public:
         return timer;
     }
     
-    void moveRackets() {
-        racketP1Pos += racketP1Speed;
-        if (racketP1Pos < 0) {
-            racketP1Pos = 0;
-        } else if ((racketP1Pos + racketSize) > rows) {
-            racketP1Pos = rows - racketSize;
-        }
-        racketP2Pos += racketP2Speed;
-        if (racketP2Pos < 0) {
-            racketP2Pos = 0;
-        } else if ((racketP2Pos + racketSize) > rows) {
-            racketP2Pos = rows - racketSize;
-        }
+    void moveRackets(double frameScalar) {
+        float deltaP1 = static_cast<float>(racketP1Speed * frameScalar);
+        float deltaP2 = static_cast<float>(racketP2Speed * frameScalar);
+        racketP1PosF += deltaP1;
+        racketP2PosF += deltaP2;
+        float maxPos = static_cast<float>(rows - racketSize);
+        racketP1PosF = std::clamp(racketP1PosF, 0.0f, maxPos);
+        racketP2PosF = std::clamp(racketP2PosF, 0.0f, maxPos);
+        racketP1Pos = static_cast<int>(std::round(racketP1PosF));
+        racketP2Pos = static_cast<int>(std::round(racketP2PosF));
     }
-    void moveBall() {
-        ballPosX += ballDirX * ballSpeed;
-        ballPosY += ballDirY * ballSpeed;
+    void moveBall(double frameScalar) {
+        ballPosX += ballDirX * ballSpeed * frameScalar;
+        ballPosY += ballDirY * ballSpeed * frameScalar;
         
         // hit by left racket?
          if (ballPosX <= 1 &&
@@ -232,8 +243,10 @@ public:
     
     int racketSize = 1;
     int racketP1Pos;
+    float racketP1PosF = 0.0f;
     int racketP1Speed = 0;
     int racketP2Pos;
+    float racketP2PosF = 0.0f;
     int racketP2Speed = 0;
     
     float ballPosX = 0;

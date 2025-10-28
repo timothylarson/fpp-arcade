@@ -1,6 +1,7 @@
 #include <fpp-pch.h>
 
 #include "FPPSnake.h"
+#include <algorithm>
 #include <array>
 #include <random>
 
@@ -139,6 +140,7 @@ public:
     
     virtual int32_t update() override {
         if (!GameOn) {
+            resetFrameTimer();
             if (WaitingUntilOutput) {
                 model->setState(PixelOverlayState(PixelOverlayState::PixelState::Disabled));
                 return 0;
@@ -148,16 +150,26 @@ public:
             WaitingUntilOutput = true;
             return -1;
         }
-        moveSnake();
+        double elapsedMs = consumeElapsedMs(static_cast<double>(timer));
+        if (elapsedMs <= 0.0) {
+            elapsedMs = static_cast<double>(timer);
+        }
+        double maxCatchup = static_cast<double>(timer) * 3.0;
+        moveAccumulatorMs = std::min(moveAccumulatorMs + elapsedMs, maxCatchup);
+        while (moveAccumulatorMs >= static_cast<double>(timer) && GameOn) {
+            moveSnake();
+            moveAccumulatorMs -= static_cast<double>(timer);
+        }
         CopyToModel();
         if (!GameOn) {
-            GameOn = false;
+            moveAccumulatorMs = 0.0;
             int scl = scale == 0 ? 1 : scale;
             outputString("GAME", centerTextX("GAME", scl), rows/2-9, 255, 255, 255, scl);
             outputString("OVER", centerTextX("OVER", scl), rows/2-3, 255, 255, 255, scl);
             char buf[25];
             snprintf(buf, sizeof(buf), "%u", (uint32_t)snake.size());
             outputString(buf, centerTextX(buf, scl), rows/2+3, 255, 255, 255, scl);
+            resetFrameTimer();
             model->flushOverlayBuffer();
             return 2000;
         }
@@ -185,7 +197,8 @@ public:
 
     int rows = 20;
     int cols = 20;
-    
+    double moveAccumulatorMs = 0.0;
+
     bool GameOn = true;
     bool WaitingUntilOutput = false;
     long long timer = 100;

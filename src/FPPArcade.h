@@ -2,6 +2,7 @@
 #define __FPPARCADE__
 
 #include <string>
+#include <chrono>
 
 #include "overlays/PixelOverlayEffects.h"
 
@@ -42,10 +43,15 @@ public:
     void outputLetter(int x, int y, char letter, int r = 255, int g = 255, int b = 255, int scl = -1);
     int centerTextX(const std::string &s, int scl = -1);
     void outputPixel(int x, int y, int r, int g, int b, int scl = -1);
+    double consumeElapsedMs(double fallbackMs, double maxClampMs = 250.0);
+    void resetFrameTimer();
     
     int scale;
     int offsetX;
     int offsetY;
+private:
+    std::chrono::steady_clock::time_point lastFrameTime;
+    bool firstFrame = true;
 };
 
 #endif

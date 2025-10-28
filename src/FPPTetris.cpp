@@ -222,7 +222,7 @@ public:
     }
 
     void increaseSpeed(int lines) {
-        accumulatedDrop += lines * perLineDrop;
+        accumulatedDrop += static_cast<double>(lines) * perLineDrop;
         if (accumulatedDrop > maxSpeedDrop) {
             accumulatedDrop = maxSpeedDrop;
         }
@@ -273,72 +273,91 @@ public:
         }
         model->flushOverlayBuffer();
     }
-    
+
+    int32_t showGameOver() {
+        resetFrameTimer();
+        if (currentShape) {
+            delete currentShape;
+            currentShape = nullptr;
+            model->clearOverlayBuffer();
+            int prevScale = scale;
+            int prevOffsetX = offsetX;
+            int prevOffsetY = offsetY;
+            scale = 1;
+            offsetX = 0;
+            offsetY = 0;
+
+            int totalHeight = 5 + 2 + 5 + 6; // GAME + spacing + OVER + score spacing
+            int startY = (model->getHeight() - totalHeight) / 2;
+            if (startY < 0) startY = 0;
+            int yGame = startY;
+            int yOver = yGame + 7;
+            int yScore = yOver + 7;
+            outputString("GAME", centerTextX("GAME", 1), yGame);
+            outputString("OVER", centerTextX("OVER", 1), yOver);
+
+            char buf[20];
+            snprintf(buf, sizeof(buf), "%d", score);
+            outputString(buf, centerTextX(buf, 1), yScore);
+
+            scale = prevScale;
+            offsetX = prevOffsetX;
+            offsetY = prevOffsetY;
+            model->flushOverlayBuffer();
+            return 3000;
+        }
+        model->clearOverlayBuffer();
+        model->flushOverlayBuffer();
+
+        if (WaitingUntilOutput) {
+            model->setState(PixelOverlayState(PixelOverlayState::PixelState::Disabled));
+            return 0;
+        }
+        WaitingUntilOutput = true;
+        return -1;
+    }
+
     virtual int32_t update() override {
         if (!GameOn) {
-            if (currentShape) {
-                delete currentShape;
-                currentShape = nullptr;
-                model->clearOverlayBuffer();
-                int prevScale = scale;
-                int prevOffsetX = offsetX;
-                int prevOffsetY = offsetY;
-                scale = 1;
-                offsetX = 0;
-                offsetY = 0;
-
-                int totalHeight = 5 + 2 + 5 + 6; // GAME + spacing + OVER + score spacing
-                int startY = (model->getHeight() - totalHeight) / 2;
-                if (startY < 0) startY = 0;
-                int yGame = startY;
-                int yOver = yGame + 7;
-                int yScore = yOver + 7;
-                outputString("GAME", centerTextX("GAME", 1), yGame);
-                outputString("OVER", centerTextX("OVER", 1), yOver);
-
-                char buf[20];
-                snprintf(buf, sizeof(buf), "%d", score);
-                outputString(buf, centerTextX(buf, 1), yScore);
-
-                scale = prevScale;
-                offsetX = prevOffsetX;
-                offsetY = prevOffsetY;
-                model->flushOverlayBuffer();
-                return 3000;
-            }
-            model->clearOverlayBuffer();
-            model->flushOverlayBuffer();
-            
-            if (WaitingUntilOutput) {
-                model->setState(PixelOverlayState(PixelOverlayState::PixelState::Disabled));
-                return 0;
-            }
-            WaitingUntilOutput = true;
-            return -1;
-        }
-        long long frameInterval = std::max(minFrameInterval, timer / 2);
-        if (frameInterval <= 0) {
-            frameInterval = minFrameInterval;
+            return showGameOver();
         }
 
-        fallAccumulator += frameInterval;
-        while (fallAccumulator >= timer) {
-            fallAccumulator -= timer;
+        double desiredFrame = std::max(minFrameInterval, timer / 2.0);
+        if (desiredFrame <= 0.0) {
+            desiredFrame = minFrameInterval;
+        }
+        double elapsedMs = consumeElapsedMs(desiredFrame);
+        if (elapsedMs <= 0.0) {
+            elapsedMs = desiredFrame;
+        }
+
+        double maxCatchup = std::max(timer * 3.0, desiredFrame);
+        fallAccumulatorMs = std::min(fallAccumulatorMs + elapsedMs, maxCatchup);
+        while (fallAccumulatorMs >= timer && GameOn) {
+            fallAccumulatorMs -= timer;
             dropOneRow();
         }
 
-        if (softDropHeld) {
-            softDropAccumulator += frameInterval;
-            while (softDropAccumulator >= softDropInterval) {
-                softDropAccumulator -= softDropInterval;
+        if (softDropHeld && GameOn) {
+            double softMax = std::max(softDropIntervalMs * 3.0, softDropIntervalMs);
+            softDropAccumulatorMs = std::min(softDropAccumulatorMs + elapsedMs, softMax);
+            while (softDropAccumulatorMs >= softDropIntervalMs && GameOn) {
+                softDropAccumulatorMs -= softDropIntervalMs;
                 dropOneRow();
             }
         } else {
-            softDropAccumulator = 0;
+            softDropAccumulatorMs = 0.0;
         }
 
-        handleHeldMovement(frameInterval);
-        return frameInterval;
+        if (!GameOn) {
+            return showGameOver();
+        }
+
+        handleHeldMovement(elapsedMs);
+        if (GameOn) {
+            CopyToModel();
+        }
+        return static_cast<int>(desiredFrame);
     }
     
     void button(const std::string &button) {
@@ -349,20 +368,20 @@ public:
         if (button == "Left - Pressed") {
             moveHorizontal(-1);
             leftHeld = true;
-            leftAccumulator = 0;
+            leftAccumulatorMs = 0.0;
             leftInitialDelay = true;
         } else if (button == "Left - Released") {
             leftHeld = false;
-            leftAccumulator = 0;
+            leftAccumulatorMs = 0.0;
             leftInitialDelay = true;
         } else if (button == "Right - Pressed") {
             moveHorizontal(1);
             rightHeld = true;
-            rightAccumulator = 0;
+            rightAccumulatorMs = 0.0;
             rightInitialDelay = true;
         } else if (button == "Right - Released") {
             rightHeld = false;
-            rightAccumulator = 0;
+            rightAccumulatorMs = 0.0;
             rightInitialDelay = true;
         } else if (button == "Up - Pressed" || button == "A Button - Pressed" || button == "Fire - Pressed") {
             Shape tmp(*currentShape);
@@ -381,6 +400,7 @@ public:
             dropOneRow();
         } else if (button == "Down - Released") {
             softDropHeld = false;
+            softDropAccumulatorMs = 0.0;
         }
         CopyToModel();
     }
@@ -415,41 +435,41 @@ public:
         }
     }
 
-    void handleHeldMovement(long long elapsed) {
+    void handleHeldMovement(double elapsedMs) {
         bool moved = false;
         if (leftHeld && !rightHeld) {
-            leftAccumulator += elapsed;
-            long long threshold = leftInitialDelay ? holdInitialDelay : holdRepeatInterval;
-            while (leftAccumulator >= threshold) {
+            leftAccumulatorMs += elapsedMs;
+            double threshold = leftInitialDelay ? holdInitialDelayMs : holdRepeatIntervalMs;
+            while (leftAccumulatorMs >= threshold) {
                 if (!moveHorizontal(-1)) {
-                    leftAccumulator = threshold;
+                    leftAccumulatorMs = threshold;
                     break;
                 }
-                leftAccumulator -= threshold;
+                leftAccumulatorMs -= threshold;
                 leftInitialDelay = false;
-                threshold = holdRepeatInterval;
+                threshold = holdRepeatIntervalMs;
                 moved = true;
             }
         } else {
-            leftAccumulator = 0;
+            leftAccumulatorMs = 0.0;
             leftInitialDelay = true;
         }
 
         if (rightHeld && !leftHeld) {
-            rightAccumulator += elapsed;
-            long long threshold = rightInitialDelay ? holdInitialDelay : holdRepeatInterval;
-            while (rightAccumulator >= threshold) {
+            rightAccumulatorMs += elapsedMs;
+            double threshold = rightInitialDelay ? holdInitialDelayMs : holdRepeatIntervalMs;
+            while (rightAccumulatorMs >= threshold) {
                 if (!moveHorizontal(1)) {
-                    rightAccumulator = threshold;
+                    rightAccumulatorMs = threshold;
                     break;
                 }
-                rightAccumulator -= threshold;
+                rightAccumulatorMs -= threshold;
                 rightInitialDelay = false;
-                threshold = holdRepeatInterval;
+                threshold = holdRepeatIntervalMs;
                 moved = true;
             }
         } else {
-            rightAccumulator = 0;
+            rightAccumulatorMs = 0.0;
             rightInitialDelay = true;
         }
 
@@ -468,25 +488,25 @@ public:
     bool WaitingUntilOutput = false;
     
     Shape *currentShape = nullptr;
-    long long timer = 500; //half second
-    const long long initialTimer = 500;
-    const long long perLineDrop = 25;
-    const long long maxSpeedDrop = 360;
-    const long long minTimer = 150;
-    const long long minFrameInterval = 80;
-    long long fallAccumulator = 0;
-    long long accumulatedDrop = 0;
+    double timer = 500.0; // half second
+    const double initialTimer = 500.0;
+    const double perLineDrop = 25.0;
+    const double maxSpeedDrop = 360.0;
+    const double minTimer = 150.0;
+    const double minFrameInterval = 80.0;
+    double fallAccumulatorMs = 0.0;
+    double accumulatedDrop = 0.0;
     bool leftHeld = false;
     bool rightHeld = false;
-    long long leftAccumulator = 0;
-    long long rightAccumulator = 0;
+    double leftAccumulatorMs = 0.0;
+    double rightAccumulatorMs = 0.0;
     bool leftInitialDelay = true;
     bool rightInitialDelay = true;
-    const long long holdInitialDelay = 200;
-    const long long holdRepeatInterval = 90;
+    const double holdInitialDelayMs = 200.0;
+    const double holdRepeatIntervalMs = 90.0;
     bool softDropHeld = false;
-    long long softDropAccumulator = 0;
-    const long long softDropInterval = 60;
+    double softDropAccumulatorMs = 0.0;
+    const double softDropIntervalMs = 60.0;
 
 };
 

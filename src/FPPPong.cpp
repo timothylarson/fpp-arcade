@@ -69,6 +69,11 @@ public:
     }
 
     virtual int32_t update() override {
+        if (isPaused()) {
+            drawPauseMenu();
+            model->flushOverlayBuffer();
+            return 50;
+        }
         double frameScalar = 1.0;
         if (GameOn) {
             double elapsedMs = consumeElapsedMs(static_cast<double>(timer));
@@ -188,6 +193,11 @@ public:
     }
     
     void button(const std::string &button) {
+        // allow base to handle pause/start behavior first (only while game is active)
+        if (GameOn) {
+            FPPArcadeGameEffect::button(button);
+            if (isPaused()) return;
+        }
         if (controls == 2) {
             if (button == "Up/Right - Pressed") {
                 racketP2Speed = -1;
@@ -260,6 +270,24 @@ public:
     bool WaitingUntilOutput = false;
     
     long long timer = 50;
+
+    void restart() override {
+        // Reset scores and positions
+        p1Score = 0;
+        p2Score = 0;
+        racketSize = rows / 5;
+        if (racketSize < 3) racketSize = 3;
+        racketP1Pos = racketP2Pos = (rows - racketSize)/2;
+        racketP1PosF = static_cast<float>(racketP1Pos);
+        racketP2PosF = static_cast<float>(racketP2Pos);
+        ballPosX = cols / 2;
+        ballPosY = rows / 2;
+        ballDirX = 1;
+        ballDirY = 0;
+        GameOn = true;
+        WaitingUntilOutput = false;
+        resetFrameTimer();
+    }
 };
 
 const std::string &FPPPong::getName() {

@@ -139,6 +139,12 @@ public:
     }
     
     virtual int32_t update() override {
+        if (isPaused()) {
+            drawPauseMenu();
+            model->flushOverlayBuffer();
+            return timer;
+        }
+
         if (!GameOn) {
             resetFrameTimer();
             if (WaitingUntilOutput) {
@@ -179,6 +185,12 @@ public:
     
     
     void button(const std::string &button) {
+        // allow base to handle pause/start behavior first (only while game is active)
+        if (GameOn) {
+            FPPArcadeGameEffect::button(button);
+            if (isPaused()) return;
+        }
+
         if (button == "Left - Pressed" && direction != 2) {
             direction = 0;
         } else if (button == "Right - Pressed" && direction != 0) {
@@ -202,6 +214,21 @@ public:
     bool GameOn = true;
     bool WaitingUntilOutput = false;
     long long timer = 100;
+    
+    void restart() override {
+        // Reinitialize snake to starting state
+        snake.clear();
+        food.clear();
+        direction = 0;
+        snake.push_back(std::pair<int, int>(cols / 2, rows / 2));
+        snake.push_back(std::pair<int, int>(cols / 2 + 1, rows / 2));
+        snake.push_back(std::pair<int, int>(cols / 2 + 2, rows / 2));
+        addFood(); addFood(); addFood();
+        moveAccumulatorMs = 0.0;
+        GameOn = true;
+        WaitingUntilOutput = false;
+        resetFrameTimer();
+    }
 };
 const std::string &FPPSnake::getName() {
     static const std::string name = "Snake";

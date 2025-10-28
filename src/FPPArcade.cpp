@@ -109,7 +109,18 @@ bool FPPArcadeGame::isRunning() {
     if (m != nullptr) {
         FPPArcadeGameEffect *effect = dynamic_cast<FPPArcadeGameEffect*>(m->getRunningEffect());
         if (effect) {
-            return true;
+                RunningEffect *re = m->getRunningEffect();
+                if (re != nullptr) {
+                    // If the running effect is a FPPArcadeGameEffect (actual game), consider it running.
+                    // However, the temporary title overlay (GameTitleEffect) also inherits from
+                    // FPPArcadeGameEffect. Treat the title overlay specially so it does NOT
+                    // count as a running game — this allows the Select button to keep
+                    // cycling through titles while the title overlay is displayed.
+                    FPPArcadeGameEffect *effect = dynamic_cast<FPPArcadeGameEffect*>(re);
+                    if (effect && re->name() != std::string("ArcadeTitle")) {
+                        return true;
+                    }
+                }
         }
     }
     return false;
@@ -280,7 +291,7 @@ static const std::map<uint8_t, std::vector<uint8_t>> LETTERS = {
     {'5', {1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1}},
     {'6', {1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1}},
     {'7', {1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1}},
-    {'8', {1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1}},
+    {'8', {1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1}},
     {'9', {1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1}},
 
     {':', {0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0}}
@@ -336,6 +347,100 @@ void FPPArcadeGameEffect::outputPixel(int x, int y, int r, int g, int b, int scl
         }
     }
 }
+
+void FPPArcadeGameEffect::drawUnderline(int x, int y, int length, int r, int g, int b, int scl) {
+    if (scl == -1) {
+        scl = scale;
+    }
+    // Letters are 5 rows tall (logical). Draw the underline on the row immediately
+    // below the letters so it doesn't overlap the characters.
+    const int letterHeight = 5;
+    for (int i = 0; i < length * 4; i++) {
+        outputPixel(x + i, y + letterHeight, r, g, b, scl);
+    }
+}
+
+void FPPArcadeGameEffect::drawPauseMenu() {
+    const int scl = std::max(1, (int)(model->getHeight() / 16));
+
+    // Draw semi-transparent overlay (darken current buffer)
+    for (int y = 0; y < model->getHeight(); y++) {
+        for (int x = 0; x < model->getWidth(); x++) {
+            int r, g, b;
+            model->getOverlayPixelValue(x, y, r, g, b);
+            model->setOverlayPixelValue(x, y, r/3, g/3, b/3);
+        }
+    }
+
+    // Draw menu options only (no PAUSED header to save space)
+    const std::string resumeText = "RESUME";
+    const std::string restartText = "RESTART";
+
+    // Logical letter height is 5 rows. Choose spacing (in logical rows) between
+    // the two option lines; scale it relative to scl for larger displays.
+    const int letterHeight = 5;
+    // Increase vertical spacing between the two option lines so they don't feel cramped
+    const int spacing = std::max(1, 2 * scl); // logical rows between the two words
+
+    int gridRows = std::max(1, model->getHeight() / scl);
+    int totalMenuHeight = letterHeight * 2 + spacing;
+    const int optionTopY = std::max(0, (gridRows - totalMenuHeight) / 2);
+    const int resumeY = optionTopY;
+    const int restartY = optionTopY + letterHeight + spacing;
+
+    outputString(resumeText, centerTextX(resumeText, scl), resumeY, 255, 255, 255, scl);
+    outputString(restartText, centerTextX(restartText, scl), restartY, 255, 255, 255, scl);
+
+    // Draw underline under selected option (directly beneath the 5-row letters)
+    if (pauseMenu.isResumeSelected()) {
+        drawUnderline(centerTextX(resumeText, scl), resumeY, (int)resumeText.length(), 255, 255, 255, scl);
+    } else {
+        drawUnderline(centerTextX(restartText, scl), restartY, (int)restartText.length(), 255, 255, 255, scl);
+    }
+}
+
+void FPPArcadeGameEffect::button(const std::string &button) {
+    // Activation keys when paused: A, B, Fire
+    bool isActivate = (button == "A Button - Pressed") || (button == "B Button - Pressed") ||
+                      (button == "Fire - Pressed") || (button == "Fire") || (button == "Fire Button - Pressed");
+
+    // If paused and an activation key is pressed, select current option
+    if (paused && isActivate) {
+        if (pauseMenu.isResumeSelected()) {
+            resume();
+        } else {
+            restart();
+        }
+        return;
+    }
+
+    // Start always toggles pause / activates selection when paused
+    if (button == "Start - Pressed" || button == "Start") {
+        if (!paused) {
+            pause();
+        } else {
+            if (pauseMenu.isResumeSelected()) {
+                resume();
+            } else {
+                restart();
+            }
+        }
+        return;
+    }
+
+    // Navigation while paused
+    if (paused) {
+        handlePauseInput(button);
+    }
+}
+
+void FPPArcadeGameEffect::handlePauseInput(const std::string &button) {
+    if (button == "Up - Pressed" || button == "Left - Pressed") {
+        pauseMenu.moveUp();
+    } else if (button == "Down - Pressed" || button == "Right - Pressed") {
+        pauseMenu.moveDown();
+    }
+}
 void FPPArcadeGameEffect::outputLetter(int x, int y, char l, int r, int g, int b, int scl) {
     Letter letter(l);
     for (int nx = 0; nx < 3; nx++) {
@@ -386,6 +491,24 @@ double FPPArcadeGameEffect::consumeElapsedMs(double fallbackMs, double maxClampM
 void FPPArcadeGameEffect::resetFrameTimer() {
     firstFrame = true;
     lastFrameTime = std::chrono::steady_clock::now();
+}
+
+void FPPArcadeGameEffect::pause() {
+    paused = true;
+    pauseMenu.moveUp();  // Reset to Resume option
+    drawPauseMenu();
+    model->flushOverlayBuffer();
+}
+
+void FPPArcadeGameEffect::resume() {
+    paused = false;
+    resetFrameTimer();
+}
+
+void FPPArcadeGameEffect::restart() {
+    // Base implementation - games should override this
+    paused = false;
+    resetFrameTimer();
 }
 
 class FPPArcadePlugin : public FPPPlugin , public httpserver::http_resource {
@@ -476,22 +599,32 @@ public:
         if (games.empty()) {
             return;
         }
-        if (button == "Start - Pressed" || button == "Select - Pressed") {
+        if (button == "Start - Pressed") {
             if (games.front()->isRunning()) {
-                games.front()->stop();
+                // When a game is running, pressing Start should pause it (handled by the game/effect)
+                games.front()->button(button);
+                return;
             }
         }
         if (button == "Start - Released" || button == "Select - Released") {
             return;
         }
         if (button == "Select - Pressed") {
+            // If the currently-front game is running, stop it so the selection takes effect.
+            FPPArcadeGame *current = games.front();
+            if (current && current->isRunning()) {
+                current->stop();
+            }
+            // Rotate the list so the next game becomes front
             FPPArcadeGame *g = games.front();
             games.pop_front();
             games.push_back(g);
+            // Show title for the newly-selected game if it's not running
             if (!games.empty() && !games.front()->isRunning()) {
                 displayGameTitle(games.front());
             }
         } else {
+            // Forward other buttons to the currently-selected game
             games.front()->button(button);
         }
     }

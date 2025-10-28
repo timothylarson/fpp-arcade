@@ -318,6 +318,12 @@ public:
     }
 
     virtual int32_t update() override {
+        if (isPaused()) {
+            drawPauseMenu();
+            model->flushOverlayBuffer();
+            return 50;
+        }
+
         if (!GameOn) {
             return showGameOver();
         }
@@ -365,6 +371,11 @@ public:
             return;
         }
 
+            // allow base to handle pause/start behavior first (only while game is active)
+            if (GameOn) {
+                FPPArcadeGameEffect::button(button);
+                if (isPaused()) return;
+            }
         if (button == "Left - Pressed") {
             moveHorizontal(-1);
             leftHeld = true;
@@ -507,6 +518,22 @@ public:
     bool softDropHeld = false;
     double softDropAccumulatorMs = 0.0;
     const double softDropIntervalMs = 60.0;
+
+    void restart() override {
+        // Clear table and reset game state
+        for (auto &row : table) {
+            std::fill(row.begin(), row.end(), 0);
+        }
+        score = 0;
+        GameOn = true;
+        WaitingUntilOutput = false;
+        if (currentShape) {
+            delete currentShape;
+            currentShape = nullptr;
+        }
+        newShape();
+        resetFrameTimer();
+    }
 
 };
 

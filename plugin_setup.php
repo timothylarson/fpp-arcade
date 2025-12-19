@@ -62,6 +62,7 @@ function GetBreakoutOptions() {
     html += "</select>&nbsp;";
     html += "Max Bricks Per Row: <input type='number' value='15' min='1' max='100' class='option3' data-optionname='Max Bricks'/>&nbsp;";
     html += "Paddle Width (px, 0 = auto): <input type='number' value='0' min='0' max='100' class='option4' data-optionname='Paddle Width'/>&nbsp;";
+    html += "Ball Speed Multiplier: <input type='number' value='1.0' min='0.1' max='5.0' step='0.1' class='option5' data-optionname='Ball Speed'/>&nbsp;";
     return html;
 }
 function GetFroggerOptions() {

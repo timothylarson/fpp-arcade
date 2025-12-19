@@ -367,7 +367,7 @@ public:
             spacingEnabled(spacing),
             maxBricksPerRow(maxBricks),
             userPaddleWidth(paddleW),
-            ballSpeedMultiplier(initialBallSpeed)
+            configuredBallSpeed(initialBallSpeed)
     {
         int w = m->getWidth();
         int h = m->getHeight();
@@ -382,14 +382,17 @@ public:
             paddle.height = 1;
         }
         paddle.y = h - 1 - paddle.height;
-        basePaddleWidth = paddle.width;
-        baseBallSpeed = std::max(1.0f, static_cast<float>(paddle.height));
-        ballSpeedMultiplier = 1.0f;
+    basePaddleWidth = paddle.width;
+    baseBallSpeed = std::max(1.0f, static_cast<float>(paddle.height));
+    ballSpeedMultiplier = configuredBallSpeed;
 
         // Start new game with 3 lives
         lives = 3;
 
-        loadLevel(0);
+    // Seed PRNG so jitter is different each run
+    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+
+    loadLevel(0);
     }
     ~BreakoutEffect() {
     }
@@ -439,7 +442,15 @@ public:
         paddle.y = model->getHeight() - 1 - paddle.height;
         direction = 0;
 
-        ballSpeedMultiplier = 1.0f + 0.1f * currentLevel;
+        // Reset any lingering portal state so a portal collected on the previous
+        // level doesn't immediately trigger another level advance here.
+        portalOpenTimerMs = 0.0;
+        portalActive = false;
+        portalTouched = false;
+        portalTouchedTimerMs = 0.0;
+
+    // Apply level-based scaling on top of the configured multiplier
+    ballSpeedMultiplier = configuredBallSpeed * (1.0f + 0.1f * currentLevel);
         slowTimerMs = expandTimerMs = breakTimerMs = stickyTimerMs = laserTimerMs = 0.0;
         powerBallActive = false;
         stickyActive = false;
@@ -554,7 +565,8 @@ public:
 
 
     void moveBalls(float frameScalar) {
-        constexpr float gapPadding = 1.0f;
+        // Use tighter collision when spacing is disabled so ball can pass cleanly
+        float gapPadding = spacingEnabled ? 1.0f : 0.0f;
         auto ballIt = balls.begin();
         while (ballIt != balls.end()) {
             Ball &ball = *ballIt;
@@ -589,13 +601,19 @@ public:
                 float bTop = it->top() - gapPadding;
                 float bBottom = it->bottom() + gapPadding;
 
-                bool overlaps = (ball.right() >= bLeft && ball.left() <= bRight &&
-                                  ball.bottom() >= bTop && ball.top() <= bBottom);
-                if (!overlaps) {
-                    ++it;
-                    continue;
-                }
-                if (!powerBallActive || it->indestructible) {
+                    // Tight hit rect: if spacing disabled we don't expand the brick area
+                    float adjLeft = bLeft;
+                    float adjRight = bRight;
+                    float adjTop = bTop;
+                    float adjBottom = bBottom;
+
+                    bool overlaps = (ball.right() >= adjLeft && ball.left() <= adjRight &&
+                                   ball.bottom() >= adjTop && ball.top() <= adjBottom);
+                    if (!overlaps) {
+                        ++it;
+                        continue;
+                    }
+                    if (!powerBallActive || it->indestructible) {
                     float overlapLeft = ball.right() - bLeft;
                     float overlapRight = bRight - ball.left();
                     float overlapTop = ball.bottom() - bTop;
@@ -622,6 +640,44 @@ public:
                     }
                 }
 
+                        // --- Anti-stuck jitter: apply a small random perturbation when
+                        // bouncing off indestructible bricks, when we've detected repeated
+                        // identical bounces, or periodically every few seconds.
+                        bool shouldPerturb = false;
+                        if (it->indestructible) shouldPerturb = true;
+                        if (bounceRandomNextCollision) shouldPerturb = true;
+                        // detect repeats: compare resulting direction to last recorded
+                        float curDX = ball.directionX;
+                        float curDY = ball.directionY;
+                        if (std::fabs(curDX - lastBounceDirX) < 0.01f && std::fabs(curDY - lastBounceDirY) < 0.01f
+                            && (totalElapsedMs - lastBounceTimeMs) < 2000.0) {
+                            ++repeatBounceCount;
+                            if (repeatBounceCount >= 3) shouldPerturb = true;
+                        } else {
+                            repeatBounceCount = 0;
+                        }
+
+                        if (shouldPerturb) {
+                            // small random jitter to X direction in range [-0.15, 0.15]
+                            float jitter = 0.15f * ((static_cast<float>(std::rand()) / RAND_MAX) * 2.0f - 1.0f);
+                            ball.directionX += jitter;
+                            // Keep the general vertical sign but renormalize
+                            if (ball.directionY > 0) ball.directionY = std::fabs(ball.directionY);
+                            else ball.directionY = -std::fabs(ball.directionY);
+                            vec2_norm(ball.directionX, ball.directionY);
+                            // consume the one-shot periodic flag and reset repeat detector
+                            bounceRandomNextCollision = false;
+                            lastBounceTimeMs = totalElapsedMs;
+                            lastBounceDirX = ball.directionX;
+                            lastBounceDirY = ball.directionY;
+                            repeatBounceCount = 0;
+                        } else {
+                            // record the last bounce direction/time for repeat detection
+                            lastBounceTimeMs = totalElapsedMs;
+                            lastBounceDirX = ball.directionX;
+                            lastBounceDirY = ball.directionY;
+                        }
+
                 bool destroyed = false;
                 if (!it->indestructible) {
                     if (powerBallActive) {
@@ -641,9 +697,10 @@ public:
                     markBrickGone(it->row, it->col);
                     it = blocks.erase(it);
                     LogDebug(VB_PLUGIN, "[Breakout] destroyed by ball, remainingDestructible=%d", remainingDestructible);
-                } else {
-                    ++it;
-                }
+                    } else {
+                        ++it;
+                        continue;
+                    }
                 brickHit = true;
                 break;
             }
@@ -682,8 +739,10 @@ public:
 
                 // Treat the seam as CLOSED by giving it a small thickness.
                 // This keeps the ball from entering visually dotted rows.
-                float closedStart = gapStart - 0.5f;
-                float closedEnd   = gapEnd   + 0.5f;
+                    // Use a smaller gap closure when spacing is disabled
+                    float gapClosureSize = spacingEnabled ? 0.5f : 0.2f;
+                    float closedStart = gapStart - gapClosureSize;
+                    float closedEnd   = gapEnd   + gapClosureSize;
 
                 if (bxCenter >= closedStart && bxCenter <= closedEnd) {
                     // Bounce off the “seam” like it were a solid band
@@ -801,14 +860,27 @@ public:
         for (auto &p : powerUps) {
             p.draw(model, scaled);
         }
+        // Draw laser beams - ensure they're visible even on small matrices
         int laserColor = std::clamp(static_cast<int>(255 * scaled), 0, 255);
         for (auto &l : lasers) {
             int ix = static_cast<int>(std::round(l.x));
             int tip = static_cast<int>(std::round(l.y));
-            int start = std::clamp(tip - 3, 0, model->getHeight() - 1);
+            
+            // Always show at least 2 pixels of beam length
+            int minBeamLength = 2;
+            int beamLength = std::max(minBeamLength, model->getHeight() / 16); // Scale with matrix height
+            
+            int start = std::clamp(tip - beamLength, 0, model->getHeight() - 1);
             int end = std::clamp(tip + 1, 0, model->getHeight() - 1);
-            for (int y = end; y >= start; --y) {
-                model->setOverlayPixelValue(ix, y, laserColor, 0, 0);
+            
+            // Make beam width adapt to matrix size (min 1px, max 3px wide)
+            int beamWidth = std::clamp(model->getWidth() / 32, 1, 3);
+            for (int x = ix - (beamWidth/2); x <= ix + (beamWidth/2); x++) {
+                if (x >= 0 && x < model->getWidth()) {
+                    for (int y = end; y >= start; --y) {
+                        model->setOverlayPixelValue(x, y, laserColor, 0, 0);
+                    }
+                }
             }
         }
 
@@ -1012,7 +1084,12 @@ public:
     void fireLasers() {
         if (!laserActive) return;
         float centerX = paddle.x + paddle.width / 2.0f;
-        lasers.emplace_back(centerX, paddle.y - 1, 4.0f);
+        // Construct a Laser explicitly (avoid emplace_back with args for aggregate)
+        Laser l;
+        l.x = centerX;
+        l.y = paddle.y - 1;
+        l.speed = 4.0f;
+        lasers.push_back(l);
     }
 
     void updateLasers(float frameScalar) {
@@ -1102,6 +1179,15 @@ public:
         double frameScalar = elapsedMs / baseFrameMs;
         frameScalar = std::clamp(frameScalar, 0.1, 5.0);
 
+        // Track total elapsed time and periodically enable a one-shot random
+        // perturbation to help escape repeating trajectories.
+        totalElapsedMs += elapsedMs;
+        bounceRandomMsAccumulator += elapsedMs;
+        if (bounceRandomMsAccumulator >= 5000.0) {
+            bounceRandomNextCollision = true;
+            bounceRandomMsAccumulator -= 5000.0;
+        }
+
         if (showingLevelIntro) {
             levelIntroTimerMs -= elapsedMs;
             CopyToModel(0.2f);
@@ -1138,6 +1224,8 @@ public:
                 portalTouchedTimerMs = portalTouchDurationMs;
                 portalTouchStartX = paddle.x;
                 portalTouchStartY = paddle.y;
+                // Clear all balls when portal is touched to prevent deaths
+                balls.clear();
             }
         }
 
@@ -1146,14 +1234,15 @@ public:
             portalTouchedTimerMs -= elapsedMs;
             double progress = 1.0 - std::max(0.0, portalTouchedTimerMs) / portalTouchDurationMs;
             int portalX = std::max(0, model->getWidth() - 1);
-            float targetX = portalX + 4.0f;
-            float targetY = (float)model->getHeight() + 4.0f;
-            // Lerp paddle position towards target
+            float targetX = (float)model->getWidth() + paddle.width + 2.0f; // Move just off screen to the right
+            
+            // Move paddle horizontally to the right while maintaining vertical position
             paddle.x = portalTouchStartX + (targetX - portalTouchStartX) * (float)progress;
-            paddle.y = portalTouchStartY + (targetY - portalTouchStartY) * (float)progress;
-            // Gradually shrink the paddle visually while being sucked
-            paddle.width = std::max(1.0f, basePaddleWidth * (1.0f - 0.6f * (float)progress));
-            // Don't enforce horizontal bounds while animating; allow moving off-screen vertically
+            // Keep paddle at same vertical position
+            paddle.y = portalTouchStartY;
+            
+            // Gradually fade out the paddle by shrinking its width
+            paddle.width = std::max(1.0f, basePaddleWidth * (1.0f - 0.8f * (float)progress));
 
             if (portalTouchedTimerMs <= 0.0) {
                 return handleLevelClear();
@@ -1201,7 +1290,11 @@ public:
         for (auto &ball : balls) {
             if (ball.bottom() >= paddle.y && ball.left() <= (paddle.x + paddle.width) && ball.right() >= paddle.x && ball.directionY > 0) {
                 if (!stickyActive) {
-                    float t = ((ball.x - paddle.x) / paddle.width) - 0.5f;
+                    // Use ball CENTER relative to paddle center so left/right bias is reduced
+                    float ballCenter = ball.x + ball.width / 2.0f;
+                    float paddleCenter = paddle.x + paddle.width / 2.0f;
+                    float t = (ballCenter - paddleCenter) / (paddle.width * 0.5f);
+                    t = std::clamp(t, -1.0f, 1.0f);
                     ball.directionY = -std::fabs(ball.directionY);
                     ball.directionX = t;
                     vec2_norm(ball.directionX, ball.directionY);
@@ -1395,6 +1488,7 @@ public:
     int direction = 0;
     float basePaddleWidth = 0;
     float baseBallSpeed = 0;
+    float configuredBallSpeed = 1.0f;
     float ballSpeedMultiplier = 1.0f;
     double slowTimerMs = 0.0;
     double expandTimerMs = 0.0;
@@ -1408,6 +1502,14 @@ public:
     bool showingLevelIntro = false;
     double levelIntroTimerMs = 0.0;
     std::string levelIntroText;
+    // Timers and state to avoid pathological repeat bounces
+    double totalElapsedMs = 0.0;
+    double bounceRandomMsAccumulator = 0.0; // accumulate to trigger periodic randomness
+    bool bounceRandomNextCollision = false;
+    double lastBounceTimeMs = 0.0;
+    float lastBounceDirX = 0.0f;
+    float lastBounceDirY = 0.0f;
+    int repeatBounceCount = 0;
 
     // --- Lives ---
     int lives = 3;

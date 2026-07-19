@@ -6,6 +6,7 @@
     "homeURL": "https://github.com/FalconChristmas/fpp-arcade",
     "srcURL": "https://github.com/FalconChristmas/fpp-arcade.git",
     "bugURL": "https://github.com/FalconChristmas/fpp-arcade/issues",
+    "iconURL": "https://raw.githubusercontent.com/FalconChristmas/fpp-arcade/master/icon.png",
     "versions": [
         {
             "minFPPVersion": "4.0",

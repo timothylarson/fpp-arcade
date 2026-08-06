@@ -32,6 +32,7 @@ extern "C" {
 
 #include "commands/Commands.h"
 #include "fpphttp.h"
+#include "FileMonitor.h"
 #include "common.h"
 #include "settings.h"
 #include "Plugin.h"
@@ -355,7 +356,18 @@ public:
     FPPArcadePlugin() : FPPPlugins::Plugin("fpp-arcade"), FPPPlugins::APIProviderPlugin() {
         LogInfo(VB_PLUGIN, "Initializing Arcade Plugin\n");
         resetArcadeState();
-        
+
+        // This plugin's configuration is its own JSON file rather than the
+        // key=value settings file FPPPlugins::Plugin watches, so the
+        // monitorSettings constructor argument would not see it. Watch it
+        // directly, so editing the game list takes effect without restarting
+        // fppd. shutdown() gives the watch back - the callback lives here.
+        std::function<void()> reload = [this]() {
+            LogInfo(VB_PLUGIN, "Arcade: game configuration changed, reloading\n");
+            loadGames();
+        };
+        FileMonitor::INSTANCE.AddFile(name, FPP_DIR_CONFIG("/plugin.fpp-arcade.json"), reload);
+
         int idx = 0;
         if (FileExists(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"))) {
             Json::Value root;
@@ -397,7 +409,42 @@ public:
     }
     // Give back everything outside this library that points into it. Nothing
     // here is asynchronous, so no readiness predicate is needed.
+    // Rebuild the game list from what is on disk now. Runs on the main loop,
+    // which is also where the games are stepped and where a button event
+    // reaches them, so nothing can be part way through one.
+    void loadGames() {
+        for (auto &a : games) {
+            for (auto &g : a.second) {
+                // Stop anything running on a model before its game goes: the
+                // effect is owned by the overlay model, not by us.
+                if (g && g->isRunning()) {
+                    g->stop();
+                }
+                delete g;
+            }
+        }
+        games.clear();
+
+        int idx = 0;
+        if (FileExists(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"))) {
+            Json::Value root;
+            if (LoadJsonFromFile(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"), root)
+                && root.isMember("games")) {
+                for (int x = 0; x < root["games"].size(); x++) {
+                    if (root["games"][x]["enabled"].asBool()) {
+                        std::string model = root["games"][x]["model"].asString();
+                        games[model].push_back(createGame(root["games"][x]));
+                        if (games[model].back() != nullptr) {
+                            games[model].back()->setIdx(++idx);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     virtual std::function<bool()> shutdown() override {
+        FileMonitor::INSTANCE.RemoveFile(name, FPP_DIR_CONFIG("/plugin.fpp-arcade.json"));
 #ifdef USE_SDL_CONTROLLERS
         // Stop pumping SDL, then take back the event filter. SDL keeps
         // controller_event_filter - a function pointer into this .so - in a

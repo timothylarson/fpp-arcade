@@ -1,0 +1,62 @@
+{
+    "paths": {
+        "/arcade/controllers": {
+            "get": {
+                "summary": "Detected game controllers",
+                "description": "The joysticks and game controllers the plugin has found, with the button and axis counts reported by each.",
+                "responses": {
+                    "200": {
+                        "description": "Controllers",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "buttons": {
+                                                "type": "integer"
+                                            },
+                                            "axis": {
+                                                "type": "integer"
+                                            }
+                                        }
+                                    }
+                                },
+                                "example": [
+                                    {
+                                        "name": "Arcade Stick",
+                                        "buttons": 12,
+                                        "axis": 2
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/arcade/events": {
+            "get": {
+                "summary": "Recent controller events",
+                "description": "The last few button and axis events seen, one per line, most recent last. Intended for identifying which physical control is which while setting up a mapping.",
+                "responses": {
+                    "200": {
+                        "description": "Recent events, newline separated",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "example": "Arcade Stick - button: 0, value: 1\n"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

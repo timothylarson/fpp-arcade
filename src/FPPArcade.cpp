@@ -1,5 +1,4 @@
 #include <fpp-pch.h>
-#include <drogon/HttpAppFramework.h>
 
 
 #ifdef PLATFORM_OSX
@@ -396,11 +395,45 @@ public:
             }
         }
     }
+    // Give back everything outside this library that points into it. Nothing
+    // here is asynchronous, so no readiness predicate is needed.
+    virtual std::function<bool()> shutdown() override {
+#ifdef USE_SDL_CONTROLLERS
+        // Stop pumping SDL, then take back the event filter. SDL keeps
+        // controller_event_filter - a function pointer into this .so - in a
+        // global, and FPP uses SDL for its own audio and pumps events itself,
+        // so a filter left installed is a call into an unmapped library the
+        // moment SDL next sees an event. Deliberately NO SDL_Quit(): SDL is
+        // shared with FPP's audio output and this plugin does not own it.
+        Timers::INSTANCE.stopPeriodicTimer("ArcadeSDLEventPump");
+        SDL_SetEventFilter(nullptr, nullptr);
+#endif
+        // The Command subclasses are declared here, so their vtables live in
+        // this .so and they hold a back-pointer to this plugin.
+        for (Command *c : myCommands) {
+            // removeCommand() only unregisters - CommandManager deletes what is
+            // still in its registry at shutdown, so taking one back means
+            // owning it again.
+            CommandManager::INSTANCE.removeCommand(c);
+            delete c;
+        }
+        myCommands.clear();
+        // Release the controller handles and joystick descriptors now rather
+        // than at destruction, so a reload can reopen them. FPP has already
+        // taken the descriptors out of its epoll loop by this point.
+        {
+            std::lock_guard<std::mutex> lock(joysticksLock);
+            joysticks.clear();
+        }
+        resetArcadeState();
+        return nullptr;
+    }
+
     virtual ~FPPArcadePlugin() {
 #ifdef USE_SDL_CONTROLLERS
-        // Stop pumping SDL before the plugin's code is unloaded so the timer
-        // callback can't fire into freed memory.
+        // Belt and braces if teardown never went through shutdown().
         Timers::INSTANCE.stopPeriodicTimer("ArcadeSDLEventPump");
+        SDL_SetEventFilter(nullptr, nullptr);
 #endif
         resetArcadeState();
         for (auto & a : games) {
@@ -539,8 +572,20 @@ public:
         // api/plugin-apis/arcade/* to localhost:32322/arcade/*, stripping the
         // plugin-apis/ prefix, so "/api/plugin-apis/arcade/*" routes would
         // never be reached.
-        drogon::app().registerHandler("/arcade/controllers", std::move(handleArcade), {drogon::Get});
-        drogon::app().registerHandler("/arcade/events", std::move(handleArcade2), {drogon::Get});
+        //
+        // Registered through FPP rather than drogon::app() directly: drogon has
+        // no route removal, so a handler registered straight with it could never
+        // be withdrawn and would pin this plugin in memory for the life of fppd.
+        FPPPlugins::registerPluginApi("/arcade/controllers", std::move(handleArcade), {drogon::Get});
+        FPPPlugins::registerPluginApi("/arcade/events", std::move(handleArcade2), {drogon::Get});
+    }
+
+    void unregisterApis() override {
+        // Neither returns until no request is inside the handler and the
+        // handler itself has been destroyed, which is what makes a later
+        // dlclose() safe.
+        FPPPlugins::unregisterPluginApi("/arcade/controllers");
+        FPPPlugins::unregisterPluginApi("/arcade/events");
     }
 
 #ifdef USE_SDL_CONTROLLERS
@@ -628,10 +673,15 @@ public:
             }
         }
     }
+    void addOwnedCommand(Command *c) {
+        myCommands.push_back(c);
+        CommandManager::INSTANCE.addCommand(c);
+    }
+
     virtual void addControlCallbacks(std::map<int, std::function<bool(int)>> &callbacks) override {
-        CommandManager::INSTANCE.addCommand(new FPPArcadeCommand(this));
-        CommandManager::INSTANCE.addCommand(new FPPArcadeAxisCommand(this));
-        CommandManager::INSTANCE.addCommand(new FPPArcadeSelectGameCommand(this));
+        addOwnedCommand(new FPPArcadeCommand(this));
+        addOwnedCommand(new FPPArcadeAxisCommand(this));
+        addOwnedCommand(new FPPArcadeSelectGameCommand(this));
 
 #ifdef USE_SDL_CONTROLLERS
         SDL_Init(SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS);
@@ -797,6 +847,7 @@ public:
     std::list<Joystick> joysticks;
     std::mutex joysticksLock;
     std::map<std::string, Json::Value> events;
+    std::vector<Command *> myCommands;
 };
 
 
@@ -809,6 +860,15 @@ std::unique_ptr<Command::Result> FPPArcadeAxisCommand::run(const std::vector<std
 std::unique_ptr<Command::Result> FPPArcadeSelectGameCommand::run(const std::vector<std::string> &args) {
     return plugin->selectGame(args);
 }
+
+// Safe to dlclose() on unload: no threads of its own, no CurlManager requests
+// and no drogon client objects. The routes go through registerPluginApi() and
+// come back in unregisterApis(); shutdown() stops the SDL pump timer, takes
+// back the SDL event filter (a function pointer into this library that SDL
+// holds globally), withdraws the three commands and releases the controllers
+// and joystick descriptors. SDL itself is left initialised on purpose - FPP's
+// audio output shares it.
+FPP_PLUGIN_SUPPORTS_UNLOAD()
 
 extern "C" {
     FPPPlugins::Plugin *createPlugin() {

@@ -1,5 +1,8 @@
 <?php
-$data = file_get_contents('http://127.0.0.1:32322/arcade/controllers');
+// Go through Apache's proxied /api/ route rather than fppd's internal :32322
+// port directly - that port isn't a documented interface and isn't guaranteed to
+// stay where it is.
+$data = file_get_contents('http://127.0.0.1/api/plugin-apis/arcade/controllers');
 $targets = json_decode(file_get_contents('http://127.0.0.1/api/models?simple=true'), true);
 $controllers = json_decode($data, true);
 ?>
@@ -33,7 +36,7 @@ function SaveJoystickInputs() {
     
 <?
     $count = 0;
-    foreach($controllers as $controller) {
+    foreach(is_array($controllers) ? $controllers : Array() as $controller) {
         $contName = $controller['name'];
         $contNameClean = str_replace("-", "_", $contName);
         $contNameClean = str_replace(":", "_", $contNameClean);
@@ -43,14 +46,14 @@ function SaveJoystickInputs() {
         for ($x = 0; $x < $controller['buttons']; $x++) {
             $buttonNameClean = $contNameClean . "_" . $x;
             echo "    var jsb = GetJS('" . $buttonNameClean . "', true);\n";
-            echo "    jsb['controller'] = '" . $contName . "';\n";
+            echo "    jsb['controller'] = " . json_encode($contName) . ";\n";
             echo "    jsb['button'] = " . $x . ";\n";
             echo "    js.push(jsb);\n";
         }
         for ($x = 0; $x < $controller['axis']; $x++) {
             $buttonNameClean = $contNameClean . "_a" . $x;
             echo "    var jsb = GetJS('" . $buttonNameClean . "', false);\n";
-            echo "    jsb['controller'] = '" . $contName . "';\n";
+            echo "    jsb['controller'] = " . json_encode($contName) . ";\n";
             echo "    jsb['axis'] = " . $x . ";\n";
             echo "    js.push(jsb);\n";
         }
@@ -166,14 +169,14 @@ $(document).ready(function(){
                 <select id="ControllerSelect">
                 <?
 $count = 0;
-foreach($controllers as $controller) {
+foreach(is_array($controllers) ? $controllers : Array() as $controller) {
     $contName = $controller['name'];
     $contNameClean = str_replace("-", "_", $contName);
     $contNameClean = str_replace(":", "_", $contNameClean);
     $contNameClean = str_replace(",", "_", $contNameClean);
     $contNameClean = str_replace(" ", "_", $contNameClean);
     $contNameClean = str_replace(".", "_", $contNameClean);
-    echo "<option value='" . $contNameClean . "'>" . $controller['name'] . "</option>\n";
+    echo "<option value='" . htmlspecialchars($contNameClean) . "'>" . htmlspecialchars($contName) . "</option>\n";
 }
 ?>
                 </select>
@@ -184,8 +187,8 @@ foreach($controllers as $controller) {
                 <select id="Target">
                     <option value="" selected></option>
 <?
-foreach ($targets as $target) {
-    echo "<option value='" . $target . "'>" . $target . "</option>\n";
+foreach (is_array($targets) ? $targets : Array() as $target) {
+    echo "<option value='" . htmlspecialchars($target) . "'>" . htmlspecialchars($target) . "</option>\n";
 }
 ?>
                 </select>
@@ -213,7 +216,7 @@ foreach ($targets as $target) {
 
 <?
 $count = 0;
-foreach($controllers as $controller) {
+foreach(is_array($controllers) ? $controllers : Array() as $controller) {
     $contName = $controller['name'];
     $contNameClean = str_replace("-", "_", $contName);
     $contNameClean = str_replace(":", "_", $contNameClean);
@@ -230,7 +233,7 @@ foreach($controllers as $controller) {
         ?>
             <tr class='fppTableRow <?= $style ?>' id='row_<?= $count ?>'>
                 <td><input type="checkbox" id="<?= $buttonNameClean ?>_enabled"></td>
-                <td style="padding-left:10px;padding-right:20px;"><?= $contName ?></td>
+                <td style="padding-left:10px;padding-right:20px;"><?= htmlspecialchars($contName) ?></td>
                 <td>Button <?= $x ?></td>
                 <td>
                     <table border=0 class='fppTable' id='tablePressed<?= $buttonNameClean ?>'>
@@ -263,7 +266,7 @@ foreach($controllers as $controller) {
         ?>
             <tr class='fppTableRow <?= $style ?>' id='row_<?= $count ?>'>
                 <td><input type="checkbox" id="<?= $buttonNameClean ?>_enabled"></td>
-                <td style="padding-left:10px;padding-right:20px;"><?= $contName ?></td>
+                <td style="padding-left:10px;padding-right:20px;"><?= htmlspecialchars($contName) ?></td>
                 <td>Axis <?= $x ?></td>
                 <td colspan="2">
                     <table border=0 class='fppTable' id='tableAxis<?= $buttonNameClean ?>'>

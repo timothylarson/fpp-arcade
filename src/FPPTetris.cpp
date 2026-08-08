@@ -271,7 +271,7 @@ public:
                 outputLetter(12, 6, 'R');
 
                 char buf[20];
-                sprintf(buf, "%d", score);
+                snprintf(buf, sizeof(buf), "%d", score);
                 int x = 4;
                 if (score < 10) {
                     x = 6;

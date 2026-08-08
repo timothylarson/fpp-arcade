@@ -155,7 +155,7 @@ public:
             outputString("GAME", cols/ 2 - 8, rows/2-9);
             outputString("OVER", cols/ 2 - 8, rows/2-3);
             char buf[25];
-            sprintf(buf, "%d", (uint32_t)snake.size());
+            snprintf(buf, sizeof(buf), "%u", (uint32_t)snake.size());
             outputString(buf, (cols)/ 2 - 4, rows/2+3);
             model->flushOverlayBuffer();
             return 2000;

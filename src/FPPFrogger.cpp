@@ -173,6 +173,12 @@ public:
         if (gameOn) {
             FPPArcadeGameEffect::button(button);
             if (isPaused()) return;
+            // Once the game is running the base owns Start: it toggles pause and
+            // drives the pause menu. Without returning here the local fallback
+            // below runs too and flips `paused` straight back on, so the base
+            // could pause but never resume - every later button was swallowed by
+            // the `if (paused) return` guard.
+            if (startPress) return;
         }
 
         if (startPress) {

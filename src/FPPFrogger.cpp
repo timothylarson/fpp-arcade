@@ -490,11 +490,22 @@ private:
     void drawFrame(float brightness, bool drawPaused=false) {
         model->clearOverlayBuffer();
 
-        // Background stays black. clearOverlayBuffer() has already zeroed the
-        // buffer, so there is nothing to draw: the old dim bands (10-30 per
-        // channel) washed out the frog and the movers on a low-res matrix,
-        // where every sprite is only a cell or two wide. Leaving the field
-        // black also skips a full-grid write every frame.
+        // Background stays black - the old filled bands (10-30 per channel)
+        // washed out the frog and the movers on a low-res matrix, where every
+        // sprite is only a cell or two across. clearOverlayBuffer() has already
+        // zeroed the buffer, so the road, median and start rows need no drawing.
+        //
+        // The river is the one exception. An empty water cell drowns the frog
+        // while an empty road cell is safe, so the player has to be able to see
+        // which is which even with no mover in the lane. Mark it with a sparse
+        // dim-blue dash instead of a filled band: two cells in three stay black,
+        // so sprites still read clearly, and alternating the phase per row gives
+        // it the broken-up look of water rather than a dotted line.
+        for (int gy=0; gy<gridRows; ++gy) {
+            if (!isRiverRow(gy)) continue;
+            for (int gx=(gy & 1); gx<gridCols; gx+=3)
+                drawRectGrid(gx, gy, 1, 1, 0, 0, 70, brightness);
+        }
 
         // homes
         for (int i=0; i<(int)homeX.size(); ++i) {

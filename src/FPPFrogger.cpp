@@ -490,17 +490,11 @@ private:
     void drawFrame(float brightness, bool drawPaused=false) {
         model->clearOverlayBuffer();
 
-        // background bands
-        for (int gy=0; gy<gridRows; ++gy) {
-            int r=0,g=0,b=0;
-            if (gy==homeRow)            { r=30; g=30; b=30; }
-            else if (isRiverRow(gy))    { r=10; g=10; b=40; }
-            else if (gy==safeMedianRow) { r=20; g=20; b=20; }
-            else if (isRoadRow(gy))     { r=30; g=30; b=30; }
-            for (int gx=0; gx<gridCols; ++gx)
-                drawRectGrid(gx, gy, 1, 1,
-                             (int)(r*brightness),(int)(g*brightness),(int)(b*brightness), 1.0f);
-        }
+        // Background stays black. clearOverlayBuffer() has already zeroed the
+        // buffer, so there is nothing to draw: the old dim bands (10-30 per
+        // channel) washed out the frog and the movers on a low-res matrix,
+        // where every sprite is only a cell or two wide. Leaving the field
+        // black also skips a full-grid write every frame.
 
         // homes
         for (int i=0; i<(int)homeX.size(); ++i) {

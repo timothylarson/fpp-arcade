@@ -18,14 +18,13 @@ FPPSnake::~FPPSnake() {
 
 class SnakeEffect : public FPPArcadeGameEffect {
 public:
-    SnakeEffect(int sc, PixelOverlayModel *m) : FPPArcadeGameEffect(m) {
-        m->getSize(cols, rows);
-        scale = sc;
-        cols /= sc;
-        rows /= sc;
-        
-        offsetX = 0;
-        offsetY = 0;
+    SnakeEffect(int sc, int pfw, int pfh, PixelOverlayModel *m) : FPPArcadeGameEffect(m) {
+        // 0/0 keeps the historical behaviour of playing across the whole panel;
+        // a configured size is centred on it. The wall Snake draws at cols-1 /
+        // rows-1 is therefore the playfield edge, not the panel edge.
+        setPlayfield(pfw, pfh, sc);
+        cols = pfW;
+        rows = pfH;
         
         direction = 0;
         snake.push_back(std::pair<int, int>(cols / 2, rows / 2));
@@ -247,7 +246,8 @@ void FPPSnake::button(const std::string &button) {
                 m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
             }
             int pixelScaling = std::stoi(findOption("Pixel Scaling", "1"));
-            effect = new SnakeEffect(pixelScaling, m);
+            effect = new SnakeEffect(pixelScaling,
+                                     playfieldWidthOption(), playfieldHeightOption(), m);
             m->setRunningEffect(effect, 50);
         } else {
             effect->button(button);

@@ -361,7 +361,7 @@ public:
     bool spacingEnabled = true;
     int maxBricksPerRow = 15;
     int userPaddleWidth = 0;
-        BreakoutEffect(PixelOverlayModel *m, int brickW, bool spacing, int maxBricks, int paddleW, float initialBallSpeed)
+        BreakoutEffect(PixelOverlayModel *m, int brickW, bool spacing, int maxBricks, int paddleW, float initialBallSpeed, int playfieldW)
         : FPPArcadeGameEffect(m),
             userBrickWidth(brickW),
             spacingEnabled(spacing),
@@ -369,6 +369,7 @@ public:
             userPaddleWidth(paddleW),
             configuredBallSpeed(initialBallSpeed)
     {
+        userPlayfieldW = playfieldW;
         int w = m->getWidth();
         int h = m->getHeight();
         if (userPaddleWidth > 0) {
@@ -391,6 +392,9 @@ public:
 
     // Seed PRNG so jitter is different each run
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
+
+    fieldX = 0.0f;
+    fieldW = static_cast<float>(w);
 
     loadLevel(0);
     }
@@ -438,7 +442,7 @@ public:
         remainingDestructible = 0;
 
         paddle.width = basePaddleWidth;
-        paddle.x = (model->getWidth() - paddle.width) / 2.0f;
+        paddle.x = fieldX + (fieldW - paddle.width) / 2.0f;
         paddle.y = model->getHeight() - 1 - paddle.height;
         direction = 0;
 
@@ -469,12 +473,22 @@ public:
         float w = static_cast<float>(model->getWidth());
         float h = static_cast<float>(model->getHeight());
 
-        int brickW = std::max(1, userBrickWidth);
-        int maxBricks = std::max(1, maxBricksPerRow);
+        // Max Bricks Per Row at 0 means "however many the level asks for".
+        int maxBricks = maxBricksPerRow > 0 ? maxBricksPerRow : brickCols;
+        brickCols = std::max(1, std::min(brickCols, maxBricks));
 
-        // Determine final brick and spacing layout
+        // Brick Width at 0 auto-sizes so the row spans the panel, the way the
+        // upstream plugin has always worked. A fixed width is still honoured -
+        // it just no longer decides how much of the matrix gets used.
+        int brickW;
+        if (userBrickWidth > 0) {
+            brickW = userBrickWidth;
+        } else {
+            const float gapAllowance = spacingEnabled ? (brickCols + 1) : 0;
+            brickW = static_cast<int>(std::floor((w - gapAllowance) / brickCols));
+            brickW = std::max(1, brickW);
+        }
         brickWidth = brickW;
-        brickCols = std::min(brickCols, maxBricks);
 
         float remainingWidth = w - brickWidth * brickCols;
         // Fix: No black pixel gap when spacing is disabled
@@ -482,8 +496,20 @@ public:
         if (spacingEnabled) {
             horizontalGap = std::max(1.0f, std::floor(remainingWidth / (brickCols + 1)));
         }
-        // Calculate X positions for each column
-        float curX = spacingEnabled ? horizontalGap : 0;
+
+        // Width the laid-out row actually occupies, including the outer gaps.
+        // Flooring the gap leaves a remainder, which used to pile up on the right
+        // and pushed the whole field off-centre; centring the span fixes that and
+        // gives the ball a wall it can see.
+        float span = brickCols * brickWidth + (spacingEnabled ? (brickCols + 1) * horizontalGap : 0.0f);
+        if (span > w) {
+            span = w;
+        }
+        fieldW = (userPlayfieldW > 0 && userPlayfieldW <= (int)w) ? (float)userPlayfieldW : span;
+        fieldX = std::floor((w - fieldW) / 2.0f);
+
+        // Calculate X positions for each column, inside the centred field
+        float curX = fieldX + (spacingEnabled ? horizontalGap : 0.0f);
         for (int c = 0; c < brickCols; ++c) {
             columnStarts[c] = curX;
             curX += brickWidth + horizontalGap;
@@ -584,13 +610,13 @@ public:
                 ball.directionY = std::fabs(ball.directionY);
                 ball.y = 0;
             }
-            if (ball.x < 0) {
+            if (ball.x < fieldX) {
                 ball.directionX = std::fabs(ball.directionX);
-                ball.x = 0;
+                ball.x = fieldX;
             }
-            if (ball.x >= model->getWidth()) {
+            if (ball.x >= fieldRight()) {
                 ball.directionX = -std::fabs(ball.directionX);
-                ball.x = model->getWidth() - 1;
+                ball.x = fieldRight() - 1;
             }
 
             bool brickHit = false;
@@ -874,7 +900,7 @@ public:
             int end = std::clamp(tip + 1, 0, model->getHeight() - 1);
             
             // Make beam width adapt to matrix size (min 1px, max 3px wide)
-            int beamWidth = std::clamp(model->getWidth() / 32, 1, 3);
+            int beamWidth = std::clamp((int)fieldW / 32, 1, 3);
             for (int x = ix - (beamWidth/2); x <= ix + (beamWidth/2); x++) {
                 if (x >= 0 && x < model->getWidth()) {
                     for (int y = end; y >= start; --y) {
@@ -891,7 +917,7 @@ public:
 
         // Draw the portal if open/active/touched: three pulsing vertical pixels at bottom-right
         if (portalOpenTimerMs > 0.0 || portalActive || portalTouched) {
-            int x = std::max(0, model->getWidth() - 1);
+            int x = std::max(0, (int)fieldRight() - 1);
             int h = model->getHeight();
             float pulse = 0.5f + 0.5f * std::sin(portalPulsePhase);
             int pr = static_cast<int>(255 * pulse);
@@ -938,7 +964,7 @@ public:
         constexpr int durationMs = 8000;
         switch (type) {
             case PowerUp::Type::Expand:
-                paddle.width = std::min<float>(model->getWidth() * 0.8f,
+                paddle.width = std::min<float>(fieldW * 0.8f,
                                                paddle.width + basePaddleWidth * 0.5f);
                 expandTimerMs = durationMs;
                 enforcePaddleBounds();
@@ -976,11 +1002,11 @@ public:
     }
 
     void enforcePaddleBounds() {
-        if (paddle.x < 0) {
-            paddle.x = 0;
+        if (paddle.x < fieldX) {
+            paddle.x = fieldX;
         }
-        if ((paddle.x + paddle.width) > model->getWidth()) {
-            paddle.x = model->getWidth() - paddle.width;
+        if ((paddle.x + paddle.width) > fieldRight()) {
+            paddle.x = fieldRight() - paddle.width;
         }
     }
 
@@ -1216,7 +1242,7 @@ public:
 
         // If portal is active and not yet touched, check for paddle overlap to trigger the suck animation.
         if (portalActive && !portalTouched) {
-            int portalX = std::max(0, model->getWidth() - 1);
+            int portalX = std::max(0, (int)fieldRight() - 1);
             int portalTop = std::max(0, model->getHeight() - 1 - 2);
             float paddleRight = paddle.x + paddle.width;
             if (paddleRight >= portalX - 0.5f && (paddle.y + paddle.height) >= portalTop) {
@@ -1233,8 +1259,8 @@ public:
         if (portalTouched) {
             portalTouchedTimerMs -= elapsedMs;
             double progress = 1.0 - std::max(0.0, portalTouchedTimerMs) / portalTouchDurationMs;
-            int portalX = std::max(0, model->getWidth() - 1);
-            float targetX = (float)model->getWidth() + paddle.width + 2.0f; // Move just off screen to the right
+            int portalX = std::max(0, (int)fieldRight() - 1);
+            float targetX = fieldRight() + paddle.width + 2.0f; // Move just off screen to the right
             
             // Move paddle horizontally to the right while maintaining vertical position
             paddle.x = portalTouchStartX + (targetX - portalTouchStartX) * (float)progress;
@@ -1250,8 +1276,8 @@ public:
         }
 
         paddle.x += direction * paddle.height * frameScalar;
-        if (paddle.x < 0) paddle.x = 0;
-        else if ((paddle.x + paddle.width) >= model->getWidth()) paddle.x = model->getWidth() - paddle.width;
+        if (paddle.x < fieldX) paddle.x = fieldX;
+        else if ((paddle.x + paddle.width) >= fieldRight()) paddle.x = fieldRight() - paddle.width;
 
         // Auto-release any ball that has been stuck to the paddle for >= 3000 ms
         for (auto &ball : balls) {
@@ -1358,7 +1384,7 @@ public:
                 enforcePaddleBounds();
 
                 // Re-center paddle, respawn a stuck ball
-                paddle.x = (model->getWidth() - paddle.width) / 2.0f;
+                paddle.x = fieldX + (fieldW - paddle.width) / 2.0f;
                 enforcePaddleBounds();
                 spawnBallOnPaddle(/*stuck=*/true);
 
@@ -1487,6 +1513,15 @@ public:
     int remainingDestructible = 0;
     int direction = 0;
     float basePaddleWidth = 0;
+    // Horizontal playfield in panel pixels. The ball, the paddle and the portal
+    // all bound against this rather than the model, so the ball can never travel
+    // through dead panel beside the brick field. Defaults to the whole panel and
+    // is narrowed to the brick span (or an explicit Playfield Width) in
+    // loadLevel().
+    float fieldX = 0.0f;
+    float fieldW = 0.0f;
+    float fieldRight() const { return fieldX + fieldW; }
+    int   userPlayfieldW = 0;   // 0 = derive from the brick field
     float baseBallSpeed = 0;
     float configuredBallSpeed = 1.0f;
     float ballSpeedMultiplier = 1.0f;
@@ -1549,7 +1584,8 @@ void FPPBreakout::button(const std::string &button) {
                 getBrickSpacing(),
                 getMaxBricksPerRow(),
                 getPaddleWidth(),
-                getBallSpeed()
+                getBallSpeed(),
+                playfieldWidthOption()
             );
             m->setRunningEffect(effect, 50);
         } else {

@@ -395,6 +395,33 @@ FPPArcadeGameEffect::FPPArcadeGameEffect(PixelOverlayModel *m)
 }
 FPPArcadeGameEffect::~FPPArcadeGameEffect() {
 }
+int FPPArcadeGame::findIntOption(const std::string &s, int def) {
+    const std::string v = findOption(s, "");
+    if (v.empty()) {
+        return def;
+    }
+    try {
+        return std::stoi(v);
+    } catch (...) {
+        return def;   // blank or junk in the config must not throw out of a button press
+    }
+}
+
+void FPPArcadeGameEffect::setPlayfield(int logicalW, int logicalH, int scl) {
+    if (scl < 1) {
+        scl = 1;
+    }
+    const int maxW = std::max(1, model->getWidth() / scl);
+    const int maxH = std::max(1, model->getHeight() / scl);
+    // 0 = fill the panel. Oversized values are clamped rather than honoured so a
+    // playfield can never be drawn partly off the model.
+    pfW = (logicalW <= 0 || logicalW > maxW) ? maxW : logicalW;
+    pfH = (logicalH <= 0 || logicalH > maxH) ? maxH : logicalH;
+    scale = scl;
+    offsetX = std::max(0, (model->getWidth()  - pfW * scl) / 2);
+    offsetY = std::max(0, (model->getHeight() - pfH * scl) / 2);
+}
+
 void FPPArcadeGameEffect::outputPixel(int x, int y, int r, int g, int b, int scl) {
     if (scl == -1) {
         scl = scale;
@@ -524,7 +551,11 @@ int FPPArcadeGameEffect::centerTextX(const std::string &s, int scl) {
     if (scl == -1) {
         scl = scale == 0 ? 1 : scale;
     }
-    int gridWidth = std::max(1, model->getWidth() / scl);
+    // Centre within the playfield, not the panel. The returned x is a playfield
+    // coordinate that outputPixel() then shifts by offsetX, so measuring against
+    // the model here would add the centring offset twice and push text off to
+    // one side whenever the playfield is smaller than the matrix.
+    int gridWidth = pfW > 0 ? pfW : std::max(1, model->getWidth() / scl);
     int textWidth = static_cast<int>(s.size()) * 4;
     int x = (gridWidth - textWidth) / 2;
     if (x < 0) {

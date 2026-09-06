@@ -136,14 +136,18 @@ private:
 
 class TetrisEffect : public FPPArcadeGameEffect {
 public:
-    TetrisEffect(int r, int c, int offx, int offy, int sc, PixelOverlayModel *m) : FPPArcadeGameEffect(m), rows(r), cols(c) {
-        table.resize(r);
-        for (int x = 0; x < r; x++) {
-            table[x].resize(c);
+    TetrisEffect(int r, int c, int sc, PixelOverlayModel *m) : FPPArcadeGameEffect(m) {
+        // Rows/Colums ARE Tetris' playfield, so they feed setPlayfield() rather
+        // than the game getting a second pair of sizing options. Either at 0 now
+        // means "as tall/wide as the panel allows", and the centring that used
+        // to be computed at the call site happens here for every game alike.
+        setPlayfield(c, r, sc);
+        rows = pfH;
+        cols = pfW;
+        table.resize(rows);
+        for (int x = 0; x < rows; x++) {
+            table[x].resize(cols);
         }
-        scale = sc;
-        offsetX = offx;
-        offsetY = offy;
         newShape();
         CopyToModel();
     }
@@ -553,18 +557,10 @@ void FPPTetris::button(const std::string &button) {
             } else {
                 m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
             }
-            int pixelScaling = std::stoi(findOption("Pixel Scaling", "1"));
-            int rows = std::stoi(findOption("Rows", "20"));
-            int cols = std::stoi(findOption("Colums", "11"));
-            int offsetX = (m->getWidth() - (cols * pixelScaling)) / 2;
-            if (offsetX < 0) {
-                offsetX = 0;
-            }
-            int offsetY = (m->getHeight() - (rows * pixelScaling)) / 2;
-            if (offsetY < 0) {
-                offsetY = 0;
-            }
-            effect = new TetrisEffect(rows, cols, offsetX, offsetY, pixelScaling, m);
+            int pixelScaling = findIntOption("Pixel Scaling", 1);
+            int rows = findIntOption("Rows", 20);
+            int cols = findIntOption("Colums", 11);
+            effect = new TetrisEffect(rows, cols, pixelScaling, m);
             // Creating the effect IS the response to Start. Forwarding that same
             // press into the fresh effect reaches the base class pause handler,
             // which pauses the game on its first frame - it took two Start

@@ -62,6 +62,8 @@ public:
     struct Options {
         int   scale        = 1;
         int   lanes        = 5;
+        int   playfieldW   = 0;    // 0 = fill the panel
+        int   playfieldH   = 0;
         float riverMult    = 1.0f; // river (logs/turtles)
         float roadMult     = 1.0f; // road (cars)
         float variability  = 0.20f; // 0..1 lane-to-lane speed spread
@@ -213,9 +215,15 @@ private:
         // Apply pixel scaling to “logical” grid
         cellW = cellH = std::max(1, opt.scale);
 
-        // logical cols/rows (min bounds keep game playable on tiny panels)
-        gridCols = std::max(30, model->getWidth()  / cellW);
-        gridRows = std::max(20, model->getHeight() / cellH);
+        // The old min bounds of 30x20 could exceed the panel, and pxRaw() then
+        // silently clipped whatever fell off the right or bottom - the game was
+        // still "playing" in cells nobody could see. Take the size from
+        // setPlayfield() instead: 0/0 fills the panel exactly, and a configured
+        // Playfield Width/Height is centred on it.
+        setPlayfield(opt.playfieldW, opt.playfieldH, cellW);
+        cellW = cellH = scale;
+        gridCols = pfW;
+        gridRows = pfH;
 
         // Fit lane count to available rows so start/home always exist
         int L = fittedLanesForGrid(gridRows);
@@ -474,9 +482,9 @@ private:
     }
 
     inline void fillCell(int gx,int gy,int r,int g,int b) {
-        // draw an opt.scale x opt.scale block
-        const int x0 = gx * cellW;
-        const int y0 = gy * cellH;
+        // draw an opt.scale x opt.scale block, offset into the centred playfield
+        const int x0 = gx * cellW + offsetX;
+        const int y0 = gy * cellH + offsetY;
         for (int yy=0; yy<cellH; ++yy) {
             for (int xx=0; xx<cellW; ++xx) {
                 pxRaw(x0 + xx, y0 + yy, r, g, b);
@@ -534,18 +542,20 @@ private:
         drawRectGrid(frog.gx, frog.gy, 1, 1, 255,255,255, frogBright);
 
         // --- HUD as 1px raw pixels (unscaled) ---
-        const int panelW = model->getWidth();
-        const int panelH = model->getHeight();
+        // HUD rides the edges of the playfield, not the panel, so it stays with
+        // the game when the field is smaller than the matrix.
+        const int panelW = pfW * cellW;
+        const int panelH = pfH * cellH;
 
-        // score dots across the top physical row (y=0)
+        // score dots across the top row of the playfield
         int dots = std::min((score/10) % panelW, panelW - 1);
-        for (int i=0; i<dots; ++i) pxRaw(i, 0, 200,200,200);
+        for (int i=0; i<dots; ++i) pxRaw(offsetX + i, offsetY, 200,200,200);
 
-        // lives as dots on bottom physical row (y=panelH-1)
-        int yLives = panelH - 1;
+        // lives as dots on the bottom row of the playfield
+        int yLives = offsetY + panelH - 1;
         int xLives = 0;
         for (int i=0; i<std::max(0,lives); ++i) {
-            pxRaw(xLives, yLives, 255,255,255);
+            pxRaw(offsetX + xLives, yLives, 255,255,255);
             xLives += 2; // spacing
             if (xLives >= panelW) break;
         }
@@ -628,6 +638,10 @@ void FPPFrogger::button(const std::string &button) {
 
         // Lanes (river+road count)
         try { opts.lanes = std::max(1, std::min(20, std::stoi(findOption("Lanes", "5")))); } catch (...) {}
+
+        // Playfield size in cells; 0 = fill the panel
+        opts.playfieldW = playfieldWidthOption();
+        opts.playfieldH = playfieldHeightOption();
 
         // River & Road speeds (no legacy global)
         try { opts.riverMult = mapSpeedInt(std::stoi(findOption("River Speed", "1"))); } catch (...) {}

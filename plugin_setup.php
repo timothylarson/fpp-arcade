@@ -36,8 +36,8 @@ var arcadeConfig = <? echo json_encode($pluginJson, JSON_PRETTY_PRINT); ?>;
 
 
 function GetTetrisOptions() {
-    var html = "Rows: <input type='number' value='20' min='1' max='50' class='option1' data-optionname='Rows'/>&nbsp;";
-    html += "Colums: <input type='number' value='11' min='1' max='30' class='option2' data-optionname='Colums'/>&nbsp;";
+    var html = "Rows (0=fill): <input type='number' value='20' min='0' max='50' class='option1' data-optionname='Rows'/>&nbsp;";
+    html += "Colums (0=fill): <input type='number' value='11' min='0' max='30' class='option2' data-optionname='Colums'/>&nbsp;";
     html += "Pixel Scaling: <input type='number' value='1' min='1' max='20' class='option3' data-optionname='Pixel Scaling'/>";
     return html;
 }
@@ -47,22 +47,27 @@ function GetPongOptions() {
     html += "<option value='1'>Up/Down and Left/Right</option>";
     html += "<option value='2'>UpLeft/DownLeft and UpRight/DownRight</option>";
     html += "<option value='3'>Up/Left and Right/Down </option>";
-    html += "</select>"
+    html += "</select>&nbsp;";
+    html += "Playfield W (0=fill): <input type='number' value='0' min='0' max='500' class='option3' data-optionname='Playfield Width'/>&nbsp;";
+    html += "Playfield H (0=fill): <input type='number' value='0' min='0' max='500' class='option4' data-optionname='Playfield Height'/>&nbsp;";
     return html;
 }
 function GetSnakeOptions() {
-    var html = "Pixel Scaling: <input type='number' value='1' min='1' max='20' class='option1' data-optionname='Pixel Scaling'/>";
+    var html = "Pixel Scaling: <input type='number' value='1' min='1' max='20' class='option1' data-optionname='Pixel Scaling'/>&nbsp;";
+    html += "Playfield W (0=fill): <input type='number' value='0' min='0' max='500' class='option2' data-optionname='Playfield Width'/>&nbsp;";
+    html += "Playfield H (0=fill): <input type='number' value='0' min='0' max='500' class='option3' data-optionname='Playfield Height'/>&nbsp;";
     return html;
 }
 function GetBreakoutOptions() {
-    var html = "Brick Width (px): <input type='number' value='2' min='1' max='10' class='option1' data-optionname='Brick Width'/>&nbsp;";
+    var html = "Brick Width (px, 0 = auto): <input type='number' value='0' min='0' max='10' class='option1' data-optionname='Brick Width'/>&nbsp;";
     html += "Black Spacing Between Bricks: <select class='option2' data-optionname='Brick Spacing'>";
     html += "<option value='1'>Yes</option>";
     html += "<option value='0'>No</option>";
     html += "</select>&nbsp;";
-    html += "Max Bricks Per Row: <input type='number' value='15' min='1' max='100' class='option3' data-optionname='Max Bricks'/>&nbsp;";
+    html += "Max Bricks Per Row (0 = level default): <input type='number' value='0' min='0' max='100' class='option3' data-optionname='Max Bricks'/>&nbsp;";
     html += "Paddle Width (px, 0 = auto): <input type='number' value='0' min='0' max='100' class='option4' data-optionname='Paddle Width'/>&nbsp;";
     html += "Ball Speed Multiplier: <input type='number' value='1.0' min='0.1' max='5.0' step='0.1' class='option5' data-optionname='Ball Speed'/>&nbsp;";
+    html += "Playfield W (0=bricks): <input type='number' value='0' min='0' max='500' class='option6' data-optionname='Playfield Width'/>&nbsp;";
     return html;
 }
 function GetFroggerOptions() {
@@ -70,7 +75,9 @@ function GetFroggerOptions() {
     html     += "Lanes: <input type='number' value='5' min='1' max='20' class='option2' data-optionname='Lanes'/>&nbsp;";
     html     += "River Speed: <input type='number' value='1' min='1' max='10' class='option4' data-optionname='River Speed'/>&nbsp;";
     html     += "Road Speed: <input type='number' value='1' min='1' max='10' class='option5' data-optionname='Road Speed'/>";
-    html     += "Speed Variability (%): <input type='number' value='20' min='0' max='100' class='option6' data-optionname='Speed Variability'/>";
+    html     += "Speed Variability (%): <input type='number' value='20' min='0' max='100' class='option6' data-optionname='Speed Variability'/>&nbsp;";
+    html     += "Playfield W (0=fill): <input type='number' value='0' min='0' max='500' class='option7' data-optionname='Playfield Width'/>&nbsp;";
+    html += "Playfield H (0=fill): <input type='number' value='0' min='0' max='500' class='option8' data-optionname='Playfield Height'/>&nbsp;";
     return html;
 }
 

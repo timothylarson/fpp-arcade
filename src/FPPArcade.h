@@ -27,6 +27,13 @@ public:
     const std::string &getModelName() const { return modelName; }
 protected:
     std::string findOption(const std::string &s, const std::string &def = "");
+    // findOption() as an int, tolerating a blank or non-numeric value in the
+    // config rather than throwing std::invalid_argument out of a button press.
+    int findIntOption(const std::string &s, int def);
+    // The two universal sizing options. 0 means "fill the panel"; see
+    // FPPArcadeGameEffect::setPlayfield().
+    int playfieldWidthOption()  { return findIntOption("Playfield Width", 0); }
+    int playfieldHeightOption() { return findIntOption("Playfield Height", 0); }
     
     std::string modelName;    
     Json::Value config;
@@ -56,6 +63,19 @@ public:
     virtual void restart();
     bool isPaused() const { return paused; }
     
+    // Size the logical playfield and centre it on the model. A game should
+    // bound itself against pfW/pfH rather than model->getWidth()/getHeight(),
+    // so that what it collides with and what outputPixel() draws can never
+    // disagree - that mismatch is what let Breakout's ball travel through dead
+    // panel beside its brick field.
+    //
+    // logicalW/logicalH are in game cells, not panel pixels; 0 (or anything
+    // larger than the panel can hold) means "fill the panel", so a misconfigured
+    // value degrades to full screen instead of drawing off-model.
+    void setPlayfield(int logicalW, int logicalH, int scl);
+    int pfW = 0;
+    int pfH = 0;
+
     int scale;
     int offsetX;
     int offsetY;

@@ -17,11 +17,12 @@ FPPPong::~FPPPong() {
 
 class PongEffect : public FPPArcadeGameEffect {
 public:
-    PongEffect(int sc, int c, PixelOverlayModel *m) : FPPArcadeGameEffect(m), controls(c) {
-        m->getSize(cols, rows);
-        scale = sc;
-        cols /= sc;
-        rows /= sc;
+    PongEffect(int sc, int c, int pfw, int pfh, PixelOverlayModel *m) : FPPArcadeGameEffect(m), controls(c) {
+        // 0/0 keeps the historical behaviour of playing across the whole panel;
+        // a configured size is centred on it.
+        setPlayfield(pfw, pfh, sc);
+        cols = pfW;
+        rows = pfH;
         
         racketSize = rows / 5;
         if (racketSize < 3) {
@@ -30,8 +31,6 @@ public:
         racketP1Pos = racketP2Pos = (rows - racketSize)/2;
         racketP1PosF = static_cast<float>(racketP1Pos);
         racketP2PosF = static_cast<float>(racketP2Pos);
-        offsetX = 0;
-        offsetY = 0;
         
         ballPosX = cols / 2;
         ballPosY = rows / 2;
@@ -308,7 +307,8 @@ void FPPPong::button(const std::string &button) {
             }
             int pixelScaling = std::stoi(findOption("Pixel Scaling", "1"));
             int controls = std::stoi(findOption("Controls", "1"));
-            effect = new PongEffect(pixelScaling, controls, m);
+            effect = new PongEffect(pixelScaling, controls,
+                                    playfieldWidthOption(), playfieldHeightOption(), m);
             // Creating the effect IS the response to Start. Forwarding that same
             // press into the fresh effect reaches the base class pause handler,
             // which pauses the game on its first frame - it took two Start

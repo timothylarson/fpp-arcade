@@ -61,6 +61,7 @@ public:
     virtual void pause();
     virtual void resume();
     virtual void restart();
+    void activatePauseSelection();
     bool isPaused() const { return paused; }
     
     // Size the logical playfield and centre it on the model. A game should

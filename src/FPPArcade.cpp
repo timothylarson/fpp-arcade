@@ -465,6 +465,23 @@ void FPPArcadeGameEffect::drawUnderline(int x, int y, int length, int r, int g, 
     }
 }
 
+// Both ways of choosing a pause-menu entry (Start, or A/B) land here, so the
+// two cannot drift apart.
+void FPPArcadeGameEffect::activatePauseSelection() {
+    if (pauseMenu.isResumeSelected()) {
+        resume();
+        return;
+    }
+    restart();
+    // Leaving the menu is part of what Restart means. The base restart() clears
+    // `paused`, but every game overrides it and none chained to the base, so a
+    // restart built the fresh state and then left it sitting behind the menu
+    // until the player also picked Resume. Enforced here so a new game cannot
+    // reintroduce it by forgetting a line.
+    paused = false;
+    resetFrameTimer();
+}
+
 void FPPArcadeGameEffect::drawPauseMenu() {
     const int scl = std::max(1, (int)(model->getHeight() / 16));
 
@@ -493,6 +510,12 @@ void FPPArcadeGameEffect::drawPauseMenu() {
     const int resumeY = optionTopY;
     const int restartY = optionTopY + letterHeight + spacing;
 
+    // The menu darkens and covers the whole matrix, so it centres on the panel.
+    // Without this it inherited the game's transform: centerTextX() measured the
+    // playfield, clamped to 0 because the words are wider than an 11-cell Tetris
+    // well, and outputPixel() then shifted everything right by offsetX - the menu
+    // started at the left wall and ran off to the right.
+    PanelTransform pt(this);
     outputString(resumeText, centerTextX(resumeText, scl), resumeY, 255, 255, 255, scl);
     outputString(restartText, centerTextX(restartText, scl), restartY, 255, 255, 255, scl);
 
@@ -511,11 +534,7 @@ void FPPArcadeGameEffect::button(const std::string &button) {
 
     // If paused and an activation key is pressed, select current option
     if (paused && isActivate) {
-        if (pauseMenu.isResumeSelected()) {
-            resume();
-        } else {
-            restart();
-        }
+        activatePauseSelection();
         return;
     }
 
@@ -524,11 +543,7 @@ void FPPArcadeGameEffect::button(const std::string &button) {
         if (!paused) {
             pause();
         } else {
-            if (pauseMenu.isResumeSelected()) {
-                resume();
-            } else {
-                restart();
-            }
+            activatePauseSelection();
         }
         return;
     }
@@ -571,7 +586,11 @@ int FPPArcadeGameEffect::centerTextX(const std::string &s, int scl) {
     // coordinate that outputPixel() then shifts by offsetX, so measuring against
     // the model here would add the centring offset twice and push text off to
     // one side whenever the playfield is smaller than the matrix.
-    int gridWidth = pfW > 0 ? pfW : std::max(1, model->getWidth() / scl);
+    // pfW counts cells at `scale`, but the caller centres in units of `scl`
+    // (the pause menu, for instance, draws at its own scale). Convert through
+    // pixels so the two never disagree.
+    const int pixelsWide = pfW > 0 ? (pfW * std::max(1, scale)) : model->getWidth();
+    int gridWidth = std::max(1, pixelsWide / scl);
     int textWidth = static_cast<int>(s.size()) * 4;
     int x = (gridWidth - textWidth) / 2;
     if (x < 0) {

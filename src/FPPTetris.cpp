@@ -688,6 +688,11 @@ public:
         lines = 0;
         level = 1;
         levelBannerMs = bannerMs;   // announce LEVEL 1 on restart too
+        // The drop speed ramps with lines cleared and was NOT being reset, so a
+        // restart said LEVEL 1 while still running at the old game's pace.
+        accumulatedDrop = 0.0;
+        timer = initialTimer;
+        fallAccumulatorMs = 0.0;
         GameOn = true;
         WaitingUntilOutput = false;
         if (currentShape) {

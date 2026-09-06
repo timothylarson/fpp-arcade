@@ -168,21 +168,28 @@ public:
     // the matrix is too narrow to carry a sidebar at all.
     void layoutSidebar() {
         const int panelW = model->getWidth();
-        const int wellW  = cols * scale + 2;      // interior plus both walls
-        const int gap    = 2;
-        const int avail  = panelW - wellW - gap - 2;   // keep a margin each side
 
-        // The sidebar carries only the next-piece preview, so it needs four
-        // cells rather than room for a column of numbers - which also keeps the
-        // well close to the centre of the matrix.
-        const int want = 4 * scale;
-        sidebarW  = avail >= want ? want : 0;
-        sidebarOn = sidebarW > 0;
+        // Leave the well where setPlayfield() centred it. Treating the well and
+        // the preview as one block and centring THAT pushed the playfield left
+        // of the matrix centre to make room for four cells, which is the wrong
+        // trade: the well is what the player is looking at, so it gets the
+        // middle and the preview lives out in the margin.
+        const int wellRight = offsetX + cols * scale;   // column of the right wall
+        const int marginX   = wellRight + 1;
+        const int marginW   = panelW - marginX;
+        const int want      = 4 * scale;
 
-        const int total  = wellW + (sidebarOn ? gap + sidebarW : 0);
-        const int blockX = std::max(0, (panelW - total) / 2);
-        offsetX  = blockX + 1;                     // setPlayfield centred the well alone
-        sidebarX = blockX + wellW + gap;
+        if (marginW >= want + 2) {
+            sidebarW  = want;
+            sidebarOn = true;
+            // Centred in the margin rather than tucked against the wall, so it
+            // reads as a separate side panel instead of clutter beside the well.
+            sidebarX  = marginX + (marginW - want) / 2;
+        } else {
+            sidebarW  = 0;
+            sidebarOn = false;
+            sidebarX  = 0;
+        }
     }
 
     // The sidebar is addressed in absolute panel pixels, but outputString()

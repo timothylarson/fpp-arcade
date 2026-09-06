@@ -309,7 +309,14 @@ void FPPPong::button(const std::string &button) {
             int pixelScaling = std::stoi(findOption("Pixel Scaling", "1"));
             int controls = std::stoi(findOption("Controls", "1"));
             effect = new PongEffect(pixelScaling, controls, m);
-            effect->button(button);
+            // Creating the effect IS the response to Start. Forwarding that same
+            // press into the fresh effect reaches the base class pause handler,
+            // which pauses the game on its first frame - it took two Start
+            // presses to actually play. Other buttons still need forwarding so a
+            // direction press that starts a game also registers as a move.
+            if (button != "Start - Pressed" && button != "Start") {
+                effect->button(button);
+            }
             m->setRunningEffect(effect, 50);
         } else {
             effect->button(button);

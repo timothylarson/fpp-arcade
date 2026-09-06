@@ -149,6 +149,7 @@ public:
             table[x].resize(cols);
         }
         layoutSidebar();
+        levelBannerMs = bannerMs;   // show LEVEL 1 straight away, not only on a change
         newShape();
         CopyToModel();
     }
@@ -235,8 +236,36 @@ public:
         char buf[24];
         snprintf(buf, sizeof(buf), "LEVEL %d", level);
         PanelTransform pt(this);
-        const int y = std::max(0, (model->getHeight() - 5) / 2);
-        outputString(buf, centerTextX(buf, 1), y, 255, 220, 0, 1);
+
+        const std::string txt(buf);
+        const int textH = 5;
+        // Glyphs are 3px wide on a 4px pitch, so the last one contributes 3.
+        const int textW = static_cast<int>(txt.size()) * 4 - 1;
+        const int tx = centerTextX(txt, 1);
+        const int ty = std::max(0, (model->getHeight() - textH) / 2);
+
+        // Blank a panel behind the text and outline it, so settled blocks and
+        // the well walls do not read through the glyphs. The fill is (1,1,1)
+        // rather than pure black on purpose: in the Transparent overlay mode a
+        // black pixel lets the underlying sequence show through, which is
+        // exactly what the box is meant to stop.
+        const int pad = 1;
+        const int x0 = tx - pad - 1,        y0 = ty - pad - 1;
+        const int x1 = tx + textW + pad,    y1 = ty + textH + pad;
+        for (int y = y0; y <= y1; y++) {
+            for (int x = x0; x <= x1; x++) {
+                if (x < 0 || y < 0 || x >= model->getWidth() || y >= model->getHeight()) {
+                    continue;
+                }
+                const bool edge = (x == x0 || x == x1 || y == y0 || y == y1);
+                if (edge) {
+                    model->setOverlayPixelValue(x, y, 255, 255, 255);
+                } else {
+                    model->setOverlayPixelValue(x, y, 1, 1, 1);
+                }
+            }
+        }
+        outputString(txt, tx, ty, 255, 220, 0, 1);
     }
     const std::string &name() const override {
         static std::string NAME = "Tetris";
@@ -311,14 +340,14 @@ public:
             // the whole thing scales with the level - so clearing four at once
             // is worth far more than four singles.
             static const int LINE_SCORE[5] = { 0, 40, 100, 300, 1200 };
-            score += LINE_SCORE[std::min(cleared, 4)] * (level + 1);
+            score += LINE_SCORE[std::min(cleared, 4)] * level;
             lines += cleared;
             // The drop speed already ramps per line cleared, so deriving the
             // level from lines the classic way keeps the number the player sees
             // consistent with how fast the game actually feels.
-            const int newLevel = lines / 10;
+            const int newLevel = lines / 10 + 1;
             if (newLevel != level) {
-                levelBannerMs = 1800.0;
+                levelBannerMs = bannerMs;
             }
             level = newLevel;
             increaseSpeed(cleared);
@@ -611,13 +640,14 @@ public:
     std::vector<std::vector<uint32_t>> table;
     int score = 0;
     int lines = 0;
-    int level = 0;
+    int level = 1;   // 1-based: the player sees LEVEL 1 on the first drop
     Shape *nextShape = nullptr;
     // Sidebar geometry, in absolute panel pixels (the well uses scale/offset).
     int  sidebarX = 0;
     int  sidebarW = 0;
     bool sidebarOn = false;
     double levelBannerMs = 0.0;
+    static constexpr double bannerMs = 1800.0;
     bool GameOn = true;
     bool WaitingUntilOutput = false;
     
@@ -649,8 +679,8 @@ public:
         }
         score = 0;
         lines = 0;
-        level = 0;
-        levelBannerMs = 0.0;
+        level = 1;
+        levelBannerMs = bannerMs;   // announce LEVEL 1 on restart too
         GameOn = true;
         WaitingUntilOutput = false;
         if (currentShape) {

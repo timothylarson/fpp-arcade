@@ -101,9 +101,19 @@ public:
                 return 50;
             }
 
-            if (!gameOn) {
+        if (!gameOn) {
+            // Draw the game-over screen once and HOLD it. This used to draw and
+            // then fall straight through to the teardown below on the very next
+            // update, so the screen was gone before it could be read - Tetris
+            // returns a hold here and Frogger did not.
+            if (!gameOverShown) {
+                gameOverShown = true;
+                model->clearOverlayBuffer();
+                drawGameOver();
+                model->flushOverlayBuffer();
+                return gameOverHoldMs;
+            }
             model->clearOverlayBuffer();
-            drawGameOver();
             model->flushOverlayBuffer();
             if (!waitingUntilOutput) {
                 waitingUntilOutput = true;
@@ -283,6 +293,7 @@ private:
         paused = false;
         gameOn = true;
         waitingUntilOutput = false;
+        gameOverShown = false;
         initLevel();
     }
 
@@ -584,23 +595,29 @@ private:
         }
 
         if (drawPaused) {
-            outputString("PAUSED", centerTextX("PAUSED"), std::max(0, gridRows/2-3), 255,255,255, 1);
+            outputString("PAUSED", centerTextX("PAUSED", 1), std::max(0, gridRows/2-3), 255,255,255, 1);
         }
 
         model->flushOverlayBuffer();
     }
 
-    int centerTextX(const std::string &text) const {
-        const int glyphWidth = 4;
-        const int textWidth  = glyphWidth * (int)text.size();
-        int pos = (gridCols - textWidth) / 2;
-        return std::max(0, pos);
-    }
-
     void drawGameOver() {
         drawFrame(0.2f, false);
-        outputString("GAME",  centerTextX("GAME"),  std::max(0, gridRows/2 - 6), 255,255,255, 1);
-        outputString("OVER",  centerTextX("OVER"),  std::max(0, gridRows/2),     255,255,255, 1);
+        char scoreBuf[20];
+        snprintf(scoreBuf, sizeof(scoreBuf), "%d", score);
+        // GAME / OVER / final score, matching Tetris. Laid out as a block and
+        // centred so it fits whatever the playfield happens to be.
+        const int glyphH = 5, pitch = 7;
+        int wanted = 3;
+        while (wanted > 1 && (wanted - 1) * pitch + glyphH > gridRows) {
+            wanted--;
+        }
+        int y = std::max(0, (gridRows - ((wanted - 1) * pitch + glyphH)) / 2);
+        const std::string rows_[3] = { "GAME", "OVER", scoreBuf };
+        for (int i = 0; i < wanted; i++) {
+            outputString(rows_[i], centerTextX(rows_[i], 1), y, 255, 255, 255, 1);
+            y += pitch;
+        }
     }
 
 private:
@@ -631,6 +648,8 @@ private:
     bool   paused=false;
     bool   gameOn=true;
     bool   waitingUntilOutput=false;
+    bool   gameOverShown=false;
+    static constexpr int32_t gameOverHoldMs = 3000;
     double invulnTimerMs=0.0;
 
     // per-lane variability multiplier (baseline)

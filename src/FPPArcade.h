@@ -76,6 +76,19 @@ public:
     int pfW = 0;
     int pfH = 0;
 
+    // Draw in absolute panel pixels for the lifetime of the object: zeroes the
+    // transform AND widens the centring reference, so centerTextX() measures the
+    // panel instead of the playfield. Zeroing the transform alone left
+    // full-screen text jammed against x=0 whenever the playfield was narrower
+    // than the text.
+    struct PanelTransform {
+        explicit PanelTransform(FPPArcadeGameEffect *eff);
+        ~PanelTransform();
+    private:
+        FPPArcadeGameEffect *e;
+        int s, ox, oy, w, h;
+    };
+
     int scale;
     int offsetX;
     int offsetY;

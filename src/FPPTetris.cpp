@@ -148,6 +148,7 @@ public:
         for (int x = 0; x < rows; x++) {
             table[x].resize(cols);
         }
+        layoutSidebar();
         newShape();
         CopyToModel();
     }
@@ -155,6 +156,87 @@ public:
         if (currentShape) {
             delete currentShape;
         }
+        if (nextShape) {
+            delete nextShape;
+        }
+    }
+
+    // Place the well and the sidebar as one block and centre THAT, rather than
+    // centring the well alone and hanging the sidebar off it - otherwise the
+    // pair sits visibly right of centre. Falls back to a bare centred well when
+    // the matrix is too narrow to carry a sidebar at all.
+    void layoutSidebar() {
+        const int panelW = model->getWidth();
+        const int wellW  = cols * scale + 2;      // interior plus both walls
+        const int gap    = 2;
+        const int avail  = panelW - wellW - gap - 2;   // keep a margin each side
+
+        // The sidebar carries only the next-piece preview, so it needs four
+        // cells rather than room for a column of numbers - which also keeps the
+        // well close to the centre of the matrix.
+        const int want = 4 * scale;
+        sidebarW  = avail >= want ? want : 0;
+        sidebarOn = sidebarW > 0;
+
+        const int total  = wellW + (sidebarOn ? gap + sidebarW : 0);
+        const int blockX = std::max(0, (panelW - total) / 2);
+        offsetX  = blockX + 1;                     // setPlayfield centred the well alone
+        sidebarX = blockX + wellW + gap;
+    }
+
+    // The sidebar is addressed in absolute panel pixels, but outputString()
+    // applies the well's scale and offset. Borrow the transform for the call
+    // rather than duplicating the glyph rendering.
+    void drawSidebarText(const std::string &txt, int x, int y, int r, int g, int b) {
+        const int ps = scale, px = offsetX, py = offsetY;
+        scale = 1; offsetX = 0; offsetY = 0;
+        outputString(txt, x, y, r, g, b, 1);
+        scale = ps; offsetX = px; offsetY = py;
+    }
+
+    void drawNextPiece(int x, int y) {
+        if (!nextShape) {
+            return;
+        }
+        const uint32_t c = nextShape->getColor();
+        const int r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
+        const int w = nextShape->getWidth();
+        for (int i = 0; i < w; i++) {
+            for (int j = 0; j < w; j++) {
+                if (!nextShape->get(i, j)) {
+                    continue;
+                }
+                for (int sx = 0; sx < scale; sx++) {
+                    for (int sy = 0; sy < scale; sy++) {
+                        model->setOverlayPixelValue(x + j * scale + sx, y + i * scale + sy, r, g, b);
+                    }
+                }
+            }
+        }
+    }
+
+    void drawSidebar() {
+        if (!sidebarOn) {
+            return;
+        }
+        if (offsetY + 4 * scale <= model->getHeight()) {
+            drawNextPiece(sidebarX, offsetY);
+        }
+    }
+
+    // A permanent score/level/lines readout wants ~18 rows of glyphs beside the
+    // well, which a 25-row matrix cannot spare without shrinking the well. So the
+    // level is announced briefly when it changes, and the final score belongs on
+    // the game-over screen - nothing has to sit on screen for the whole game.
+    void drawLevelBanner() {
+        if (levelBannerMs <= 0.0) {
+            return;
+        }
+        char buf[24];
+        snprintf(buf, sizeof(buf), "LEVEL %d", level);
+        PanelTransform pt(this);
+        const int y = std::max(0, (model->getHeight() - 5) / 2);
+        outputString(buf, centerTextX(buf, 1), y, 255, 220, 0, 1);
     }
     const std::string &name() const override {
         static std::string NAME = "Tetris";
@@ -165,7 +247,12 @@ public:
         if (currentShape) {
             delete currentShape;
         }
-        currentShape = new Shape();
+        // Take the piece the sidebar has been previewing, then draw the next one.
+        if (!nextShape) {
+            nextShape = new Shape();
+        }
+        currentShape = nextShape;
+        nextShape = new Shape();
         currentShape->col = cols / 2 - 1;
         currentShape->row = 0;
         if (!CheckPosition(currentShape)) {
@@ -207,7 +294,6 @@ public:
                 }
             }
             if (sum == cols){
-                score++;
                 cleared++;
 
                 for (int k = i; k >= 1; k--) {
@@ -221,6 +307,20 @@ public:
             }
         }
         if (cleared > 0) {
+            // Classic Tetris scoring: a single is worth 40, a tetris 1200, and
+            // the whole thing scales with the level - so clearing four at once
+            // is worth far more than four singles.
+            static const int LINE_SCORE[5] = { 0, 40, 100, 300, 1200 };
+            score += LINE_SCORE[std::min(cleared, 4)] * (level + 1);
+            lines += cleared;
+            // The drop speed already ramps per line cleared, so deriving the
+            // level from lines the classic way keeps the number the player sees
+            // consistent with how fast the game actually feels.
+            const int newLevel = lines / 10;
+            if (newLevel != level) {
+                levelBannerMs = 1800.0;
+            }
+            level = newLevel;
             increaseSpeed(cleared);
         }
     }
@@ -275,6 +375,8 @@ public:
             }
 
         }
+        drawSidebar();
+        drawLevelBanner();
         model->flushOverlayBuffer();
     }
 
@@ -284,29 +386,34 @@ public:
             delete currentShape;
             currentShape = nullptr;
             model->clearOverlayBuffer();
-            int prevScale = scale;
-            int prevOffsetX = offsetX;
-            int prevOffsetY = offsetY;
-            scale = 1;
-            offsetX = 0;
-            offsetY = 0;
+            {
+                // Draws across the whole matrix, so the centring reference has to
+                // be the panel too. Zeroing scale/offset alone (as this did) left
+                // centerTextX() measuring the 11-wide well, and every line came
+                // out clamped hard against x=0.
+                PanelTransform pt(this);
 
-            int totalHeight = 5 + 2 + 5 + 6; // GAME + spacing + OVER + score spacing
-            int startY = (model->getHeight() - totalHeight) / 2;
-            if (startY < 0) startY = 0;
-            int yGame = startY;
-            int yOver = yGame + 7;
-            int yScore = yOver + 7;
-            outputString("GAME", centerTextX("GAME", 1), yGame);
-            outputString("OVER", centerTextX("OVER", 1), yOver);
+                char scoreBuf[20];
+                snprintf(scoreBuf, sizeof(scoreBuf), "%d", score);
 
-            char buf[20];
-            snprintf(buf, sizeof(buf), "%d", score);
-            outputString(buf, centerTextX(buf, 1), yScore);
+                // GAME / OVER / final score, dropping the tail lines on a matrix
+                // too short to hold them rather than drawing off the bottom.
+                const int glyphH = 5;
+                const int pitch  = 7;
+                const int panelH = model->getHeight();
+                int wanted = 3;
+                while (wanted > 1 && (wanted - 1) * pitch + glyphH > panelH) {
+                    wanted--;
+                }
+                const int blockH = (wanted - 1) * pitch + glyphH;
+                int y = std::max(0, (panelH - blockH) / 2);
 
-            scale = prevScale;
-            offsetX = prevOffsetX;
-            offsetY = prevOffsetY;
+                const char *rows_[3] = { "GAME", "OVER", scoreBuf };
+                for (int i = 0; i < wanted; i++) {
+                    outputString(rows_[i], centerTextX(rows_[i], 1), y, 255, 255, 255, 1);
+                    y += pitch;
+                }
+            }
             model->flushOverlayBuffer();
             return 3000;
         }
@@ -339,6 +446,10 @@ public:
         double elapsedMs = consumeElapsedMs(desiredFrame);
         if (elapsedMs <= 0.0) {
             elapsedMs = desiredFrame;
+        }
+
+        if (levelBannerMs > 0.0) {
+            levelBannerMs -= elapsedMs;
         }
 
         double maxCatchup = std::max(timer * 3.0, desiredFrame);
@@ -499,6 +610,14 @@ public:
     int cols = 11;
     std::vector<std::vector<uint32_t>> table;
     int score = 0;
+    int lines = 0;
+    int level = 0;
+    Shape *nextShape = nullptr;
+    // Sidebar geometry, in absolute panel pixels (the well uses scale/offset).
+    int  sidebarX = 0;
+    int  sidebarW = 0;
+    bool sidebarOn = false;
+    double levelBannerMs = 0.0;
     bool GameOn = true;
     bool WaitingUntilOutput = false;
     
@@ -529,11 +648,18 @@ public:
             std::fill(row.begin(), row.end(), 0);
         }
         score = 0;
+        lines = 0;
+        level = 0;
+        levelBannerMs = 0.0;
         GameOn = true;
         WaitingUntilOutput = false;
         if (currentShape) {
             delete currentShape;
             currentShape = nullptr;
+        }
+        if (nextShape) {
+            delete nextShape;
+            nextShape = nullptr;
         }
         newShape();
         resetFrameTimer();

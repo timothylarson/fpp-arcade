@@ -407,6 +407,22 @@ int FPPArcadeGame::findIntOption(const std::string &s, int def) {
     }
 }
 
+FPPArcadeGameEffect::PanelTransform::PanelTransform(FPPArcadeGameEffect *eff)
+    : e(eff), s(eff->scale), ox(eff->offsetX), oy(eff->offsetY), w(eff->pfW), h(eff->pfH) {
+    e->scale = 1;
+    e->offsetX = 0;
+    e->offsetY = 0;
+    e->pfW = e->model->getWidth();
+    e->pfH = e->model->getHeight();
+}
+FPPArcadeGameEffect::PanelTransform::~PanelTransform() {
+    e->scale = s;
+    e->offsetX = ox;
+    e->offsetY = oy;
+    e->pfW = w;
+    e->pfH = h;
+}
+
 void FPPArcadeGameEffect::setPlayfield(int logicalW, int logicalH, int scl) {
     if (scl < 1) {
         scl = 1;

@@ -118,13 +118,35 @@ public:
             return 50;
         }
 
+        // Which log is the frog standing on, and where along it, BEFORE anything
+        // moves. Deciding this after the movers advance is what made a hop onto a
+        // log that the player could see under the frog sometimes drown instantly.
+        int rideIdx = -1;
+        int rideOffset = 0;
+        if (isRiverRow(frog.gy)) {
+            rideIdx = logIndexUnder(frog);
+            if (rideIdx >= 0) {
+                rideOffset = frog.gx - moverDrawX(movers[rideIdx]);
+            }
+        }
+
         advanceMovers((float)frameScalar);
 
-        // River: drown unless on a log/turtle (then get carried)
+        // River: drown unless on a log/turtle (then ride it)
         if (isRiverRow(frog.gy)) {
-            if (onAnyLog(frog)) {
-                float carry = laneDir(frog.gy) * laneSpeed(frog.gy) * (float)frameScalar;
-                carryFrog(carry);
+            if (rideIdx >= 0) {
+                // Hold the same offset along the log rather than integrating a
+                // carry speed of our own. The old carry could not work: it used
+                // laneSpeed*frameScalar while the movers use speed*dt (a
+                // different unit entirely), and frog.gx is a whole cell, so
+                // round()ing a sub-cell carry threw the remainder away every
+                // frame. The log slid out from under the frog a fraction at a
+                // time, which is why it always ended up off the left end of a
+                // log drifting right.
+                frog.gx = moverDrawX(movers[rideIdx]) + rideOffset;
+                if (frog.gx <= 0 || frog.gx >= gridCols - 1) {
+                    loseLife();   // carried off the end of the row
+                }
             } else {
                 loseLife();
             }
@@ -430,14 +452,24 @@ private:
                (ay < by + bh) && (ay + ah > by);
     }
 
+    // The cell a mover is DRAWN at. Anything that reasons about standing on a
+    // log has to agree with the renderer, or the frog drowns on a log the
+    // player can plainly see under it.
+    static int moverDrawX(const FGLaneMover &m) { return (int)std::floor(m.gx + 0.5f); }
+
     bool onAnyLog(const FGEntity &f) const {
-        for (const auto &m : movers) {
+        return logIndexUnder(f) >= 0;
+    }
+
+    int logIndexUnder(const FGEntity &f) const {
+        for (size_t i = 0; i < movers.size(); ++i) {
+            const FGLaneMover &m = movers[i];
             if (!m.isLog || m.gy != f.gy) continue;
-            int mx = (int)std::floor(m.gx + 0.5f);
-            if (rectOverlap(f.gx, f.gy, f.gw, f.gh, mx, m.gy, m.gw, 1))
-                return true;
+            if (rectOverlap(f.gx, f.gy, f.gw, f.gh, moverDrawX(m), m.gy, m.gw, 1)) {
+                return (int)i;
+            }
         }
-        return false;
+        return -1;
     }
 
     bool hitByCar(const FGEntity &f) const {
@@ -448,15 +480,6 @@ private:
                 return true;
         }
         return false;
-    }
-
-    void carryFrog(float dx) {
-        float nx = frog.gx + dx;
-        int ix   = (int)std::round(nx);
-        frog.gx  = std::clamp(ix, 0, gridCols - 1);
-        if (frog.gx <= 0 || frog.gx >= gridCols - 1) {
-            loseLife(); // fell off screen
-        }
     }
 
     void moveFrog(int dx, int dy) {

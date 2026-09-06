@@ -910,9 +910,11 @@ public:
             }
         }
 
-        // --- Life indicator: top-left row, one pixel per life (white) ---
+        // --- Life indicator: top-left of the PLAYFIELD, one pixel per life ---
+        // Anchored to fieldX, not the panel, so it sits with the bricks instead
+        // of floating in the dead margin beside them.
         for (int i = 0; i < lives; ++i) {
-            model->setOverlayPixelValue(i, 0, 255, 255, 255);
+            model->setOverlayPixelValue((int)fieldX + i, 0, 255, 255, 255);
         }
 
         // Draw the portal if open/active/touched: three pulsing vertical pixels at bottom-right

@@ -169,11 +169,28 @@ public:
         if (!GameOn) {
             moveAccumulatorMs = 0.0;
             int scl = scale == 0 ? 1 : scale;
-            outputString("GAME", centerTextX("GAME", scl), rows/2-9, 255, 255, 255, scl);
-            outputString("OVER", centerTextX("OVER", scl), rows/2-3, 255, 255, 255, scl);
             char buf[25];
             snprintf(buf, sizeof(buf), "%u", (uint32_t)snake.size());
-            outputString(buf, centerTextX(buf, scl), rows/2+3, 255, 255, 255, scl);
+            // Lay GAME / OVER / score out as one block and centre it, clamped
+            // into the playfield. The old fixed rows/2-9 offset assumed a tall
+            // field and put GAME above the top wall as soon as the playfield was
+            // shorter than about 19 rows.
+            const int glyphH = 5;
+            // Fit what the playfield can actually hold. Three lines at the roomy
+            // 6-row pitch want 17 rows; tighten to a 5-row pitch first, and on a
+            // very short field drop the score, then OVER, rather than drawing
+            // outside the playfield the way the old fixed rows/2-9 offset did.
+            const int lines  = rows >= glyphH * 3 ? 3 : (rows >= glyphH * 2 ? 2 : 1);
+            const int lineH  = std::max(glyphH, std::min(6, (rows - glyphH) / std::max(1, lines - 1)));
+            const int blockH = lineH * (lines - 1) + glyphH;
+            const int y0     = std::max(0, (rows - blockH) / 2);
+            outputString("GAME", centerTextX("GAME", scl), y0, 255, 255, 255, scl);
+            if (lines >= 2) {
+                outputString("OVER", centerTextX("OVER", scl), y0 + lineH, 255, 255, 255, scl);
+            }
+            if (lines >= 3) {
+                outputString(buf, centerTextX(buf, scl), y0 + lineH * 2, 255, 255, 255, scl);
+            }
             resetFrameTimer();
             model->flushOverlayBuffer();
             return 2000;

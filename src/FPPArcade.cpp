@@ -657,22 +657,7 @@ public:
         };
         FileMonitor::INSTANCE.AddFile(name, FPP_DIR_CONFIG("/plugin.fpp-arcade.json"), reload);
 
-        int idx = 0;
-        if (FileExists(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"))) {
-            Json::Value root;
-            if (LoadJsonFromFile(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"), root)
-                && root.isMember("games")) {
-                for (int x = 0; x < root["games"].size(); x++) {
-                    if (root["games"][x]["enabled"].asBool()) {
-                        std::string model = root["games"][x]["model"].asString();
-                        games[model].push_back(createGame(root["games"][x]));
-                        if (games[model].back() != nullptr) {
-                            games[model].back()->setIdx(++idx);
-                        }
-                    }
-                }
-            }
-        }
+        loadGames();
         
         if (FileExists(FPP_DIR_CONFIG("/joysticks.json"))) {
             Json::Value root;
@@ -714,7 +699,11 @@ public:
         }
         games.clear();
 
-        int idx = 0;
+        // Games are numbered per model, 1..n in config order, which is what
+        // "FPP Arcade Select Game" matches against. They used to be numbered
+        // across every model, so with games on Matrix-Left and Matrix-Right
+        // the right-hand side's Breakout was game 6, not 1. A game that fails
+        // to create is skipped rather than left in the list as a null.
         if (FileExists(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"))) {
             Json::Value root;
             if (LoadJsonFromFile(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"), root)
@@ -722,9 +711,10 @@ public:
                 for (int x = 0; x < root["games"].size(); x++) {
                     if (root["games"][x]["enabled"].asBool()) {
                         std::string model = root["games"][x]["model"].asString();
-                        games[model].push_back(createGame(root["games"][x]));
-                        if (games[model].back() != nullptr) {
-                            games[model].back()->setIdx(++idx);
+                        FPPArcadeGame *g = createGame(root["games"][x]);
+                        if (g != nullptr) {
+                            games[model].push_back(g);
+                            g->setIdx((int)games[model].size());
                         }
                     }
                 }

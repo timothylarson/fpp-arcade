@@ -168,9 +168,11 @@ public:
         CopyToModel();
         if (!GameOn) {
             moveAccumulatorMs = 0.0;
-            int scl = scale == 0 ? 1 : scale;
             char buf[25];
             snprintf(buf, sizeof(buf), "%u", (uint32_t)snake.size());
+            // Centred in the playfield, so fit it to the playfield's width.
+            const int scl = fitTextScale({"GAME", "OVER", buf}, scale == 0 ? 1 : scale,
+                                         pfW > 0 ? pfW * std::max(1, scale) : 0);
             // Lay GAME / OVER / score out as one block and centre it, clamped
             // into the playfield. The old fixed rows/2-9 offset assumed a tall
             // field and put GAME above the top wall as soon as the playfield was

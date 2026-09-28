@@ -813,7 +813,7 @@ public:
 
         GameOn = false;
         showingLevelIntro = false;
-        float scl = std::max(1.0f, paddle.height);
+        int scl = fitTextScale({"YOU", "WIN"}, std::max(1, (int)paddle.height));
         CopyToModel(0.2f);
         outputString("YOU", centeredTextX("YOU", scl),
                     (model->getHeight()/2 - (6 * scl)) / scl, 255, 255, 255, scl);
@@ -1219,7 +1219,7 @@ public:
         if (showingLevelIntro) {
             levelIntroTimerMs -= elapsedMs;
             CopyToModel(0.2f);
-            int scl = std::max(1, (int)paddle.height);
+            int scl = fitTextScale({levelIntroText}, std::max(1, (int)paddle.height));
             int introY = (int)((model->getHeight()/2 - (6 * scl)) / scl);
             if (introY < 0) introY = 0;
             outputString(levelIntroText, centeredTextX(levelIntroText, scl), introY, 255, 255, 255, scl);
@@ -1397,7 +1397,7 @@ public:
             } else {
                 GameOn = false;
                 LogInfo(VB_PLUGIN, "[Breakout] GAME OVER on level %d", currentLevel + 1);
-                float scl = paddle.height;
+                int scl = fitTextScale({"GAME", "OVER"}, std::max(1, (int)paddle.height));
                 CopyToModel(0.2f);
                 outputString("GAME", centeredTextX("GAME", scl),
                              (model->getHeight()/2-(6 * scl)) / scl, 255, 255, 255, scl);

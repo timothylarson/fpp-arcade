@@ -483,7 +483,7 @@ void FPPArcadeGameEffect::activatePauseSelection() {
 }
 
 void FPPArcadeGameEffect::drawPauseMenu() {
-    const int scl = std::max(1, (int)(model->getHeight() / 16));
+    const int scl = fitTextScale({"RESUME", "RESTART"}, std::max(1, (int)(model->getHeight() / 16)));
 
     // Draw semi-transparent overlay (darken current buffer)
     for (int y = 0; y < model->getHeight(); y++) {
@@ -576,6 +576,19 @@ void FPPArcadeGameEffect::outputString(const std::string &s, int x, int y, int r
         outputLetter(x, y, ch, r, g, b, scl);
         x += 4;
     }
+}
+
+int FPPArcadeGameEffect::fitTextScale(const std::vector<std::string> &lines, int want, int widthPx) const {
+    if (widthPx <= 0) {
+        widthPx = model->getWidth();
+    }
+    size_t longest = 1;
+    for (const auto &l : lines) {
+        longest = std::max(longest, l.size());
+    }
+    // Letters are 3 pixels wide with a 1 pixel gap, and no gap after the last.
+    const int textW = (int)longest * 4 - 1;
+    return std::max(1, std::min(want, widthPx / textW));
 }
 
 int FPPArcadeGameEffect::centerTextX(const std::string &s, int scl) {

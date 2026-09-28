@@ -2,6 +2,7 @@
 #define __FPPARCADE__
 
 #include <string>
+#include <vector>
 #include <chrono>
 #include <cstdint>
 
@@ -53,6 +54,12 @@ public:
     void outputLetter(int x, int y, char letter, int r = 255, int g = 255, int b = 255, int scl = -1);
     void drawUnderline(int x, int y, int length, int r = 255, int g = 255, int b = 255, int scl = -1);
     int centerTextX(const std::string &s, int scl = -1);
+    // Largest letter scale, no bigger than `want`, at which every line fits in
+    // widthPx panel pixels (0 = the model's width). Text used to be sized from
+    // the matrix height, or a paddle, alone - so on a narrow region such as a
+    // 60-wide half of a 120x50 matrix the pause menu drew "RESTART" 84 pixels
+    // wide and ran off the edge.
+    int fitTextScale(const std::vector<std::string> &lines, int want, int widthPx = 0) const;
     void outputPixel(int x, int y, int r, int g, int b, int scl = -1);
     double consumeElapsedMs(double fallbackMs, double maxClampMs = 250.0);
     void resetFrameTimer();

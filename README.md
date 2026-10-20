@@ -17,6 +17,7 @@ the games.
 | **Breakout** | Directional "Pressed"/"Released" events. |
 | **Frogger** | The four directional "Pressed" events. |
 | **Orb Pop** | People in front of a Kinect (needs the fpp-kinect plugin). A starts a round; Start pauses. |
+| **Maze Chase** | The four directional "Pressed" events. |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
 
 ## Installation
@@ -61,6 +62,21 @@ move.
 
 `tools/orbpop-preview.html` in the MatrixPi folder runs the same drawing in a browser with a
 mouse-driven stand-in for the Kinect, for trying out the look without the wall.
+
+## Maze Chase
+
+Eat every dot while four ghosts hunt you, after the arcade maze games. Everything is one LED:
+the corridors, the walls, you (yellow) and the ghosts.
+
+- The last direction pressed is where you turn next, so it doesn't need holding.
+- The blinking corner dots turn the ghosts blue for a few seconds; catch them then for 200,
+  400, 800, 1600. Their eyes go back to the house in the middle and they come out again.
+- The ghosts take turns at scattering to their corners and chasing, and each chases its own
+  way: red heads straight for you, pink aims ahead of you, cyan works with red, and orange
+  loses interest up close.
+- The tunnel on each side wraps around. Each level is a new maze, generated to fit the model
+  (mirrored, no dead ends), and a bit faster.
+- Option: *Lives*.
 
 ## Asteroid Orbit
 

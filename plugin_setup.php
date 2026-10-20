@@ -98,6 +98,10 @@ function GetAsteroidOrbitOptions() {
     return html;
 }
 
+function GetLivesOnlyOptions() {
+    return "Lives: <input type='number' value='3' min='1' max='9' class='option1' data-optionname='Lives'/>";
+}
+
 function GameChanged(sel) {
     var val = $(sel).val();
     var html = "";
@@ -115,6 +119,8 @@ function GameChanged(sel) {
         html = GetOrbPopOptions();
     } else if (val == "Asteroid Orbit") {
         html = GetAsteroidOrbitOptions();
+    } else if (val == "Maze Chase") {
+        html = GetLivesOnlyOptions();
     }
     $(sel).parent().parent().find(".GameOptions").html(html);
 }
@@ -136,6 +142,7 @@ function AddArcade() {
     html += "<option value='Frogger'>Frogger</option>";
     html += "<option value='Orb Pop'>Orb Pop (Kinect)</option>";
     html += "<option value='Asteroid Orbit'>Asteroid Orbit</option>";
+    html += "<option value='Maze Chase'>Maze Chase</option>";
     html += "</select></td>";
     html += "<td><select class='model'>";
     html += modelOptions;

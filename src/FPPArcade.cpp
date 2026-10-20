@@ -50,6 +50,7 @@ extern "C" {
 #include "FPPFrogger.h"
 #include "FPPOrbPop.h"
 #include "FPPAsteroidOrbit.h"
+#include "FPPMazeChase.h"
 
 static std::vector<std::string> BUTTONS({
     "Up - Pressed", "Up - Released",
@@ -841,6 +842,9 @@ public:
         }
         if (game == "Asteroid Orbit") {
             return new FPPAsteroidOrbit(config);
+        }
+        if (game == "Maze Chase") {
+            return new FPPMazeChase(config);
         }
         return nullptr;
     }

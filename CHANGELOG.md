@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Added Maze Chase: dots, power pellets and four ghosts with their own chase styles, in a new symmetric maze each level sized to the model.
 - Added Asteroid Orbit: thrust in eight directions through asteroids with gravity, fire with A, shockwave with B, land to reload, and leave each cleared sector through a black hole.
 - Game titles too wide for the model now go one word per line, with letters closed up when a single word is still too wide.
 - Added Orb Pop, played with your body in front of a Kinect through the fpp-kinect plugin: an attract mode that shows people as flickering light, and timed rounds of popping orbs by touching them.

@@ -91,6 +91,13 @@ function GetOrbPopOptions() {
     return html;
 }
 
+function GetAsteroidOrbitOptions() {
+    var html  = "Asteroids (0=fit the model): <input type='number' value='0' min='0' max='12' class='option1' data-optionname='Asteroids'/>&nbsp;";
+    html     += "Gravity (%): <input type='number' value='100' min='0' max='300' class='option2' data-optionname='Gravity'/>&nbsp;";
+    html     += "Lives: <input type='number' value='3' min='1' max='9' class='option3' data-optionname='Lives'/>";
+    return html;
+}
+
 function GameChanged(sel) {
     var val = $(sel).val();
     var html = "";
@@ -106,6 +113,8 @@ function GameChanged(sel) {
         html = GetFroggerOptions();
     } else if (val == "Orb Pop") {
         html = GetOrbPopOptions();
+    } else if (val == "Asteroid Orbit") {
+        html = GetAsteroidOrbitOptions();
     }
     $(sel).parent().parent().find(".GameOptions").html(html);
 }
@@ -126,6 +135,7 @@ function AddArcade() {
     html += "<option value='Breakout'>Breakout</option>";
     html += "<option value='Frogger'>Frogger</option>";
     html += "<option value='Orb Pop'>Orb Pop (Kinect)</option>";
+    html += "<option value='Asteroid Orbit'>Asteroid Orbit</option>";
     html += "</select></td>";
     html += "<td><select class='model'>";
     html += modelOptions;

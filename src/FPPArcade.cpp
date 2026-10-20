@@ -49,6 +49,7 @@ extern "C" {
 #include "FPPBreakout.h"
 #include "FPPFrogger.h"
 #include "FPPOrbPop.h"
+#include "FPPAsteroidOrbit.h"
 
 static std::vector<std::string> BUTTONS({
     "Up - Pressed", "Up - Released",
@@ -247,12 +248,42 @@ public:
         model->setState(PixelOverlayState(PixelOverlayState::PixelState::TransparentRGB));
         model->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
         model->clearOverlayBuffer();
-        int x = centerTextX(title, scl);
-        int y = (rows - 5) / 2;
+        // A title wider than the model goes one word per line, so "ASTEROID
+        // ORBIT" still reads on a 30-wide half of the matrix.
+        std::vector<std::string> lines;
+        if ((int)title.size() * 4 - 1 > model->getWidth() / scl && title.find(' ') != std::string::npos) {
+            size_t start = 0;
+            while (start <= title.size()) {
+                size_t sp = title.find(' ', start);
+                if (sp == std::string::npos) {
+                    sp = title.size();
+                }
+                if (sp > start) {
+                    lines.push_back(title.substr(start, sp - start));
+                }
+                start = sp + 1;
+            }
+        } else {
+            lines.push_back(title);
+        }
+        int y = (rows - ((int)lines.size() * 6 - 1)) / 2;
         if (y < 0) {
             y = 0;
         }
-        outputString(title, x, y, 255, 255, 255, scl);
+        const int gridW = std::max(1, model->getWidth() / scl);
+        for (const auto &l : lines) {
+            if ((int)l.size() > 1 && (int)l.size() * 4 - 1 > gridW) {
+                // Still a column or two too wide ("ASTEROID" is 31 on a
+                // 30-wide half): close up some of the gaps rather than lose
+                // the last letter off the edge.
+                for (size_t k = 0; k < l.size(); ++k) {
+                    outputLetter((int)(k * (gridW - 3) / (l.size() - 1)), y, l[k], 255, 255, 255, scl);
+                }
+            } else {
+                outputString(l, centerTextX(l, scl), y, 255, 255, 255, scl);
+            }
+            y += 6;
+        }
         model->flushOverlayBuffer();
         return 100;
     }
@@ -337,6 +368,7 @@ static const std::map<uint8_t, std::vector<uint8_t>> LETTERS = {
     {'K', {1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1}},
     {'L', {1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1}},
     {'C', {0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1}},
+    {'D', {1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0}},
     {'H', {1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1}},
 
     {'Y', {1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0}},
@@ -806,6 +838,9 @@ public:
         }
         if (game == "Orb Pop") {
             return new FPPOrbPop(config);
+        }
+        if (game == "Asteroid Orbit") {
+            return new FPPAsteroidOrbit(config);
         }
         return nullptr;
     }

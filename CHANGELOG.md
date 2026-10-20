@@ -1,5 +1,7 @@
 # FPP Arcade Changelog
 
+- Added Asteroid Orbit: thrust in eight directions through asteroids with gravity, fire with A, shockwave with B, land to reload, and leave each cleared sector through a black hole.
+- Game titles too wide for the model now go one word per line, with letters closed up when a single word is still too wide.
 - Added Orb Pop, played with your body in front of a Kinect through the fpp-kinect plugin: an attract mode that shows people as flickering light, and timed rounds of popping orbs by touching them.
 - Added dedicated `A Button` and `B Button` controller bindings in the command list and web UI.
 - Updated joystick defaults to map common gamepad buttons 0/1 to the new A/B bindings.

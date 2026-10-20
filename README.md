@@ -17,6 +17,7 @@ the games.
 | **Breakout** | Directional "Pressed"/"Released" events. |
 | **Frogger** | The four directional "Pressed" events. |
 | **Orb Pop** | People in front of a Kinect (needs the fpp-kinect plugin). A starts a round; Start pauses. |
+| **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
 
 ## Installation
 
@@ -60,6 +61,29 @@ move.
 
 `tools/orbpop-preview.html` in the MatrixPi folder runs the same drawing in a browser with a
 mouse-driven stand-in for the Kinect, for trying out the look without the wall.
+
+## Asteroid Orbit
+
+A thruster ship in a field of asteroids that each pull on it, after the Asteroid Orbit iOS game.
+
+- **Directions** thrust that way for as long as they are held (diagonals too), and the ship
+  points the way it is flying. Thrust uses fuel (the blue bar, top left).
+- **A** fires; hold it to keep firing. Ammo is the yellow bar, top right.
+- **B** sends out a shockwave that pushes asteroids away and breaks the smallest. Charges are
+  the magenta dots in the middle of the top row, next to the white dots for lives.
+- **Start** pauses, as in the other games.
+- Every asteroid pulls on the ship, so you can swing around them. Touch one slowly and you
+  land on it and ride along: that reloads ammo and refuels. Hit one fast and you crash. To
+  take off, push any direction except into the rock.
+- Shot asteroids split into smaller ones and sometimes leave a crystal: blue refuels, yellow
+  adds ammo, magenta adds a shockwave.
+- Clear the sector and a black hole opens; fly into it for the next sector, with more and
+  faster asteroids and stronger gravity.
+- Options: *Asteroids* at the start (0 fits the model: 3 on 60x25, 2 on a 30x25 half),
+  *Gravity* (%), and *Lives*.
+
+It needs the Released events as well as the Pressed ones, which joysticks and
+`tools/arcade-keyboard.html` both send.
 
 ## Commands
 

@@ -102,6 +102,12 @@ function GetLivesOnlyOptions() {
     return "Lives: <input type='number' value='3' min='1' max='9' class='option1' data-optionname='Lives'/>";
 }
 
+function GetShapeFitOptions() {
+    var html  = "Shape Size (% of height): <input type='number' value='85' min='30' max='100' class='option1' data-optionname='Shape Size'/>&nbsp;";
+    html     += "Seconds per Pose: <input type='number' value='6' min='2' max='20' class='option2' data-optionname='Seconds'/>";
+    return html;
+}
+
 function GameChanged(sel) {
     var val = $(sel).val();
     var html = "";
@@ -121,6 +127,8 @@ function GameChanged(sel) {
         html = GetAsteroidOrbitOptions();
     } else if (val == "Maze Chase" || val == "Barrel Climb" || val == "Star Defenders") {
         html = GetLivesOnlyOptions();
+    } else if (val == "Shape Fit") {
+        html = GetShapeFitOptions();
     }
     $(sel).parent().parent().find(".GameOptions").html(html);
 }
@@ -145,6 +153,7 @@ function AddArcade() {
     html += "<option value='Maze Chase'>Maze Chase</option>";
     html += "<option value='Barrel Climb'>Barrel Climb</option>";
     html += "<option value='Star Defenders'>Star Defenders</option>";
+    html += "<option value='Shape Fit'>Shape Fit (Kinect)</option>";
     html += "</select></td>";
     html += "<td><select class='model'>";
     html += modelOptions;

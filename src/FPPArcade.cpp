@@ -53,6 +53,7 @@ extern "C" {
 #include "FPPMazeChase.h"
 #include "FPPBarrelClimb.h"
 #include "FPPStarDefenders.h"
+#include "FPPShapeFit.h"
 
 static std::vector<std::string> BUTTONS({
     "Up - Pressed", "Up - Released",
@@ -873,6 +874,9 @@ public:
         }
         if (game == "Star Defenders") {
             return new FPPStarDefenders(config);
+        }
+        if (game == "Shape Fit") {
+            return new FPPShapeFit(config);
         }
         return nullptr;
     }

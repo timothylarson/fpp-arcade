@@ -20,6 +20,7 @@ the games.
 | **Maze Chase** | The four directional "Pressed" events. |
 | **Barrel Climb** | All four directions held and released (walk, climb), and A (jump). |
 | **Star Defenders** | Left/Right held and released, A (fire, hold to repeat; Up also fires), B (laser). |
+| **Shape Fit** | People in front of a Kinect (needs the fpp-kinect plugin). Any button starts; Start pauses. |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
 
 ## Installation
@@ -106,6 +107,22 @@ Hold off a marching alien formation from behind four shields, after the classic 
 - A saucer crosses the top row now and then for 50 to 300. If the aliens reach the bottom
   the game is over. Each wave starts a little lower and bombs more.
 - Option: *Lives*.
+
+## Shape Fit (Kinect)
+
+A "hole in the wall" game for whoever is in front of the Kinect. It needs the fpp-kinect plugin
+running on the same model.
+
+- Any button starts five rounds. Each shows the name of a pose (STAR, ARMS UP, T, CROUCH,
+  LEAN, FLAMINGO, or PAIR for two people) and then its outline. Everyone in front shows up
+  green where they're inside the outline and red where they're outside it.
+- When the countdown runs out the fit is scored out of 100: how much of the shape is filled,
+  less half of what spills outside it. PERFECT, GREAT, GOOD, OK or MISS, and a total at the end.
+- People change size with distance, so stepping nearer or farther is part of fitting the shape.
+  The shapes are stretched sideways the same way the Kinect's picture is stretched onto the
+  matrix (about 1.8 times on a 60x25 model).
+- Options: *Shape Size* (% of the model's height) and *Seconds per Pose*.
+- With no Kinect frames it says NO KINECT and hands the model back after 5 seconds.
 
 ## Asteroid Orbit
 

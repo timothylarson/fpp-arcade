@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Added Shape Fit, a Kinect "hole in the wall" game: fill a pose outline with your body before the countdown ends.
 - Added Star Defenders: a marching alien formation, crumbling shields, a saucer, A to fire and B for a once-a-wave column laser.
 - Added Barrel Climb: sloping girders, ladders, rolling barrels to jump, and a climb to the top, sized to the model.
 - Added a shared textBox() for games: centred lines of text over a black box.

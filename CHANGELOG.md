@@ -1,5 +1,7 @@
 # FPP Arcade Changelog
 
+- Stacker has levels: each a taller tower that starts and tops out faster, with points per row, a perfect-drop bonus and a bonus for the final row's width.
+- The arcade font gains J, Q, X and Z.
 - Pong: a fourth Controls choice, Up/Down for one player and B (up) / A (down) for the other.
 - Barrel Climb: how much sooner barrels come each level is a setting (Barrels Sooner, default 0.6 s).
 - Rebuilt the Arcade Games settings page: games grouped by model and numbered as Select Game counts them, each with a description, its controls and labelled settings with hints; a live status of every model; Play, reorder and remove buttons; and a layout that works on a phone.

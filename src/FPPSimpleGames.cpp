@@ -173,8 +173,6 @@ class StackerEffect : public SimpleGameEffect {
 public:
     StackerEffect(PixelOverlayModel *m) : SimpleGameEffect(m) {
         layerH = H >= 20 ? 2 : 1;
-        // Taller than the screen: the view follows the stack up.
-        layers = H * 4 / (layerH * 5) + 8;
         reset();
     }
     const std::string &name() const override {
@@ -183,25 +181,43 @@ public:
     }
 
 private:
+    enum class Phase { Intro, Play, Clear };
     struct Chunk {
         float x0, x1, y, vy;
         RGB col;
     };
 
     void reset() override {
+        level = 1;
+        score = 0;
+        startLevel();
+    }
+
+    // Each level is a new tower from a full-width base: taller, and faster
+    // from the first row.
+    void startLevel() {
         stack.clear();
         chunks.clear();
         width = std::max(4, W / 4);
         camY = 0;
+        goal = std::min(60, H * 2 / (layerH * 5) + 6 + 4 * (level - 1));   // 11, 15, 19, ... rows on 25 high
         newRow();
-        waitT = 0.6f;
+        phase = Phase::Intro;
+        phaseT = 0;
+        perfectT = 0;
     }
 
     void newRow() {
         dir = rnd() < 0.5f ? 1 : -1;
         x = dir > 0 ? 0.0f : (float)(W - width);
     }
-    float speed() const { return std::min(28.0f, 7.0f + 0.8f * stack.size()); }
+    // LEDs per second: a bit faster each row, and each level starts faster
+    // and tops out higher.
+    float speed() const {
+        const float start = 7.0f + 2.5f * (level - 1);
+        const float cap = std::min(45.0f, 26.0f + 4.0f * (level - 1));
+        return std::min(cap, start + 0.8f * stack.size());
+    }
     // Rows in tower coordinates: the bottom row sits on the bottom of the
     // panel and higher rows go negative. camY shifts the view down onto them.
     int rowY(int layer) const { return H - (layer + 1) * layerH; }
@@ -211,11 +227,14 @@ private:
         const float want = std::max(0.0f, H * 0.35f - rowY((int)stack.size()));
         camY += (want - camY) * std::min(1.0f, dt * 4.0f);
     }
-    RGB layerColour(int layer) const { return hue(layer / (float)layers * 0.85f); }
+    RGB layerColour(int layer) const { return hue(layer / (float)goal * 0.85f + 0.1f * (level - 1)); }
 
+    // Scoring: 10 a row and 10 more for a perfect drop, both times the level,
+    // and on reaching the top 25 for every block still in the row, times the
+    // level - so finishing wide is worth a lot.
     void onPress(const std::string &) override {
-        if (waitT > 0) {
-            return;   // a moment between rows, so one press can't drop two
+        if (phase != Phase::Play) {
+            return;
         }
         const int x0 = (int)std::lround(x), x1 = x0 + width - 1;
         int lo = x0, hi = x1;
@@ -225,22 +244,29 @@ private:
         }
         const int layer = (int)stack.size();
         const RGB col = layerColour(layer);
-        // The overhang drops off.
         if (hi < lo) {
             chunks.push_back({(float)x0, (float)x1, (float)rowY(layer), 0, col});
-            gameOver(layer);
+            gameOver(score);
             return;
         }
+        // The overhang drops off.
         if (x0 < lo) chunks.push_back({(float)x0, (float)lo - 1, (float)rowY(layer), 0, col});
         if (x1 > hi) chunks.push_back({(float)hi + 1, (float)x1, (float)rowY(layer), 0, col});
+        score += 10 * level;
+        if (!stack.empty() && lo == x0 && hi == x1) {
+            score += 10 * level;
+            perfectT = 0.6f;
+        }
         stack.push_back({lo, hi});
         width = hi - lo + 1;
-        if ((int)stack.size() >= layers) {
-            gameOver((int)stack.size(), "YOU", "WIN");
+        if ((int)stack.size() >= goal) {
+            score += 25 * width * level;
+            phase = Phase::Clear;
+            phaseT = 0;
             return;
         }
         newRow();
-        waitT = 0.25f;
+        waitT = 0.25f;   // a moment between rows, so one press can't drop two
     }
 
     void stepChunks(float dt) {
@@ -252,6 +278,25 @@ private:
     }
 
     void stepGame(float dt) override {
+        phaseT += dt;
+        perfectT = std::max(0.0f, perfectT - dt);
+        stepChunks(dt);
+        if (phase == Phase::Intro) {
+            if (phaseT > 1.5f) {
+                phase = Phase::Play;
+                phaseT = 0;
+                waitT = 0.2f;
+            }
+            return;
+        }
+        if (phase == Phase::Clear) {
+            // Show off the tower, then the next one.
+            if (phaseT > 2.5f) {
+                ++level;
+                startLevel();
+            }
+            return;
+        }
         waitT = std::max(0.0f, waitT - dt);
         x += dir * speed() * dt;
         if (x <= 0) {
@@ -261,22 +306,29 @@ private:
             x = (float)(W - width);
             dir = -1;
         }
-        stepChunks(dt);
         followCamera(dt);
     }
     void stepOver(float dt) override { stepChunks(dt); }
 
     void draw() override {
-        const bool won = over && (int)stack.size() >= layers;
+        const bool party = phase == Phase::Clear;
         for (int k = 0; k < (int)stack.size(); ++k) {
-            const RGB col = won ? hue(clock * 0.5f + k * 0.05f) : layerColour(k);
+            const RGB col = party ? hue(clock * 0.6f + k * 0.06f) : layerColour(k);
+            const float bright = (perfectT > 0 && k == (int)stack.size() - 1) ? 1.0f : 0.7f;
             for (int xx = stack[k].first; xx <= stack[k].second; ++xx) {
                 for (int dy = 0; dy < layerH; ++dy) {
-                    canvas.add(xx, screenY(rowY(k) + dy), col, 0.7f);
+                    canvas.add(xx, screenY(rowY(k) + dy), perfectT > 0 && k == (int)stack.size() - 1 ? ArcadeCanvas::WHITE : col, bright);
                 }
             }
         }
-        if (!over) {
+        // The goal: a dim line where the top row goes, once it's in view.
+        const int gy = screenY(rowY(goal - 1)) - 1;
+        if (gy >= 0 && !party) {
+            for (int xx = 0; xx < W; xx += 2) {
+                canvas.add(xx, gy, {1.0f, 0.85f, 0.2f}, 0.3f);
+            }
+        }
+        if (!over && phase == Phase::Play) {
             const int layer = (int)stack.size(), x0 = (int)std::lround(x);
             for (int xx = x0; xx < x0 + width; ++xx) {
                 for (int dy = 0; dy < layerH; ++dy) {
@@ -293,8 +345,23 @@ private:
         }
     }
 
-    int layerH = 2, layers = 12, width = 7, dir = 1;
-    float x = 0, waitT = 0, camY = 0;
+    void drawText() override {
+        if (phase == Phase::Intro) {
+            textBox({"LEVEL", std::to_string(level)}, 255, 255, 255);
+        } else if (phase == Phase::Clear && phaseT > 0.8f) {
+            textBox({std::to_string(score)}, 255, 220, 0);
+        } else {
+            // Rows left and the score, small, in the top corners.
+            PanelTransform pt(this);
+            const std::string left = std::to_string(goal - (int)stack.size()), s = std::to_string(score);
+            outputString(left, 0, 0, 255, 200, 60, 1);
+            outputString(s, W - (int)s.size() * 4 + 1, 0, 140, 140, 170, 1);
+        }
+    }
+
+    Phase phase = Phase::Intro;
+    int layerH = 2, goal = 11, width = 7, dir = 1, level = 1, score = 0;
+    float x = 0, waitT = 0, camY = 0, phaseT = 0, perfectT = 0;
     std::vector<std::pair<int, int>> stack;
     std::vector<Chunk> chunks;
 };

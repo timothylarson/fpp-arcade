@@ -138,8 +138,12 @@ Three quick games for people walking up, each playable with one or four buttons:
 
 - **Stacker:** a row of blocks a quarter of the width slides back and forth, a little faster
   each row. Any button drops it on the stack, and whatever hangs over the edge falls off and
-  the next row is that much narrower. The tower is taller than the screen: past the lower
-  third the view follows it up. Reach the top to win.
+  the next row is that much narrower. Reach the dotted goal line to clear the level; each
+  level is a new tower four rows taller (11, 15, 19... on a 25-row model) that starts faster
+  and tops out faster. Once the tower passes the lower third the view follows it up.
+  Scoring, all times the level: 10 a row, 10 more for a perfect drop, and on reaching the
+  top 25 for every block still in the last row. Rows left and the score show in the top
+  corners.
 - **Flap:** A, B or Up flaps; fly the bird through the gaps in the pipes. The gaps narrow and
   the pipes speed up as the score climbs.
 - **Light Memory:** watch the four triangles light up in sequence, then repeat it with the

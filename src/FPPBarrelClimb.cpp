@@ -31,6 +31,7 @@ const RGB HEAD = {1.0f, 0.72f, 0.5f};
 const RGB BODY = {1.0f, 0.08f, 0.08f};
 const RGB DRESS = {1.0f, 0.3f, 0.75f};
 const RGB BARREL = {0.95f, 0.5f, 0.1f};
+const RGB BLUE_BARREL = {0.2f, 0.6f, 1.0f};
 
 enum : uint32_t { UP = 1, DOWN = 2, LEFT = 4, RIGHT = 8 };
 
@@ -141,6 +142,7 @@ private:
         float acc;
         BMode mode;
         bool scored;
+        bool blue;   // faster, and nearly always takes a ladder down
     };
 
     float rnd() { return std::uniform_real_distribution<float>(0.0f, 1.0f)(rng); }
@@ -225,6 +227,7 @@ private:
 
     void resetRun() {
         barrels.clear();
+        pairT = -1;
         px = rollsRight(0) ? 1 : W - 2;
         pk = 0;
         feet = surface(0, px) - 1;
@@ -278,12 +281,21 @@ private:
             bonus = std::max(0, bonus - 100);
         }
 
-        // The ape: arms up, then a barrel.
+        // The ape: arms up, then a barrel - and from level 3, sometimes a
+        // second one right behind it.
         throwT -= dt;
         if (throwT <= 0) {
+            if (pairT < 0 && level >= 3 && rnd() < std::min(0.5f, 0.15f + 0.07f * (level - 3))) {
+                pairT = 0.6f;
+            }
             throwT = barrelEvery() * (0.8f + 0.4f * rnd());
-            const int x = rollsRight(top) ? apeX + 3 : apeX - 1;
-            barrels.push_back({x, surface(top, x) - 1, top, rollsRight(top) ? 1 : -1, 0, BMode::Roll, false});
+            throwBarrel();
+        }
+        if (pairT >= 0) {
+            pairT -= dt;
+            if (pairT < 0) {
+                throwBarrel();
+            }
         }
 
         movePlayer(dt);
@@ -299,6 +311,14 @@ private:
     }
 
     float barrelEvery() const { return std::max(fastest, slowest - sooner * (level - 1)); }
+
+    // From level 2 some barrels are blue: quicker, and they head down
+    // ladders - toward you - far more often.
+    void throwBarrel() {
+        const int x = rollsRight(top) ? apeX + 3 : apeX - 1;
+        const bool blue = level >= 2 && rnd() < std::min(0.4f, 0.12f * (level - 1));
+        barrels.push_back({x, surface(top, x) - 1, top, rollsRight(top) ? 1 : -1, 0, BMode::Roll, false, blue});
+    }
 
     bool hitsPlayer(int x, int y) const { return x == px && y <= feet && y >= feet - 2; }
 
@@ -452,17 +472,18 @@ private:
     }
 
     void moveBarrels(float dt) {
-        const float rollSpeed = std::min(16.0f, 8.0f + 0.7f * (level - 1));
+        const float rollSpeed = std::min(16.0f, 8.0f + 1.0f * (level - 1));
+        const float ladderChance = std::min(0.55f, 0.3f + 0.05f * (level - 1));
         for (size_t j = 0; j < barrels.size();) {
             Barrel &b = barrels[j];
-            const float speed = b.mode == BMode::Roll ? rollSpeed : (b.mode == BMode::Fall ? FALL : 6.0f);
+            const float speed = b.mode == BMode::Roll ? rollSpeed * (b.blue ? 1.35f : 1.0f) : (b.mode == BMode::Fall ? FALL : 6.0f);
             b.acc += speed * dt;
             bool gone = false;
             while (b.acc >= 1.0f && !gone) {
                 b.acc -= 1.0f;
                 if (b.mode == BMode::Roll) {
                     // At the top of a ladder down, sometimes take it.
-                    if (b.k > 0 && barrelLadderAt(b.x, b.k - 1) && rnd() < 0.3f) {
+                    if (b.k > 0 && barrelLadderAt(b.x, b.k - 1) && rnd() < (b.blue ? 0.85f : ladderChance)) {
                         b.mode = BMode::Ladder;
                         continue;
                     }
@@ -535,7 +556,7 @@ private:
             canvas.set(goalX + (rollsRight(top) ? 1 : -1), gy - 3, DRESS, 0.6f);   // waving for help
         }
         for (auto &b : barrels) {
-            canvas.set(b.x, b.y, BARREL, (b.x & 1) ? 0.9f : 0.6f);
+            canvas.set(b.x, b.y, b.blue ? BLUE_BARREL : BARREL, (b.x & 1) ? 0.9f : 0.6f);
         }
         const bool showPlayer = state != State::Over && !(state == State::Dying && std::fmod(stateT, 0.2f) < 0.1f);
         if (showPlayer) {
@@ -544,6 +565,12 @@ private:
             canvas.set(px, feet, RGB{0.2f, 0.3f, 1.0f}, 1.0f);
             canvas.set(px, feet - 1, climbing ? RGB{0.2f, 0.3f, 1.0f} : BODY, 1.0f);
             canvas.set(px, feet - 2, HEAD, 1.0f);
+        }
+        // Lives left, as little people in the top right corner.
+        for (int k = 0; k < lives && k < 9; ++k) {
+            const int lx = W - 1 - 2 * k;
+            canvas.set(lx, 0, HEAD, 0.6f);
+            canvas.set(lx, 1, BODY, 0.6f);
         }
         canvas.writeTo(model);
 
@@ -563,6 +590,7 @@ private:
     std::vector<Ladder> ladders;
     int apeX = 1, goalX = 0;
     float slowest = 6.0f, fastest = 3.2f, sooner = 0.6f;
+    float pairT = -1;   // a second barrel is coming when >= 0
 
     State state = State::Intro;
     float stateT = 0, clock = 0, throwT = 0, bonusT = 0;

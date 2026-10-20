@@ -96,8 +96,11 @@ Climb to the top while an ape rolls barrels down at you, after the classic girde
   sometimes take a ladder down. Touching one costs a life, and so does walking off the end
   of a girder: it's too far to fall.
 - Reach the top girder to rescue the person there; the bonus that counts down while you
-  climb is added to the score. Each level moves the ladders and throws barrels sooner,
-  until it reaches the fastest rate.
+  climb is added to the score. Lives left show as little people in the top right corner.
+- Each level gets harder: new ladder positions, barrels thrown sooner (down to the fastest
+  rate) and rolling faster, more of them taking ladders down. From level 2 some barrels are
+  blue: quicker, and they nearly always take a ladder down toward you. From level 3 the ape
+  sometimes throws two in a row.
 - On a model 40 or more wide there are two ladders between girders, otherwise one.
 - Options: *Lives*, *Barrels Every* (seconds between barrels on level 1, default 6),
   *Barrels Sooner* (how much sooner each level, default 0.6) and *Fastest Barrels* (the

@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Barrel Climb: levels get harder (faster barrels, more of them taking ladders, blue barrels from level 2, pairs from level 3), and lives left show in the top right.
 - Barrel Climb: the climber and the person at the top are three LEDs tall, a two-LED body and a head.
 - Stacker has levels: each a taller tower that starts and tops out faster, with points per row, a perfect-drop bonus and a bonus for the final row's width.
 - The arcade font gains J, Q, X and Z.

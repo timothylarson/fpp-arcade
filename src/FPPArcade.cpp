@@ -48,6 +48,7 @@ extern "C" {
 #include "FPPSnake.h"
 #include "FPPBreakout.h"
 #include "FPPFrogger.h"
+#include "FPPOrbPop.h"
 
 static std::vector<std::string> BUTTONS({
     "Up - Pressed", "Up - Released",
@@ -737,6 +738,11 @@ public:
 
     virtual std::function<bool()> shutdown() override {
         FileMonitor::INSTANCE.RemoveFile(name, FPP_DIR_CONFIG("/plugin.fpp-arcade.json"));
+        for (auto &a : games) {
+            for (auto &g : a.second) {
+                g->release();
+            }
+        }
 #ifdef USE_SDL_CONTROLLERS
         // Stop pumping SDL, then take back the event filter. SDL keeps
         // controller_event_filter - a function pointer into this .so - in a
@@ -797,6 +803,9 @@ public:
         }
         if (game == "Frogger") {
             return new FPPFrogger(config);
+        }
+        if (game == "Orb Pop") {
+            return new FPPOrbPop(config);
         }
         return nullptr;
     }

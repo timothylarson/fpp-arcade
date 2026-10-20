@@ -22,6 +22,9 @@ public:
     
     virtual bool isRunning();
     virtual void stop();
+    // Give back anything outside this library that points at the game, such
+    // as a timer. Called from the plugin's shutdown(), before FPP unloads it.
+    virtual void release() {}
 
     int getIdx() const { return idx; };
     void setIdx(int i) { idx = i; }

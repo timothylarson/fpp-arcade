@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Added Orb Pop, played with your body in front of a Kinect through the fpp-kinect plugin: an attract mode that shows people as flickering light, and timed rounds of popping orbs by touching them.
 - Added dedicated `A Button` and `B Button` controller bindings in the command list and web UI.
 - Updated joystick defaults to map common gamepad buttons 0/1 to the new A/B bindings.
 - In Tetris, `A Button` (or `Up`) now rotates clockwise while `B Button` rotates counter-clockwise.

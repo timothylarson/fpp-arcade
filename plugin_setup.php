@@ -81,6 +81,16 @@ function GetFroggerOptions() {
     return html;
 }
 
+function GetOrbPopOptions() {
+    var html  = "Brightness (%): <input type='number' value='50' min='1' max='100' class='option1' data-optionname='Brightness'/>&nbsp;";
+    html     += "Palette: <select class='option2' data-optionname='Palette'><option value='Frost'>Frost</option><option value='Christmas'>Christmas</option></select>&nbsp;";
+    html     += "Round Length (s): <input type='number' value='45' min='10' max='600' class='option3' data-optionname='Round Length'/>&nbsp;";
+    html     += "Start After (s in view): <input type='number' value='2' min='0' max='60' class='option4' data-optionname='Start After'/>&nbsp;";
+    html     += "Sensitivity (% of LEDs): <input type='number' value='3' min='1' max='100' class='option5' data-optionname='Sensitivity'/>&nbsp;";
+    html     += "Start Automatically: <select class='option6' data-optionname='Start Automatically'><option value='1'>Yes</option><option value='0'>No</option></select>";
+    return html;
+}
+
 function GameChanged(sel) {
     var val = $(sel).val();
     var html = "";
@@ -94,6 +104,8 @@ function GameChanged(sel) {
         html = GetBreakoutOptions();
     } else if (val == "Frogger") {
         html = GetFroggerOptions();
+    } else if (val == "Orb Pop") {
+        html = GetOrbPopOptions();
     }
     $(sel).parent().parent().find(".GameOptions").html(html);
 }
@@ -113,6 +125,7 @@ function AddArcade() {
     html += "<option value='Snake'>Snake</option>";
     html += "<option value='Breakout'>Breakout</option>";
     html += "<option value='Frogger'>Frogger</option>";
+    html += "<option value='Orb Pop'>Orb Pop (Kinect)</option>";
     html += "</select></td>";
     html += "<td><select class='model'>";
     html += modelOptions;

@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Added Star Defenders: a marching alien formation, crumbling shields, a saucer, A to fire and B for a once-a-wave column laser.
 - Added Barrel Climb: sloping girders, ladders, rolling barrels to jump, and a climb to the top, sized to the model.
 - Added a shared textBox() for games: centred lines of text over a black box.
 - Added Maze Chase: dots, power pellets and four ghosts with their own chase styles, in a new symmetric maze each level sized to the model.

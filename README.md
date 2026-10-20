@@ -19,6 +19,7 @@ the games.
 | **Orb Pop** | People in front of a Kinect (needs the fpp-kinect plugin). A starts a round; Start pauses. |
 | **Maze Chase** | The four directional "Pressed" events. |
 | **Barrel Climb** | All four directions held and released (walk, climb), and A (jump). |
+| **Star Defenders** | Left/Right held and released, A (fire, hold to repeat; Up also fires), B (laser). |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
 
 ## Installation
@@ -91,6 +92,19 @@ Climb to the top while an ape rolls barrels down at you, after the classic girde
 - Reach the top girder to rescue the person there; the bonus that counts down while you
   climb is added to the score. Each level moves the ladders and throws barrels faster.
 - On a model 40 or more wide there are two ladders between girders, otherwise one.
+- Option: *Lives*.
+
+## Star Defenders
+
+Hold off a marching alien formation from behind four shields, after the classic invaders.
+
+- Left/Right move the cannon, A fires (hold it to keep firing; Up fires too, for controllers
+  without buttons), and B fires a laser straight up that clears a whole column - once a wave.
+  The magenta dot top left shows it's ready; white dots top right are spare lives.
+- The formation steps faster as it thins out and drops a row at each edge. Shots from either
+  side wear holes in the shields, and the aliens flatten them as they march through.
+- A saucer crosses the top row now and then for 50 to 300. If the aliens reach the bottom
+  the game is over. Each wave starts a little lower and bombs more.
 - Option: *Lives*.
 
 ## Asteroid Orbit

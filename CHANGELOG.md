@@ -1,5 +1,7 @@
 # FPP Arcade Changelog
 
+- Rebuilt the Arcade Games settings page: games grouped by model and numbered as Select Game counts them, each with a description, its controls and labelled settings with hints; a live status of every model; Play, reorder and remove buttons; and a layout that works on a phone.
+- Barrel Climb starts with barrels every 6 seconds and speeds up each level to a fastest of 3.2 (both settings).
 - Added three quick games: Stacker (drop a sliding row onto the stack), Flap (one-button flier through pipes) and Light Memory (repeat a growing sequence with the directions).
 - Added Shape Fit, a Kinect "hole in the wall" game: fill a pose outline with your body before the countdown ends.
 - Added Star Defenders: a marching alien formation, crumbling shields, a saucer, A to fire and B for a once-a-wave column laser.

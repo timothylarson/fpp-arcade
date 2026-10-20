@@ -34,7 +34,9 @@ Install from **Content Setup → Plugins** in the FPP web UI, then restart FPPD.
 
 Two pages are added to the FPP UI:
 
-- **Content Setup → Arcade Games** — pick the game and the Pixel Overlay Model to play it on.
+- **Content Setup → Arcade Games** — the games on each Pixel Overlay Model, numbered as *Select
+  Game* counts them, with what each one is, its controls and its settings. A status line shows
+  what every model is doing, and Play starts a game on the wall.
 - **Input/Output Setup → FPP Arcade Joysticks** — map a connected USB joystick or gamepad to
   the arcade button/axis commands. Detected controllers are listed automatically; "Set Defaults"
   fills in a standard mapping for a game pad or a dance mat.
@@ -94,9 +96,11 @@ Climb to the top while an ape rolls barrels down at you, after the classic girde
   sometimes take a ladder down. Touching one costs a life, and so does walking off the end
   of a girder: it's too far to fall.
 - Reach the top girder to rescue the person there; the bonus that counts down while you
-  climb is added to the score. Each level moves the ladders and throws barrels faster.
+  climb is added to the score. Each level moves the ladders and throws barrels 0.6 seconds
+  sooner, until it reaches the fastest rate.
 - On a model 40 or more wide there are two ladders between girders, otherwise one.
-- Option: *Lives*.
+- Options: *Lives*, *Barrels Every* (seconds between barrels on level 1, default 6) and
+  *Fastest Barrels* (the quickest it gets, default 3.2).
 
 ## Star Defenders
 

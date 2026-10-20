@@ -1,339 +1,399 @@
-
 <?
-function returnIfExists($json, $setting) {
-    if ($json == null) {
-        return "";
+// The game list lives in config/plugin.fpp-arcade.json as {"games": [...]},
+// each {enabled, game, model, overlay, options: [{name, value}]}. The plugin
+// watches that file, so saving here applies without restarting FPP. Games
+// are numbered per model in file order, which is what "FPP Arcade Select
+// Game" counts, so the page groups them by model and keeps that order.
+$cfgFile = $settings['configDirectory'] . "/plugin.fpp-arcade.json";
+$arcadeConfig = ["games" => []];
+if (file_exists($cfgFile)) {
+    $saved = json_decode(file_get_contents($cfgFile), true);
+    if (is_array($saved) && isset($saved["games"]) && is_array($saved["games"])) {
+        $arcadeConfig = $saved;
     }
-    if (array_key_exists($setting, $json)) {
-        return $json[$setting];
-    }
-    return "";
 }
-
-function convertAndGetSettings() {
-    global $settings;
-        
-    $cfgFile = $settings['configDirectory'] . "/plugin.fpp-arcade.json";
-    if (file_exists($cfgFile)) {
-        $j = file_get_contents($cfgFile);
-        $json = json_decode($j, true);
-        return $json;
-    }
-    $j = "{\"games\": []}";
-    return json_decode($j, true);
-}
-
-$pluginJson = convertAndGetSettings();
+$pluginName = basename(dirname(__FILE__));
 ?>
 
+<style>
+#arcadePage { max-width: 980px; }
+#arcadePage .arcadeIntro { margin: 0 0 12px 0; }
+#arcadePage .arcadeStatus { padding: 8px 12px; margin: 8px 0 12px 0; border-left: 5px solid #888; background: rgba(128,128,128,0.12); }
+#arcadePage .arcadeStatus div { margin: 2px 0; }
+#arcadePage .arcadeStatus b { display: inline-block; min-width: 190px; }
+#arcadePage .arcadeError { color: #d9534f; margin-left: 10px; }
+#arcadePage .arcadeDirty { color: #d98e04; margin-left: 10px; display: none; }
+#arcadePage h3 { margin: 26px 0 8px 0; font-size: 1.15em; }
+#arcadePage h3 .count { opacity: 0.6; font-weight: normal; font-size: 0.85em; margin-left: 8px; }
+#arcadePage .modelHint { opacity: 0.7; font-size: 0.88em; margin: -4px 0 8px 0; }
 
-<div id="global" class="settings">
-<legend>FPP Arcade Config</legend>
-
-<script>
-
-var arcadeConfig = <? echo json_encode($pluginJson, JSON_PRETTY_PRINT); ?>;
-
-
-function GetTetrisOptions() {
-    var html = "Rows (0=fill): <input type='number' value='20' min='0' max='50' class='option1' data-optionname='Rows'/>&nbsp;";
-    html += "Colums (0=fill): <input type='number' value='11' min='0' max='30' class='option2' data-optionname='Colums'/>&nbsp;";
-    html += "Pixel Scaling: <input type='number' value='1' min='1' max='20' class='option3' data-optionname='Pixel Scaling'/>";
-    return html;
+/* One card per game. */
+#arcadePage .game { border: 1px solid rgba(128,128,128,0.45); border-radius: 6px; margin: 0 0 10px 0; }
+#arcadePage .game.off { opacity: 0.55; }
+#arcadePage .gameHead { display: flex; align-items: center; gap: 10px; padding: 8px 10px; flex-wrap: wrap;
+    background: rgba(128,128,128,0.12); border-radius: 6px 6px 0 0; }
+#arcadePage .gameNum { font-weight: bold; font-size: 1.1em; min-width: 26px; text-align: center;
+    border-radius: 4px; background: rgba(128,128,128,0.3); padding: 1px 4px; }
+#arcadePage .gameName { font-weight: bold; font-size: 1.05em; }
+#arcadePage .gameHead .spacer { flex: 1 1 auto; }
+#arcadePage .gameHead label { margin: 0; font-weight: normal; white-space: nowrap; }
+#arcadePage .gameHead .buttons { min-width: 34px; margin: 0; }
+#arcadePage .gameBody { padding: 4px 12px 10px 12px; }
+#arcadePage .gameAbout { opacity: 0.8; font-size: 0.92em; margin: 6px 0 4px 0; }
+#arcadePage .gameControls { font-size: 0.88em; margin: 0 0 6px 0; }
+#arcadePage .gameControls span { display: inline-block; border: 1px solid rgba(128,128,128,0.6); border-radius: 3px;
+    padding: 0 5px; margin: 1px 2px; font-family: monospace; }
+#arcadePage table.opts { border-collapse: collapse; width: 100%; table-layout: fixed; }
+#arcadePage table.opts td { padding: 5px 0; vertical-align: top; }
+#arcadePage table.opts td:first-child { width: 210px; padding-right: 16px; padding-top: 8px; }
+#arcadePage table.opts input[type=number] { width: 90px; }
+#arcadePage .hint { opacity: 0.7; font-size: 0.88em; margin-top: 3px; max-width: 560px; }
+#arcadePage .noOpts { opacity: 0.6; font-size: 0.9em; margin: 6px 0; }
+#arcadePage .addRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+#arcadePage details { margin-top: 26px; }
+#arcadePage summary { cursor: pointer; font-weight: bold; font-size: 1.15em; }
+/* Phones: labels above controls, and the card header wraps. */
+@media (max-width: 640px) {
+    #arcadePage table.opts, #arcadePage table.opts tbody, #arcadePage table.opts tr, #arcadePage table.opts td { display: block; width: auto; }
+    #arcadePage table.opts td:first-child { width: auto; padding: 8px 0 2px 0; font-weight: 600; }
+    #arcadePage table.opts td { padding: 2px 0 6px 0; }
+    #arcadePage .arcadeStatus b { display: block; }
 }
-function GetPongOptions() {
-    var html = "Pixel Scaling: <input type='number' value='1' min='1' max='20' class='option1' data-optionname='Pixel Scaling'/>&nbsp;";
-    html += "Controls: <select class='option2' data-optionname='Controls'>";
-    html += "<option value='1'>Up/Down and Left/Right</option>";
-    html += "<option value='2'>UpLeft/DownLeft and UpRight/DownRight</option>";
-    html += "<option value='3'>Up/Left and Right/Down </option>";
-    html += "</select>&nbsp;";
-    html += "Playfield W (0=fill): <input type='number' value='0' min='0' max='500' class='option3' data-optionname='Playfield Width'/>&nbsp;";
-    html += "Playfield H (0=fill): <input type='number' value='0' min='0' max='500' class='option4' data-optionname='Playfield Height'/>&nbsp;";
-    return html;
-}
-function GetSnakeOptions() {
-    var html = "Pixel Scaling: <input type='number' value='1' min='1' max='20' class='option1' data-optionname='Pixel Scaling'/>&nbsp;";
-    html += "Playfield W (0=fill): <input type='number' value='0' min='0' max='500' class='option2' data-optionname='Playfield Width'/>&nbsp;";
-    html += "Playfield H (0=fill): <input type='number' value='0' min='0' max='500' class='option3' data-optionname='Playfield Height'/>&nbsp;";
-    return html;
-}
-function GetBreakoutOptions() {
-    var html = "Brick Width (px, 0 = auto): <input type='number' value='0' min='0' max='10' class='option1' data-optionname='Brick Width'/>&nbsp;";
-    html += "Black Spacing Between Bricks: <select class='option2' data-optionname='Brick Spacing'>";
-    html += "<option value='1'>Yes</option>";
-    html += "<option value='0'>No</option>";
-    html += "</select>&nbsp;";
-    html += "Max Bricks Per Row (0 = level default): <input type='number' value='0' min='0' max='100' class='option3' data-optionname='Max Bricks'/>&nbsp;";
-    html += "Paddle Width (px, 0 = auto): <input type='number' value='0' min='0' max='100' class='option4' data-optionname='Paddle Width'/>&nbsp;";
-    html += "Ball Speed Multiplier: <input type='number' value='1.0' min='0.1' max='5.0' step='0.1' class='option5' data-optionname='Ball Speed'/>&nbsp;";
-    html += "Playfield W (0=bricks): <input type='number' value='0' min='0' max='500' class='option6' data-optionname='Playfield Width'/>&nbsp;";
-    return html;
-}
-function GetFroggerOptions() {
-    var html  = "Pixel Scaling: <input type='number' value='1' min='1' max='20' class='option1' data-optionname='Pixel Scaling'/>&nbsp;";
-    html     += "Lanes: <input type='number' value='5' min='1' max='20' class='option2' data-optionname='Lanes'/>&nbsp;";
-    html     += "River Speed: <input type='number' value='1' min='1' max='10' class='option4' data-optionname='River Speed'/>&nbsp;";
-    html     += "Road Speed: <input type='number' value='1' min='1' max='10' class='option5' data-optionname='Road Speed'/>";
-    html     += "Speed Variability (%): <input type='number' value='20' min='0' max='100' class='option6' data-optionname='Speed Variability'/>&nbsp;";
-    html     += "Playfield W (0=fill): <input type='number' value='0' min='0' max='500' class='option7' data-optionname='Playfield Width'/>&nbsp;";
-    html += "Playfield H (0=fill): <input type='number' value='0' min='0' max='500' class='option8' data-optionname='Playfield Height'/>&nbsp;";
-    return html;
-}
+</style>
 
-function GetOrbPopOptions() {
-    var html  = "Brightness (%): <input type='number' value='50' min='1' max='100' class='option1' data-optionname='Brightness'/>&nbsp;";
-    html     += "Palette: <select class='option2' data-optionname='Palette'><option value='Frost'>Frost</option><option value='Christmas'>Christmas</option></select>&nbsp;";
-    html     += "Round Length (s): <input type='number' value='45' min='10' max='600' class='option3' data-optionname='Round Length'/>&nbsp;";
-    html     += "Start After (s in view): <input type='number' value='2' min='0' max='60' class='option4' data-optionname='Start After'/>&nbsp;";
-    html     += "Sensitivity (% of LEDs): <input type='number' value='3' min='1' max='100' class='option5' data-optionname='Sensitivity'/>&nbsp;";
-    html     += "Start Automatically: <select class='option6' data-optionname='Start Automatically'><option value='1'>Yes</option><option value='0'>No</option></select>";
-    return html;
-}
+<div id="arcadePage" class="settings">
+<p class="arcadeIntro">Games played on Pixel Overlay Models. Each model has its own numbered list of games: the
+Select button steps through them, and the <i>FPP Arcade Select Game</i> command picks one by number.
+Buttons and joysticks are set up on <a href="plugin.php?plugin=<?= $pluginName ?>&page=joysticks.php">FPP Arcade Joysticks</a>.
+Saving applies straight away, without restarting FPP, and stops any game being played.</p>
 
-function GetAsteroidOrbitOptions() {
-    var html  = "Asteroids (0=fit the model): <input type='number' value='0' min='0' max='12' class='option1' data-optionname='Asteroids'/>&nbsp;";
-    html     += "Gravity (%): <input type='number' value='100' min='0' max='300' class='option2' data-optionname='Gravity'/>&nbsp;";
-    html     += "Lives: <input type='number' value='3' min='1' max='9' class='option3' data-optionname='Lives'/>";
-    return html;
-}
+<div id="arcadeStatus" class="arcadeStatus">Checking...</div>
 
-function GetLivesOnlyOptions() {
-    return "Lives: <input type='number' value='3' min='1' max='9' class='option1' data-optionname='Lives'/>";
-}
-
-function GetShapeFitOptions() {
-    var html  = "Shape Size (% of height): <input type='number' value='85' min='30' max='100' class='option1' data-optionname='Shape Size'/>&nbsp;";
-    html     += "Seconds per Pose: <input type='number' value='6' min='2' max='20' class='option2' data-optionname='Seconds'/>";
-    return html;
-}
-
-function GameChanged(sel) {
-    var val = $(sel).val();
-    var html = "";
-    if (val == "Tetris") {
-        html = GetTetrisOptions();
-    } else if (val == "Pong") {
-        html = GetPongOptions();
-    } else if (val == "Snake") {
-        html = GetSnakeOptions();
-    } else if (val == "Breakout") {
-        html = GetBreakoutOptions();
-    } else if (val == "Frogger") {
-        html = GetFroggerOptions();
-    } else if (val == "Orb Pop") {
-        html = GetOrbPopOptions();
-    } else if (val == "Asteroid Orbit") {
-        html = GetAsteroidOrbitOptions();
-    } else if (val == "Maze Chase" || val == "Barrel Climb" || val == "Star Defenders") {
-        html = GetLivesOnlyOptions();
-    } else if (val == "Shape Fit") {
-        html = GetShapeFitOptions();
-    }
-    $(sel).parent().parent().find(".GameOptions").html(html);
-}
-
-var uniqueId = 1;
-var modelOptions = "";
-function AddArcade() {
-    var id = $("#arcadeTableBody > tr").length + 1;
-    var html = "<tr class='fppTableRow";
-    if (id % 2 != 0) {
-        html += " oddRow'";
-    }
-    html += "'><td class='colNumber rowNumber'>" + id + ".</td><td><input type='checkbox' checked class='enabled'></input><span style='display: none;' class='uniqueId'>" + uniqueId + "</span></td>";
-    html += "<td><select class='game' onChange='GameChanged(this);'>";
-    html += "<option value='Tetris'>Tetris</option>";
-    html += "<option value='Pong'>Pong</option>";
-    html += "<option value='Snake'>Snake</option>";
-    html += "<option value='Breakout'>Breakout</option>";
-    html += "<option value='Frogger'>Frogger</option>";
-    html += "<option value='Orb Pop'>Orb Pop (Kinect)</option>";
-    html += "<option value='Asteroid Orbit'>Asteroid Orbit</option>";
-    html += "<option value='Maze Chase'>Maze Chase</option>";
-    html += "<option value='Barrel Climb'>Barrel Climb</option>";
-    html += "<option value='Star Defenders'>Star Defenders</option>";
-    html += "<option value='Shape Fit'>Shape Fit (Kinect)</option>";
-    html += "<option value='Stacker'>Stacker</option>";
-    html += "<option value='Flap'>Flap</option>";
-    html += "<option value='Light Memory'>Light Memory</option>";
-    html += "</select></td>";
-    html += "<td><select class='model'>";
-    html += modelOptions;
-    html += "</select></td>";
-    html += "<td><select class='overlayType'><option value='Overwrite'>Overwrite</option><option value='Transparent'>Transparent</option></select></td>";
-    
-    html += "<td class='GameOptions'>";
-    html += GetTetrisOptions();
-    html += "</td>"
-    html += "</tr>";
-    
-    $("#arcadeTableBody").append(html);
-
-    newRow = $('#arcadeTableBody > tr').last();
-    $('#arcadeTableBody > tr').removeClass('selectedEntry');
-    DisableButtonClass('deleteEventButton');
-    uniqueId++;
-
-    return newRow;
-}
-
-function SaveGame(row) {
-    var enabled = $(row).find('.enabled').is(":checked");
-    var game = $(row).find('.game').val();
-    var model = $(row).find('.model').val();
-    var overlay = $(row).find('.overlayType').val();
-
-    var options = [];
-    var i = 0;
-    for (var x = 1; x <= 20; x++) {
-        var v = $(row).find('.option' + x);
-        if (typeof v != "undefined") {
-            var name = v.data('optionname');
-            if (typeof name != "undefined") {
-                var value = v.val();
-                options[i++] = {
-                    "name": name,
-                    "value": value
-                };
-            }
-        }
-    }
-
-    var json = {
-        "enabled": enabled,
-        "game": game,
-        "model": model,
-        "overlay": overlay,
-        "options": options
-    };
-    return json;
-}
-
-function SaveArcade() {
-    var arcadeConfig = { "games" : [] };
-    var i = 0;
-    $("#arcadeTableBody > tr").each(function() {
-        arcadeConfig["games"][i++] = SaveGame(this);
-    });
-    
-    var data = JSON.stringify(arcadeConfig);
-    $.ajax({
-        type: "POST",
-        url: 'api/configfile/plugin.fpp-arcade.json',
-        dataType: 'json',
-        async: false,
-        data: data,
-        processData: false,
-        contentType: 'application/json',
-        success: function (data) {
-           SetRestartFlag(2);
-        }
-    });
-}
-
-
-function RenumberRows() {
-    var id = 1;
-    $('#arcadeTableBody > tr').each(function() {
-        $(this).find('.rowNumber').html('' + id++ + '.');
-        $(this).removeClass('oddRow');
-
-        if (id % 2 != 0) {
-            $(this).addClass('oddRow');
-        }
-    });
-}
-function RemoveArcade() {
-    if ($('#arcadeTableBody').find('.selectedEntry').length) {
-        $('#arcadeTableBody').find('.selectedEntry').remove();
-        RenumberRows();
-    }
-    DisableButtonClass('deleteEventButton');
-}
-
-
-$(document).ready(function() {
-                  
-    $('#arcadeTableBody').sortable({
-        update: function(event, ui) {
-            RenumberRows();
-        },
-        item: '> tr',
-        scroll: true
-    }).disableSelection();
-
-    $('#arcadeTableBody').on('mousedown', 'tr', function(event,ui){
-        $('#arcadeTableBody tr').removeClass('selectedEntry');
-        $(this).addClass('selectedEntry');
-        EnableButtonClass('deleteEventButton');
-    });
-});
-
-</script>
 <div>
-<table border=0>
-<tr><td colspan='2'>
-        <input type="button" value="Save" class="buttons genericButton" onclick="SaveArcade();">
-        <input type="button" value="Add" class="buttons genericButton" onclick="AddArcade();">
-        <input id="delButton" type="button" value="Delete" class="deleteEventButton disableButtons genericButton" onclick="RemoveArcade();">
-    </td>
-</tr>
-</table>
-
-<div class='fppTableWrapper fppTableWrapperAsTable'>
-<div class='fppTableContents'>
-<table class="fppTable" id="arcadeTable"  width='100%'>
-<thead><tr class="fppTableHeader"><th>#</th><th>Enabled</th><th>Game</th><th>Model</th><th>Overlay</th><th>Options</th></tr></thead>
-<tbody id='arcadeTableBody'>
-</tbody>
-</table>
-</div>
+    <input type="button" value="Save" class="buttons genericButton" onclick="arcadeSave();">
+    <span id="arcadeDirty" class="arcadeDirty">Unsaved changes</span>
+    <span id="arcadeError" class="arcadeError"></span>
 </div>
 
+<div id="arcadeModels"></div>
+
+<h3>Add a game</h3>
+<div class="addRow">
+    <select id="arcadeAddGame"></select>
+    on
+    <select id="arcadeAddModel"></select>
+    <input type="button" value="Add" class="buttons genericButton" onclick="arcadeAdd();">
+</div>
+<div class="hint">It goes at the end of that model's list. Click Save to keep it.</div>
 </div>
 
 <script>
-$.ajax({
-        url: "api/models",
-        type: 'GET',
-        async: false,
-        contentType: 'application/json',
-        success: function(data) {
-            data.forEach( function(item, index) {
-                modelOptions += "<option value='" + item["Name"] + "'>" + item["Name"] + "</option>\n";
-            });
-        },
-        error: function() {
+var arcadeConfig = <?= json_encode($arcadeConfig) ?>;
+var arcadeModels = [];
+
+// Every game, what it is, how it's played, and its options. Option names are
+// what the game reads from the config, so they can't change (Tetris's
+// "Colums" included).
+var PS = { name: 'Pixel Scaling', label: 'Pixel scaling', type: 'number', def: 1, min: 1, max: 20,
+           hint: 'Each game cell is this many LEDs square.' };
+var PW = { name: 'Playfield Width', label: 'Playfield width', type: 'number', def: 0, min: 0, max: 500, hint: 'In game cells. 0 fills the model.' };
+var PH = { name: 'Playfield Height', label: 'Playfield height', type: 'number', def: 0, min: 0, max: 500, hint: 'In game cells. 0 fills the model.' };
+var LIVES = { name: 'Lives', label: 'Lives', type: 'number', def: 3, min: 1, max: 9 };
+var YESNO = [['1', 'Yes'], ['0', 'No']];
+
+var ARCADE_GAMES = {
+    'Tetris': { about: 'Falling blocks.', controls: ['Left/Right move', 'Up or A rotate', 'B rotate back', 'Down faster'],
+        options: [{ name: 'Rows', label: 'Rows', type: 'number', def: 20, min: 0, max: 50, hint: '0 fills the model.' },
+                  { name: 'Colums', label: 'Columns', type: 'number', def: 11, min: 0, max: 30, hint: '0 fills the model.' }, PS] },
+    'Pong': { about: 'Two paddles, one ball.', controls: ['Up/Down player 1', 'Left/Right player 2'],
+        options: [PS, { name: 'Controls', label: 'Controls', type: 'select', def: '1',
+                        choices: [['1', 'Up/Down and Left/Right'], ['2', 'Up-Left/Down-Left and Up-Right/Down-Right'], ['3', 'Up/Left and Right/Down']],
+                        hint: 'Which buttons move each paddle. Needs the Released events too.' }, PW, PH] },
+    'Snake': { about: 'Eat, grow, and don\'t hit yourself.', controls: ['Directions steer'], options: [PS, PW, PH] },
+    'Breakout': { about: 'Bat the ball into the bricks, with power-ups.', controls: ['Left/Right move', 'A/B release or fire'],
+        options: [{ name: 'Brick Width', label: 'Brick width', type: 'number', def: 0, min: 0, max: 10, hint: 'LEDs. 0 picks one.' },
+                  { name: 'Brick Spacing', label: 'Gap between bricks', type: 'select', def: '1', choices: YESNO },
+                  { name: 'Max Bricks', label: 'Most bricks per row', type: 'number', def: 0, min: 0, max: 100, hint: '0 uses each level\'s own.' },
+                  { name: 'Paddle Width', label: 'Paddle width', type: 'number', def: 0, min: 0, max: 100, hint: 'LEDs. 0 picks one.' },
+                  { name: 'Ball Speed', label: 'Ball speed', type: 'number', def: 1.0, min: 0.1, max: 5, step: 0.1, hint: '1 is normal.' },
+                  { name: 'Playfield Width', label: 'Playfield width', type: 'number', def: 0, min: 0, max: 500, hint: 'In cells. 0 fits the bricks.' }] },
+    'Frogger': { about: 'Hop across the road and the river.', controls: ['Directions hop'],
+        options: [PS, { name: 'Lanes', label: 'Lanes', type: 'number', def: 5, min: 1, max: 20 },
+                  { name: 'River Speed', label: 'River speed', type: 'number', def: 1, min: 1, max: 10 },
+                  { name: 'Road Speed', label: 'Road speed', type: 'number', def: 1, min: 1, max: 10 },
+                  { name: 'Speed Variability', label: 'Speed variety (%)', type: 'number', def: 20, min: 0, max: 100, hint: 'How much lanes differ from each other.' },
+                  PW, PH] },
+    'Orb Pop': { about: 'Kinect: pop drifting orbs by touching them. Shows people as flickering light between rounds. Needs the FPP Kinect plugin on the same model.',
+        controls: ['Stand in view to start', 'A start now', 'Start pause'],
+        options: [{ name: 'Brightness', label: 'Brightness (%)', type: 'number', def: 50, min: 1, max: 100 },
+                  { name: 'Palette', label: 'Palette', type: 'select', def: 'Frost', choices: [['Frost', 'Frost'], ['Christmas', 'Christmas']] },
+                  { name: 'Round Length', label: 'Round length (seconds)', type: 'number', def: 45, min: 10, max: 600 },
+                  { name: 'Start After', label: 'Start after (seconds in view)', type: 'number', def: 2, min: 0, max: 60 },
+                  { name: 'Sensitivity', label: 'Sensitivity (% of LEDs)', type: 'number', def: 3, min: 1, max: 100, hint: 'How much of the matrix someone must cover to count.' },
+                  { name: 'Start Automatically', label: 'Start automatically', type: 'select', def: '1', choices: YESNO,
+                    hint: 'Takes over the model whenever it shows the plain Kinect picture.' }] },
+    'Shape Fit': { about: 'Kinect: fill a pose outline with your body before the countdown. Five rounds. Needs the FPP Kinect plugin on the same model.',
+        controls: ['Any button start', 'Start pause'],
+        options: [{ name: 'Shape Size', label: 'Shape size (% of height)', type: 'number', def: 85, min: 30, max: 100 },
+                  { name: 'Seconds', label: 'Seconds per pose', type: 'number', def: 6, min: 2, max: 20 }] },
+    'Asteroid Orbit': { about: 'Fly through asteroids that pull on you. Land gently to reload; a black hole leads to the next sector.',
+        controls: ['Directions thrust (hold)', 'A fire', 'B shockwave'],
+        options: [{ name: 'Asteroids', label: 'Asteroids at the start', type: 'number', def: 0, min: 0, max: 12, hint: '0 fits the model.' },
+                  { name: 'Gravity', label: 'Gravity (%)', type: 'number', def: 100, min: 0, max: 300 }, LIVES] },
+    'Maze Chase': { about: 'Eat the dots, dodge the ghosts. A new maze every level.', controls: ['Directions turn'], options: [LIVES] },
+    'Barrel Climb': { about: 'Climb the girders to the top while barrels roll down.',
+        controls: ['Left/Right walk (hold)', 'Up/Down climb', 'A jump'],
+        options: [LIVES,
+                  { name: 'Barrels Every', label: 'Barrels every (seconds)', type: 'number', def: 6, min: 1, max: 30, step: 0.1,
+                    hint: 'How often the ape throws on level 1. Each level throws 0.6 seconds sooner.' },
+                  { name: 'Fastest Barrels', label: 'Fastest (seconds)', type: 'number', def: 3.2, min: 0.8, max: 20, step: 0.1,
+                    hint: 'The quickest it ever gets.' }] },
+    'Star Defenders': { about: 'Hold off the marching aliens from behind the shields.',
+        controls: ['Left/Right move (hold)', 'A fire', 'B laser, once a wave'], options: [LIVES] },
+    'Stacker': { about: 'Drop the sliding row onto the stack; the overhang falls off.', controls: ['Any button drop'], options: [] },
+    'Flap': { about: 'Flap through the gaps in the pipes.', controls: ['A or Up flap'], options: [] },
+    'Light Memory': { about: 'Repeat the growing sequence of lit triangles.', controls: ['Directions, one per triangle'], options: [] }
+};
+
+// The running effect's name, as FPP reports it, in words.
+var ARCADE_EFFECTS = {
+    KinectBlit: 'showing the Kinect picture', ArcadeTitle: 'showing a game title', Clear: 'clearing',
+    OrbPop: 'playing Orb Pop', ShapeFit: 'playing Shape Fit', AsteroidOrbit: 'playing Asteroid Orbit',
+    MazeChase: 'playing Maze Chase', BarrelClimb: 'playing Barrel Climb', StarDefenders: 'playing Star Defenders',
+    LightMemory: 'playing Light Memory'
+};
+
+function arcadeEsc(s) { return $('<div>').text(String(s)).html(); }
+function arcadeOpt(g, name) {
+    var o = (g.options || []).filter(function (x) { return x.name === name; });
+    return o.length ? o[0].value : undefined;
+}
+
+// Every game gets every option its form shows, filled from the saved value or
+// the default. Options the form doesn't know are kept as they were.
+function arcadeNormalise(g) {
+    var def = ARCADE_GAMES[g.game];
+    g.options = g.options || [];
+    if (!def) {
+        return g;
+    }
+    def.options.forEach(function (o) {
+        if (arcadeOpt(g, o.name) === undefined) {
+            g.options.push({ name: o.name, value: String(o.def) });
         }
-});
-                  
+    });
+    if (!g.overlay) g.overlay = 'Overwrite';
+    return g;
+}
 
+function arcadeSetDirty(d) { $('#arcadeDirty').toggle(d); }
 
-$.each(arcadeConfig["games"], function( key, val ) {
-    var row = AddArcade();
-    $(row).find('.enabled').prop('checked', val["enabled"]);
-    $(row).find('.model').val(val["model"]);
-    $(row).find('.game').val(val["game"]);
-       
-    if (val["overlay"] != null) {
-       $(row).find('.overlayType').val(val["overlay"]);
-    }
-    GameChanged($(row).find('.game'));
+function arcadeModelNames() {
+    var names = arcadeModels.slice();
+    arcadeConfig.games.forEach(function (g) {
+        if (names.indexOf(g.model) < 0) names.push(g.model);   // a model that no longer exists still shows
+    });
+    return names;
+}
 
-    for (var i = 0; i < val['options'].length; i++) {
-       for (var y = 1; y <= 20; y++) {
-            var v = $(row).find('.option' + y);
-           if (typeof v != "undefined") {
-               var name = v.data('optionname');
-                if (typeof name != "undefined") {
-                    if (name == val["options"][i]["name"]) {
-                        v.val(val["options"][i]["value"]);
-                    }
+function arcadeRender() {
+    var html = '';
+    arcadeModelNames().forEach(function (model) {
+        var list = [];
+        arcadeConfig.games.forEach(function (g, i) { if (g.model === model) list.push(i); });
+        if (!list.length) return;
+        var missing = arcadeModels.indexOf(model) < 0;
+        html += '<h3>' + arcadeEsc(model) + '<span class="count">' + list.length + (list.length === 1 ? ' game' : ' games') + '</span></h3>';
+        if (missing) html += '<div class="modelHint" style="color:#d9534f">This model isn\'t in FPP\'s overlay models any more.</div>';
+        var n = 0;
+        list.forEach(function (i, k) {
+            var g = arcadeConfig.games[i];
+            var def = ARCADE_GAMES[g.game];
+            if (g.enabled) n++;
+            html += '<div class="game' + (g.enabled ? '' : ' off') + '" data-i="' + i + '">';
+            html += '<div class="gameHead">';
+            html += '<span class="gameNum" title="Its number for FPP Arcade Select Game">' + (g.enabled ? n : '–') + '</span>';
+            html += '<span class="gameName">' + arcadeEsc(g.game) + '</span>';
+            html += '<label><input type="checkbox" class="gEnabled"' + (g.enabled ? ' checked' : '') + '> Enabled</label>';
+            html += '<label>Overlay <select class="gOverlay">' +
+                    ['Overwrite', 'Transparent'].map(function (o) {
+                        return '<option' + (g.overlay === o ? ' selected' : '') + '>' + o + '</option>';
+                    }).join('') + '</select></label>';
+            html += '<span class="spacer"></span>';
+            html += '<button type="button" class="buttons gPlay" title="Save first, then start it on the wall"><i class="fas fa-play"></i> Play</button>';
+            html += '<button type="button" class="buttons gUp" title="Move up"' + (k === 0 ? ' disabled' : '') + '><i class="fas fa-chevron-up"></i></button>';
+            html += '<button type="button" class="buttons gDown" title="Move down"' + (k === list.length - 1 ? ' disabled' : '') + '><i class="fas fa-chevron-down"></i></button>';
+            html += '<button type="button" class="buttons gDelete" title="Remove"><i class="fas fa-trash"></i></button>';
+            html += '</div><div class="gameBody">';
+            if (def) {
+                html += '<div class="gameAbout">' + arcadeEsc(def.about) + '</div>';
+                html += '<div class="gameControls">' + def.controls.map(function (c) { return '<span>' + arcadeEsc(c) + '</span>'; }).join('') + '</div>';
+                if (def.options.length) {
+                    html += '<table class="opts">';
+                    def.options.forEach(function (o) {
+                        var v = arcadeOpt(g, o.name);
+                        html += '<tr><td>' + arcadeEsc(o.label) + '</td><td>';
+                        if (o.type === 'select') {
+                            html += '<select class="gOpt" data-name="' + arcadeEsc(o.name) + '">' + o.choices.map(function (c) {
+                                return '<option value="' + arcadeEsc(c[0]) + '"' + (String(v) === String(c[0]) ? ' selected' : '') + '>' + arcadeEsc(c[1]) + '</option>';
+                            }).join('') + '</select>';
+                        } else {
+                            html += '<input type="number" class="gOpt" data-name="' + arcadeEsc(o.name) + '" value="' + arcadeEsc(v) + '"' +
+                                    ' min="' + o.min + '" max="' + o.max + '" step="' + (o.step || 1) + '">';
+                        }
+                        if (o.hint) html += '<div class="hint">' + arcadeEsc(o.hint) + '</div>';
+                        html += '</td></tr>';
+                    });
+                    html += '</table>';
+                } else {
+                    html += '<div class="noOpts">No settings.</div>';
                 }
+            } else {
+                html += '<div class="noOpts">This version of the plugin doesn\'t know this game; it is kept as it is.</div>';
             }
-       }
+            html += '</div></div>';
+        });
+    });
+    if (!arcadeConfig.games.length) {
+        html = '<h3>No games yet</h3><div class="hint">Add one below.</div>';
     }
+    $('#arcadeModels').html(html);
+}
+
+// The cards' row number in arcadeConfig.games.
+function arcadeIndex(el) { return parseInt($(el).closest('.game').data('i'), 10); }
+
+// Move a game past the next one on the same model.
+function arcadeMove(i, dir) {
+    var games = arcadeConfig.games, model = games[i].model, j = i + dir;
+    while (j >= 0 && j < games.length && games[j].model !== model) j += dir;
+    if (j < 0 || j >= games.length) return;
+    var t = games[i]; games[i] = games[j]; games[j] = t;
+    arcadeSetDirty(true);
+    arcadeRender();
+}
+
+$('#arcadeModels').on('change', '.gEnabled', function () {
+    arcadeConfig.games[arcadeIndex(this)].enabled = this.checked;
+    arcadeSetDirty(true);
+    arcadeRender();
+}).on('change', '.gOverlay', function () {
+    arcadeConfig.games[arcadeIndex(this)].overlay = $(this).val();
+    arcadeSetDirty(true);
+}).on('change input', '.gOpt', function () {
+    var g = arcadeConfig.games[arcadeIndex(this)], name = $(this).data('name'), v = String($(this).val());
+    var o = g.options.filter(function (x) { return x.name === name; });
+    if (o.length) o[0].value = v; else g.options.push({ name: name, value: v });
+    arcadeSetDirty(true);
+}).on('click', '.gUp', function () { arcadeMove(arcadeIndex(this), -1); })
+  .on('click', '.gDown', function () { arcadeMove(arcadeIndex(this), 1); })
+  .on('click', '.gDelete', function () {
+    var i = arcadeIndex(this);
+    if (!confirm('Remove ' + arcadeConfig.games[i].game + ' from ' + arcadeConfig.games[i].model + '?')) return;
+    arcadeConfig.games.splice(i, 1);
+    arcadeSetDirty(true);
+    arcadeRender();
+}).on('click', '.gPlay', function () {
+    if ($('#arcadeDirty').is(':visible')) {
+        $('#arcadeError').text('Save first, so the wall has your changes.');
+        return;
+    }
+    var g = arcadeConfig.games[arcadeIndex(this)];
+    var n = parseInt($(this).closest('.gameHead').find('.gameNum').text(), 10);
+    if (!g.enabled || !n) return;
+    // Pick it, then press Start - the same as a player would.
+    arcadeCommand('FPP Arcade Select Game', [String(n), g.model]).then(function () {
+        return arcadeCommand('FPP Arcade Button', ['Start - Pressed', g.model]);
+    }).always(function () {
+        setTimeout(arcadeRefresh, 500);
+        setTimeout(arcadeRefresh, 1500);
+    });
+});
+
+function arcadeCommand(command, args) {
+    return $.get('api/command/' + [command].concat(args).map(encodeURIComponent).join('/'))
+        .fail(function () { $('#arcadeError').text('FPP did not respond to ' + command + '.'); });
+}
+
+function arcadeValidate() {
+    var bad = '';
+    arcadeConfig.games.forEach(function (g) {
+        var def = ARCADE_GAMES[g.game];
+        if (!def) return;
+        def.options.forEach(function (o) {
+            if (o.type !== 'number' || bad) return;
+            var v = parseFloat(arcadeOpt(g, o.name));
+            if (isNaN(v) || v < o.min || v > o.max) {
+                bad = g.game + ' on ' + g.model + ': ' + o.label + ' must be between ' + o.min + ' and ' + o.max + '.';
+            }
+        });
+    });
+    return bad;
+}
+
+function arcadeSave() {
+    var bad = arcadeValidate();
+    $('#arcadeError').text(bad);
+    if (bad) return;
+    $.ajax({
+        type: 'POST', url: 'api/configfile/plugin.fpp-arcade.json', contentType: 'application/json',
+        data: JSON.stringify(arcadeConfig, null, 2), processData: false
+    }).done(function () {
+        arcadeSetDirty(false);
+        $.jGrowl('Arcade games saved and loaded', { themeState: 'success' });
+        setTimeout(arcadeRefresh, 600);
+    }).fail(function () {
+        $('#arcadeError').text('Could not save the settings.');
+    });
+}
+
+function arcadeAdd() {
+    var game = $('#arcadeAddGame').val(), model = $('#arcadeAddModel').val();
+    if (!game || !model) return;
+    arcadeConfig.games.push(arcadeNormalise({ enabled: true, game: game, model: model,
+        overlay: game === 'Orb Pop' ? 'Transparent' : 'Overwrite', options: [] }));
+    arcadeSetDirty(true);
+    arcadeRender();
+    $('html, body').animate({ scrollTop: $('#arcadeModels .game').last().offset().top - 80 }, 300);
+}
+
+// What each model is doing right now.
+function arcadeRefresh() {
+    var names = arcadeModelNames().filter(function (m) {
+        return arcadeConfig.games.some(function (g) { return g.model === m; });
+    });
+    if (!names.length) {
+        $('#arcadeStatus').text('No games are set up yet.');
+        return;
+    }
+    $.when.apply($, names.map(function (m) {
+        return $.get('api/overlays/model/' + encodeURIComponent(m)).then(function (d) { return d; }, function () { return $.Deferred().resolve(null); });
+    })).done(function () {
+        var results = names.length === 1 ? [arguments[0]] : Array.prototype.slice.call(arguments);
+        var html = '';
+        names.forEach(function (m, k) {
+            var d = results[k], what;
+            if (!d || typeof d !== 'object') what = 'not found';
+            else if (d.effectRunning && d.effectName) what = ARCADE_EFFECTS[d.effectName] || ('playing ' + d.effectName);
+            else what = d.isActive ? 'on, nothing running' : 'off';
+            html += '<div><b>' + arcadeEsc(m) + '</b>' + arcadeEsc(what) + '</div>';
+        });
+        $('#arcadeStatus').html(html);
+    });
+}
+
+$.get('api/models').done(function (data) {
+    arcadeModels = (data || []).map(function (m) { return m.Name; });
+}).always(function () {
+    arcadeConfig.games.forEach(arcadeNormalise);
+    $('#arcadeAddGame').html(Object.keys(ARCADE_GAMES).map(function (g) { return '<option>' + arcadeEsc(g) + '</option>'; }).join(''));
+    $('#arcadeAddModel').html(arcadeModels.map(function (m) { return '<option>' + arcadeEsc(m) + '</option>'; }).join(''));
+    arcadeRender();
+    arcadeRefresh();
+    setInterval(arcadeRefresh, 3000);
+});
+
+window.addEventListener('beforeunload', function (e) {
+    if ($('#arcadeDirty').is(':visible')) { e.preventDefault(); e.returnValue = ''; }
 });
 </script>
-</div>

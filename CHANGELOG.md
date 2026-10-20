@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Barrel Climb: the climber and the person at the top are three LEDs tall, a two-LED body and a head.
 - Stacker has levels: each a taller tower that starts and tops out faster, with points per row, a perfect-drop bonus and a bonus for the final row's width.
 - The arcade font gains J, Q, X and Z.
 - Pong: a fourth Controls choice, Up/Down for one player and B (up) / A (down) for the other.

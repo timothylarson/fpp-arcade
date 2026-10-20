@@ -17,8 +17,8 @@ using ArcadeCanvas::RGB;
 
 // Girders are one LED thick, five rows apart, each with a one-row step in the
 // middle so it slopes. They alternate direction, with a gap at the low end
-// that barrels drop through to the girder below. The climber is two LEDs
-// tall (head and body) and a barrel is one. Positions are whole LEDs; speeds
+// that barrels drop through to the girder below. People are three LEDs tall
+// (a two-LED body and a head) and a barrel is one. Positions are whole LEDs; speeds
 // are LEDs per second, stepped one LED at a time.
 
 namespace {
@@ -300,7 +300,7 @@ private:
 
     float barrelEvery() const { return std::max(fastest, slowest - sooner * (level - 1)); }
 
-    bool hitsPlayer(int x, int y) const { return x == px && (y == feet || y == feet - 1); }
+    bool hitsPlayer(int x, int y) const { return x == px && y <= feet && y >= feet - 2; }
 
     bool touchingBarrel() const {
         for (auto &b : barrels) {
@@ -529,17 +529,21 @@ private:
         // Who you're climbing for.
         const int gy = surface(top, goalX) - 1;
         canvas.set(goalX, gy, DRESS, 0.9f);
-        canvas.set(goalX, gy - 1, HEAD, 0.9f);
-        if (std::fmod(clock, 2.0f) < 0.5f && gy - 2 >= 0) {
-            canvas.set(goalX + (rollsRight(top) ? 1 : -1), gy - 2, DRESS, 0.6f);
+        canvas.set(goalX, gy - 1, DRESS, 0.9f);
+        canvas.set(goalX, gy - 2, HEAD, 0.9f);
+        if (std::fmod(clock, 2.0f) < 0.5f && gy - 3 >= 0) {
+            canvas.set(goalX + (rollsRight(top) ? 1 : -1), gy - 3, DRESS, 0.6f);   // waving for help
         }
         for (auto &b : barrels) {
             canvas.set(b.x, b.y, BARREL, (b.x & 1) ? 0.9f : 0.6f);
         }
         const bool showPlayer = state != State::Over && !(state == State::Dying && std::fmod(stateT, 0.2f) < 0.1f);
         if (showPlayer) {
-            canvas.set(px, feet, mode == Mode::Climb ? RGB{0.2f, 0.3f, 1.0f} : BODY, 1.0f);
-            canvas.set(px, feet - 1, HEAD, 1.0f);
+            // Red shirt over blue overalls; all blue on a ladder, back to you.
+            const bool climbing = mode == Mode::Climb;
+            canvas.set(px, feet, RGB{0.2f, 0.3f, 1.0f}, 1.0f);
+            canvas.set(px, feet - 1, climbing ? RGB{0.2f, 0.3f, 1.0f} : BODY, 1.0f);
+            canvas.set(px, feet - 2, HEAD, 1.0f);
         }
         canvas.writeTo(model);
 

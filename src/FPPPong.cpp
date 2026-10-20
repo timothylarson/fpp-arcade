@@ -211,6 +211,25 @@ public:
             } else if (button == "Down/Left - Released" || button == "Up/Left - Released") {
                 racketP1Speed = 0;
             }
+        } else if (controls == 4) {
+            // One player on Up/Down, the other on B (up) and A (down). A
+            // release only stops the paddle if it is that button's direction,
+            // so letting go of one while holding the other keeps it moving.
+            if (button == "B Button - Pressed") {
+                racketP2Speed = -1;
+            } else if (button == "A Button - Pressed") {
+                racketP2Speed = 1;
+            } else if ((button == "B Button - Released" && racketP2Speed < 0) ||
+                       (button == "A Button - Released" && racketP2Speed > 0)) {
+                racketP2Speed = 0;
+            } else if (button == "Up - Pressed") {
+                racketP1Speed = -1;
+            } else if (button == "Down - Pressed") {
+                racketP1Speed = 1;
+            } else if ((button == "Up - Released" && racketP1Speed < 0) ||
+                       (button == "Down - Released" && racketP1Speed > 0)) {
+                racketP1Speed = 0;
+            }
         } else if (controls == 3) {
             if (button == "Right - Pressed") {
                 racketP2Speed = -1;

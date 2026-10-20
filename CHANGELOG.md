@@ -1,5 +1,7 @@
 # FPP Arcade Changelog
 
+- Pong: a fourth Controls choice, Up/Down for one player and B (up) / A (down) for the other.
+- Barrel Climb: how much sooner barrels come each level is a setting (Barrels Sooner, default 0.6 s).
 - Rebuilt the Arcade Games settings page: games grouped by model and numbered as Select Game counts them, each with a description, its controls and labelled settings with hints; a live status of every model; Play, reorder and remove buttons; and a layout that works on a phone.
 - Barrel Climb starts with barrels every 6 seconds and speeds up each level to a fastest of 3.2 (both settings).
 - Added three quick games: Stacker (drop a sliding row onto the stack), Flap (one-button flier through pipes) and Light Memory (repeat a growing sequence with the directions).

@@ -44,9 +44,10 @@ constexpr float JUMP_TIME = 0.6f;
 class BarrelClimbEffect : public FPPArcadeGameEffect {
 public:
     // startEvery: seconds between barrels on level 1. Each level throws them
-    // 0.6 s sooner, down to fastestEvery.
-    BarrelClimbEffect(PixelOverlayModel *m, int lives, float startEvery, float fastestEvery)
+    // perLevel seconds sooner, down to fastestEvery.
+    BarrelClimbEffect(PixelOverlayModel *m, int lives, float startEvery, float fastestEvery, float perLevel)
         : FPPArcadeGameEffect(m), rng(std::random_device{}()) {
+        sooner = std::clamp(perLevel, 0.0f, 10.0f);
         fastest = std::clamp(fastestEvery, 0.8f, 20.0f);
         slowest = std::clamp(startEvery, fastest, 30.0f);
         model->getSize(W, H);
@@ -297,7 +298,7 @@ private:
         }
     }
 
-    float barrelEvery() const { return std::max(fastest, slowest - 0.6f * (level - 1)); }
+    float barrelEvery() const { return std::max(fastest, slowest - sooner * (level - 1)); }
 
     bool hitsPlayer(int x, int y) const { return x == px && (y == feet || y == feet - 1); }
 
@@ -557,7 +558,7 @@ private:
     std::vector<int> base;
     std::vector<Ladder> ladders;
     int apeX = 1, goalX = 0;
-    float slowest = 6.0f, fastest = 3.2f;
+    float slowest = 6.0f, fastest = 3.2f, sooner = 0.6f;
 
     State state = State::Intro;
     float stateT = 0, clock = 0, throwT = 0, bonusT = 0;
@@ -592,10 +593,11 @@ void FPPBarrelClimb::button(const std::string &button) {
         } else {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
         }
-        float every = 6.0f, fastestEvery = 3.2f;
+        float every = 6.0f, fastestEvery = 3.2f, perLevel = 0.6f;
         try { every = std::stof(findOption("Barrels Every", "6")); } catch (...) {}
         try { fastestEvery = std::stof(findOption("Fastest Barrels", "3.2")); } catch (...) {}
-        effect = new BarrelClimbEffect(m, findIntOption("Lives", 3), every, fastestEvery);
+        try { perLevel = std::stof(findOption("Barrels Sooner", "0.6")); } catch (...) {}
+        effect = new BarrelClimbEffect(m, findIntOption("Lives", 3), every, fastestEvery, perLevel);
         m->setRunningEffect(effect, 25);
     }
     // The starting press counts (a held direction walks straight away) -

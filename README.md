@@ -12,7 +12,7 @@ the games.
 | Game | Input used |
 |------|-----------|
 | **Tetris** | The four directional "Pressed" events. "Up" rotates the block. |
-| **Pong** | Both "Pressed" and "Released" for all four directions. Player one uses Up/Down, player two uses Left/Right. |
+| **Pong** | "Pressed" and "Released" events. Player one uses Up/Down; player two uses Left/Right, or B (up) and A (down) with the *Up/Down and B/A* controls setting. |
 | **Snake** | The four directional "Pressed" events. |
 | **Breakout** | Directional "Pressed"/"Released" events. |
 | **Frogger** | The four directional "Pressed" events. |
@@ -96,11 +96,12 @@ Climb to the top while an ape rolls barrels down at you, after the classic girde
   sometimes take a ladder down. Touching one costs a life, and so does walking off the end
   of a girder: it's too far to fall.
 - Reach the top girder to rescue the person there; the bonus that counts down while you
-  climb is added to the score. Each level moves the ladders and throws barrels 0.6 seconds
-  sooner, until it reaches the fastest rate.
+  climb is added to the score. Each level moves the ladders and throws barrels sooner,
+  until it reaches the fastest rate.
 - On a model 40 or more wide there are two ladders between girders, otherwise one.
-- Options: *Lives*, *Barrels Every* (seconds between barrels on level 1, default 6) and
-  *Fastest Barrels* (the quickest it gets, default 3.2).
+- Options: *Lives*, *Barrels Every* (seconds between barrels on level 1, default 6),
+  *Barrels Sooner* (how much sooner each level, default 0.6) and *Fastest Barrels* (the
+  quickest it gets, default 3.2).
 
 ## Star Defenders
 

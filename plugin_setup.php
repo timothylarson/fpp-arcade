@@ -154,6 +154,9 @@ function AddArcade() {
     html += "<option value='Barrel Climb'>Barrel Climb</option>";
     html += "<option value='Star Defenders'>Star Defenders</option>";
     html += "<option value='Shape Fit'>Shape Fit (Kinect)</option>";
+    html += "<option value='Stacker'>Stacker</option>";
+    html += "<option value='Flap'>Flap</option>";
+    html += "<option value='Light Memory'>Light Memory</option>";
     html += "</select></td>";
     html += "<td><select class='model'>";
     html += modelOptions;

@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Added three quick games: Stacker (drop a sliding row onto the stack), Flap (one-button flier through pipes) and Light Memory (repeat a growing sequence with the directions).
 - Added Shape Fit, a Kinect "hole in the wall" game: fill a pose outline with your body before the countdown ends.
 - Added Star Defenders: a marching alien formation, crumbling shields, a saucer, A to fire and B for a once-a-wave column laser.
 - Added Barrel Climb: sloping girders, ladders, rolling barrels to jump, and a climb to the top, sized to the model.

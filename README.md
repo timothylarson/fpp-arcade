@@ -21,6 +21,9 @@ the games.
 | **Barrel Climb** | All four directions held and released (walk, climb), and A (jump). |
 | **Star Defenders** | Left/Right held and released, A (fire, hold to repeat; Up also fires), B (laser). |
 | **Shape Fit** | People in front of a Kinect (needs the fpp-kinect plugin). Any button starts; Start pauses. |
+| **Stacker** | Any button drops the sliding row. |
+| **Flap** | A, B or Up flaps. |
+| **Light Memory** | The four directional "Pressed" events. |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
 
 ## Installation
@@ -123,6 +126,20 @@ running on the same model.
   matrix (about 1.8 times on a 60x25 model).
 - Options: *Shape Size* (% of the model's height) and *Seconds per Pose*.
 - With no Kinect frames it says NO KINECT and hands the model back after 5 seconds.
+
+## Stacker, Flap and Light Memory
+
+Three quick games for people walking up, each playable with one or four buttons:
+
+- **Stacker:** a row of blocks slides back and forth, faster each row. Any button drops it on
+  the stack, and whatever hangs over the edge falls off and the next row is that much
+  narrower. Reach the top to win.
+- **Flap:** A, B or Up flaps; fly the bird through the gaps in the pipes. The gaps narrow and
+  the pipes speed up as the score climbs.
+- **Light Memory:** watch the four triangles light up in sequence, then repeat it with the
+  directions (Up is the top triangle, Right the right one, and so on). The sequence grows by
+  one each round and plays faster; a white dot in the middle means it's your turn. A wrong
+  press, or six seconds without one, ends it and flashes the one you needed.
 
 ## Asteroid Orbit
 

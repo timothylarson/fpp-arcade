@@ -54,6 +54,7 @@ extern "C" {
 #include "FPPBarrelClimb.h"
 #include "FPPStarDefenders.h"
 #include "FPPShapeFit.h"
+#include "FPPSimpleGames.h"
 
 static std::vector<std::string> BUTTONS({
     "Up - Pressed", "Up - Released",
@@ -877,6 +878,15 @@ public:
         }
         if (game == "Shape Fit") {
             return new FPPShapeFit(config);
+        }
+        if (game == "Stacker") {
+            return new FPPStacker(config);
+        }
+        if (game == "Flap") {
+            return new FPPFlap(config);
+        }
+        if (game == "Light Memory") {
+            return new FPPLightMemory(config);
         }
         return nullptr;
     }

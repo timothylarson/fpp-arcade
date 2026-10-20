@@ -173,7 +173,8 @@ class StackerEffect : public SimpleGameEffect {
 public:
     StackerEffect(PixelOverlayModel *m) : SimpleGameEffect(m) {
         layerH = H >= 20 ? 2 : 1;
-        layers = H / layerH;
+        // Taller than the screen: the view follows the stack up.
+        layers = H * 4 / (layerH * 5) + 8;
         reset();
     }
     const std::string &name() const override {
@@ -190,7 +191,8 @@ private:
     void reset() override {
         stack.clear();
         chunks.clear();
-        width = std::max(3, W / 8);
+        width = std::max(4, W / 4);
+        camY = 0;
         newRow();
         waitT = 0.6f;
     }
@@ -199,8 +201,16 @@ private:
         dir = rnd() < 0.5f ? 1 : -1;
         x = dir > 0 ? 0.0f : (float)(W - width);
     }
-    float speed() const { return std::min(45.0f, 9.0f + 1.6f * stack.size()); }
+    float speed() const { return std::min(28.0f, 7.0f + 0.8f * stack.size()); }
+    // Rows in tower coordinates: the bottom row sits on the bottom of the
+    // panel and higher rows go negative. camY shifts the view down onto them.
     int rowY(int layer) const { return H - (layer + 1) * layerH; }
+    int screenY(float y) const { return (int)std::lround(y + camY); }
+    // Keep the sliding row at least a third of the way down the panel.
+    void followCamera(float dt) {
+        const float want = std::max(0.0f, H * 0.35f - rowY((int)stack.size()));
+        camY += (want - camY) * std::min(1.0f, dt * 4.0f);
+    }
     RGB layerColour(int layer) const { return hue(layer / (float)layers * 0.85f); }
 
     void onPress(const std::string &) override {
@@ -238,7 +248,7 @@ private:
             c.vy += 40.0f * dt;
             c.y += c.vy * dt;
         }
-        chunks.erase(std::remove_if(chunks.begin(), chunks.end(), [&](const Chunk &c) { return c.y > H; }), chunks.end());
+        chunks.erase(std::remove_if(chunks.begin(), chunks.end(), [&](const Chunk &c) { return screenY(c.y) > H; }), chunks.end());
     }
 
     void stepGame(float dt) override {
@@ -252,6 +262,7 @@ private:
             dir = -1;
         }
         stepChunks(dt);
+        followCamera(dt);
     }
     void stepOver(float dt) override { stepChunks(dt); }
 
@@ -261,7 +272,7 @@ private:
             const RGB col = won ? hue(clock * 0.5f + k * 0.05f) : layerColour(k);
             for (int xx = stack[k].first; xx <= stack[k].second; ++xx) {
                 for (int dy = 0; dy < layerH; ++dy) {
-                    canvas.add(xx, rowY(k) + dy, col, 0.7f);
+                    canvas.add(xx, screenY(rowY(k) + dy), col, 0.7f);
                 }
             }
         }
@@ -269,21 +280,21 @@ private:
             const int layer = (int)stack.size(), x0 = (int)std::lround(x);
             for (int xx = x0; xx < x0 + width; ++xx) {
                 for (int dy = 0; dy < layerH; ++dy) {
-                    canvas.add(xx, rowY(layer) + dy, ArcadeCanvas::mix(layerColour(layer), ArcadeCanvas::WHITE, 0.3f), 1.0f);
+                    canvas.add(xx, screenY(rowY(layer) + dy), ArcadeCanvas::mix(layerColour(layer), ArcadeCanvas::WHITE, 0.3f), 1.0f);
                 }
             }
         }
         for (auto &c : chunks) {
             for (int xx = (int)c.x0; xx <= (int)c.x1; ++xx) {
                 for (int dy = 0; dy < layerH; ++dy) {
-                    canvas.add(xx, (int)c.y + dy, c.col, 0.5f);
+                    canvas.add(xx, screenY(c.y + dy), c.col, 0.5f);
                 }
             }
         }
     }
 
     int layerH = 2, layers = 12, width = 7, dir = 1;
-    float x = 0, waitT = 0;
+    float x = 0, waitT = 0, camY = 0;
     std::vector<std::pair<int, int>> stack;
     std::vector<Chunk> chunks;
 };

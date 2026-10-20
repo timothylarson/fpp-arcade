@@ -128,7 +128,7 @@ private:
     enum class BMode { Roll, Fall, Ladder };
 
     struct Ladder {
-        int x, k;   // joins girder k to girder k + 1
+        int x, k;   // columns x and x + 1, joining girder k to girder k + 1
     };
     struct Barrel {
         int x, y, k, dir;
@@ -153,13 +153,24 @@ private:
         const bool high = rollsRight(k) ? x < W / 2 : x >= W / 2;
         return base[k] - (high ? 1 : 0);
     }
+    // Either column of a ladder: the climber can use it from both.
     const Ladder *ladderAt(int x, int k) const {
         for (auto &l : ladders) {
-            if (l.x == x && l.k == k) {
+            if ((l.x == x || l.x + 1 == x) && l.k == k) {
                 return &l;
             }
         }
         return nullptr;
+    }
+    // Barrels only consider a ladder at its left column, so a two-wide ladder
+    // isn't twice as likely to take one.
+    bool barrelLadderAt(int x, int k) const {
+        for (auto &l : ladders) {
+            if (l.x == x && l.k == k) {
+                return true;
+            }
+        }
+        return false;
     }
 
     void buildLadders() {
@@ -167,13 +178,14 @@ private:
         const int perLevel = W >= 40 ? 2 : 1;
         std::vector<int> below;
         for (int k = 0; k < top; ++k) {
-            const int lo = std::max(spanLo(k), spanLo(k + 1)) + 2, hi = std::min(spanHi(k), spanHi(k + 1)) - 2;
+            // hi leaves room for the ladder's second column.
+            const int lo = std::max(spanLo(k), spanLo(k + 1)) + 2, hi = std::min(spanHi(k), spanHi(k + 1)) - 3;
             std::vector<int> here;
             for (int tries = 0; tries < 60 && (int)here.size() < perLevel; ++tries) {
                 const int x = lo + (int)(rnd() * (hi - lo + 1));
-                bool ok = x != W / 2 && x != W / 2 - 1;   // not on the step
-                for (int o : here) ok = ok && std::abs(o - x) >= 8;
-                for (int o : below) ok = ok && std::abs(o - x) >= 4;   // make them walk between ladders
+                bool ok = x != W / 2 - 1;   // both columns on the same side of the step
+                for (int o : here) ok = ok && std::abs(o - x) >= 9;
+                for (int o : below) ok = ok && std::abs(o - x) >= 5;   // make them walk between ladders
                 if (ok) {
                     here.push_back(x);
                 }
@@ -442,7 +454,7 @@ private:
                 b.acc -= 1.0f;
                 if (b.mode == BMode::Roll) {
                     // At the top of a ladder down, sometimes take it.
-                    if (b.k > 0 && ladderAt(b.x, b.k - 1) && rnd() < 0.3f) {
+                    if (b.k > 0 && barrelLadderAt(b.x, b.k - 1) && rnd() < 0.3f) {
                         b.mode = BMode::Ladder;
                         continue;
                     }
@@ -489,7 +501,10 @@ private:
         }
         for (auto &l : ladders) {
             for (int y = surface(l.k + 1, l.x) + 1; y < surface(l.k, l.x); ++y) {
-                canvas.add(l.x, y, LADDER, 0.3f);
+                // Two rails, a little brighter on alternate rows for rungs.
+                const float k = (y & 1) ? 0.4f : 0.25f;
+                canvas.add(l.x, y, LADDER, k);
+                canvas.add(l.x + 1, y, LADDER, k);
             }
         }
         // The ape, with its arms up just before a throw.

@@ -88,7 +88,7 @@ the corridors, the walls, you (yellow) and the ghosts.
 
 Climb to the top while an ape rolls barrels down at you, after the classic girder games.
 
-- Left/Right walk along the sloping girders, Up/Down climb a ladder you are standing at,
+- Left/Right walk along the sloping girders, Up/Down climb a ladder (two LEDs wide) you are at,
   and A (or B) jumps. Jumping clean over a barrel scores 100.
 - Barrels roll downhill, drop off the low end of each girder to the one below, and
   sometimes take a ladder down. Touching one costs a life, and so does walking off the end
@@ -131,9 +131,10 @@ running on the same model.
 
 Three quick games for people walking up, each playable with one or four buttons:
 
-- **Stacker:** a row of blocks slides back and forth, faster each row. Any button drops it on
-  the stack, and whatever hangs over the edge falls off and the next row is that much
-  narrower. Reach the top to win.
+- **Stacker:** a row of blocks a quarter of the width slides back and forth, a little faster
+  each row. Any button drops it on the stack, and whatever hangs over the edge falls off and
+  the next row is that much narrower. The tower is taller than the screen: past the lower
+  third the view follows it up. Reach the top to win.
 - **Flap:** A, B or Up flaps; fly the bird through the gaps in the pipes. The gaps narrow and
   the pipes speed up as the score climbs.
 - **Light Memory:** watch the four triangles light up in sequence, then repeat it with the

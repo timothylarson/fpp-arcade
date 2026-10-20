@@ -63,6 +63,9 @@ public:
     // 60-wide half of a 120x50 matrix the pause menu drew "RESTART" 84 pixels
     // wide and ran off the edge.
     int fitTextScale(const std::vector<std::string> &lines, int want, int widthPx = 0) const;
+    // Lines of 3x5 text centred on the panel over a black box, so a busy
+    // playfield doesn't show through the letters. Draws as many lines as fit.
+    void textBox(const std::vector<std::string> &lines, int r, int g, int b);
     void outputPixel(int x, int y, int r, int g, int b, int scl = -1);
     double consumeElapsedMs(double fallbackMs, double maxClampMs = 250.0);
     void resetFrameTimer();

@@ -18,6 +18,7 @@ the games.
 | **Frogger** | The four directional "Pressed" events. |
 | **Orb Pop** | People in front of a Kinect (needs the fpp-kinect plugin). A starts a round; Start pauses. |
 | **Maze Chase** | The four directional "Pressed" events. |
+| **Barrel Climb** | All four directions held and released (walk, climb), and A (jump). |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
 
 ## Installation
@@ -76,6 +77,20 @@ the corridors, the walls, you (yellow) and the ghosts.
   loses interest up close.
 - The tunnel on each side wraps around. Each level is a new maze, generated to fit the model
   (mirrored, no dead ends), and a bit faster.
+- Option: *Lives*.
+
+## Barrel Climb
+
+Climb to the top while an ape rolls barrels down at you, after the classic girder games.
+
+- Left/Right walk along the sloping girders, Up/Down climb a ladder you are standing at,
+  and A (or B) jumps. Jumping clean over a barrel scores 100.
+- Barrels roll downhill, drop off the low end of each girder to the one below, and
+  sometimes take a ladder down. Touching one costs a life, and so does walking off the end
+  of a girder: it's too far to fall.
+- Reach the top girder to rescue the person there; the bonus that counts down while you
+  climb is added to the score. Each level moves the ladders and throws barrels faster.
+- On a model 40 or more wide there are two ladders between girders, otherwise one.
 - Option: *Lives*.
 
 ## Asteroid Orbit

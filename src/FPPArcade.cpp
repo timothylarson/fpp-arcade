@@ -51,6 +51,7 @@ extern "C" {
 #include "FPPOrbPop.h"
 #include "FPPAsteroidOrbit.h"
 #include "FPPMazeChase.h"
+#include "FPPBarrelClimb.h"
 
 static std::vector<std::string> BUTTONS({
     "Up - Pressed", "Up - Released",
@@ -625,6 +626,26 @@ int FPPArcadeGameEffect::fitTextScale(const std::vector<std::string> &lines, int
     return std::max(1, std::min(want, widthPx / textW));
 }
 
+void FPPArcadeGameEffect::textBox(const std::vector<std::string> &lines, int r, int g, int b) {
+    const int W = model->getWidth(), H = model->getHeight();
+    const int n = std::min<int>((int)lines.size(), std::max(1, (H + 1) / 6));
+    size_t longest = 1;
+    for (int k = 0; k < n; ++k) {
+        longest = std::max(longest, lines[k].size());
+    }
+    const int w = (int)longest * 4 + 1, h = n * 6 + 1;
+    const int x0 = std::max(0, (W - w) / 2), y0 = std::max(0, (H - h) / 2);
+    for (int y = y0; y < std::min(H, y0 + h); ++y) {
+        for (int x = x0; x < std::min(W, x0 + w); ++x) {
+            model->setOverlayPixelValue(x, y, 0, 0, 0);
+        }
+    }
+    PanelTransform pt(this);
+    for (int k = 0; k < n; ++k) {
+        outputString(lines[k], centerTextX(lines[k], 1), y0 + 1 + k * 6, r, g, b, 1);
+    }
+}
+
 int FPPArcadeGameEffect::centerTextX(const std::string &s, int scl) {
     if (scl == -1) {
         scl = scale == 0 ? 1 : scale;
@@ -845,6 +866,9 @@ public:
         }
         if (game == "Maze Chase") {
             return new FPPMazeChase(config);
+        }
+        if (game == "Barrel Climb") {
+            return new FPPBarrelClimb(config);
         }
         return nullptr;
     }

@@ -1,5 +1,7 @@
 # FPP Arcade Changelog
 
+- Added Barrel Climb: sloping girders, ladders, rolling barrels to jump, and a climb to the top, sized to the model.
+- Added a shared textBox() for games: centred lines of text over a black box.
 - Added Maze Chase: dots, power pellets and four ghosts with their own chase styles, in a new symmetric maze each level sized to the model.
 - Added Asteroid Orbit: thrust in eight directions through asteroids with gravity, fire with A, shockwave with B, land to reload, and leave each cleared sector through a black hole.
 - Game titles too wide for the model now go one word per line, with letters closed up when a single word is still too wide.

@@ -119,7 +119,7 @@ function GameChanged(sel) {
         html = GetOrbPopOptions();
     } else if (val == "Asteroid Orbit") {
         html = GetAsteroidOrbitOptions();
-    } else if (val == "Maze Chase") {
+    } else if (val == "Maze Chase" || val == "Barrel Climb") {
         html = GetLivesOnlyOptions();
     }
     $(sel).parent().parent().find(".GameOptions").html(html);
@@ -143,6 +143,7 @@ function AddArcade() {
     html += "<option value='Orb Pop'>Orb Pop (Kinect)</option>";
     html += "<option value='Asteroid Orbit'>Asteroid Orbit</option>";
     html += "<option value='Maze Chase'>Maze Chase</option>";
+    html += "<option value='Barrel Climb'>Barrel Climb</option>";
     html += "</select></td>";
     html += "<td><select class='model'>";
     html += modelOptions;

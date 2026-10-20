@@ -111,13 +111,26 @@ Climb to the top while an ape rolls barrels down at you, after the classic girde
 Hold off a marching alien formation from behind four shields, after the classic invaders.
 
 - Left/Right move the cannon, A fires (hold it to keep firing; Up fires too, for controllers
-  without buttons), and B fires a laser straight up that clears a whole column - once a wave.
-  The magenta dot top left shows it's ready; white dots top right are spare lives.
-- The formation steps faster as it thins out and drops a row at each edge. Shots from either
-  side wear holes in the shields, and the aliens flatten them as they march through.
-- A saucer crosses the top row now and then for 50 to 300. If the aliens reach the bottom
-  the game is over. Each wave starts a little lower and bombs more.
-- Option: *Lives*.
+  without buttons), and B fires a laser straight up that clears a whole column. You get one
+  laser charge a wave, and can catch more. Magenta dots top left are laser charges, white dots
+  top right spare lives.
+- Each wave lays the formation out differently: a block, a V, a diamond, a checkerboard,
+  two squads, a pyramid, then the fortress, and round again. The formation steps faster as it
+  thins out, drops a row at each edge, and marches and bombs faster each wave. If the aliens
+  reach the bottom the game is over.
+- From wave 3 aliens peel off and swoop at the cannon, dropping a bomb on the way, then fly
+  back to their place; they're worth double while diving. From wave 4 the top row is armoured
+  (silver; two hits), from wave 8 the top two rows, and in the fortress every row but the
+  bottom.
+- The saucer that crosses the top row (50 to 300) always drops a capsule, and so do a quarter
+  of the divers and a few other aliens. Catch it with the cannon. Your shots and the cannon
+  take the weapon's colour, and a bar on the top row shows the time left (12 seconds):
+  **Double** (cyan, two shots side by side), **Rapid** (yellow), **Pierce** (white, shots carry on
+  through aliens), plus **Shields** (rebuilds them), **Laser** (another charge) and, rarely,
+  **Life**.
+- Shots from either side wear holes in the shields, and the aliens flatten them as they march
+  through.
+- Options: *Lives* and *Start at wave*.
 
 ## Shape Fit (Kinect)
 

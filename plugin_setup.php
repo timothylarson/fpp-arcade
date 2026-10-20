@@ -151,8 +151,10 @@ var ARCADE_GAMES = {
                     hint: 'How much more often it throws on each new level. 0 keeps it the same.' },
                   { name: 'Fastest Barrels', label: 'Fastest (seconds)', type: 'number', def: 3.2, min: 0.8, max: 20, step: 0.1,
                     hint: 'The quickest it ever gets.' }] },
-    'Star Defenders': { about: 'Hold off the marching aliens from behind the shields.',
-        controls: ['Left/Right move (hold)', 'A fire', 'B laser, once a wave'], options: [LIVES] },
+    'Star Defenders': { about: 'Hold off the marching aliens from behind the shields. A new formation each wave, armoured aliens from wave 4, divers from wave 3, and capsules to catch for new weapons.',
+        controls: ['Left/Right move (hold)', 'A fire', 'B laser'],
+        options: [LIVES, { name: 'Start Wave', label: 'Start at wave', type: 'number', def: 1, min: 1, max: 99,
+                           hint: 'Higher starts harder: later formations, armour and divers.' }] },
     'Stacker': { about: 'Drop the sliding row onto the stack; the overhang falls off.', controls: ['Any button drop'], options: [] },
     'Flap': { about: 'Flap through the gaps in the pipes.', controls: ['A or Up flap'], options: [] },
     'Light Memory': { about: 'Repeat the growing sequence of lit triangles.', controls: ['Directions, one per triangle'], options: [] }

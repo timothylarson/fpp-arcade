@@ -11,7 +11,7 @@ The FPP Arcade plugin provides a few interactive games that can be played on a P
 <tr><td>Snake</td>Snake only responds the FPP Arcade Button commands for the 4 directional "Pressed" events.</td></tr>
 <tr><td>Maze Chase</td><td>Responds to the 4 directional "Pressed" events; the last one pressed is where you turn next.</td></tr>
 <tr><td>Barrel Climb</td><td>Needs "Pressed" and "Released" for the 4 directions (walk and climb), and the A Button to jump.</td></tr>
-<tr><td>Star Defenders</td><td>Needs "Pressed" and "Released" for Left/Right, and the A Button (fire, hold to repeat) and B Button (laser, once a wave). Up also fires.</td></tr>
+<tr><td>Star Defenders</td><td>Needs "Pressed" and "Released" for Left/Right, and the A Button (fire, hold to repeat) and B Button (laser). Up also fires. Catch the capsules the saucer drops for new weapons.</td></tr>
 <tr><td>Shape Fit</td><td>Played by people in front of a Kinect; needs the FPP Kinect plugin on the same model. Any button starts five rounds of fitting a pose outline. Start pauses.</td></tr>
 <tr><td>Stacker</td><td>Any button "Pressed" drops the sliding row.</td></tr>
 <tr><td>Flap</td><td>The A Button, B Button or Up "Pressed" flaps.</td></tr>

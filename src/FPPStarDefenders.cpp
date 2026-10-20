@@ -17,7 +17,10 @@ using ArcadeCanvas::RGB;
 
 // Aliens are 3x2 sprites with two frames, five LEDs apart in rows three apart,
 // and the whole formation steps one LED at a time - faster as it thins out -
-// dropping a row at each edge. Shields lose an LED to every shot that hits
+// dropping a row at each edge. Each wave lays the formation out in a
+// different shape. Armoured aliens take two hits, divers peel off and swoop
+// at the cannon, and capsules dropped by the saucer and some aliens give the
+// cannon a weapon for a while. Shields lose an LED to every shot that hits
 // them, from either side.
 
 namespace {
@@ -29,6 +32,7 @@ const char *SPRITES[3][2][2] = {
     {{"###", "#.#"}, {"###", ".#."}},
 };
 const RGB KIND_COLOUR[3] = {{1.0f, 0.2f, 0.9f}, {0.1f, 0.9f, 1.0f}, {0.3f, 1.0f, 0.2f}};
+const RGB ARMOUR = {0.85f, 0.85f, 1.0f};
 const int KIND_POINTS[3] = {30, 20, 10};
 const RGB CANNON = {0.2f, 1.0f, 0.4f};
 const RGB SHIELD = {0.1f, 0.85f, 0.2f};
@@ -37,13 +41,42 @@ const RGB BOMB = {1.0f, 0.35f, 0.1f};
 const RGB SAUCER = {1.0f, 0.1f, 0.1f};
 const RGB LASER = {1.0f, 0.2f, 0.9f};
 
+// Formations, in an 8 x 4 grid; other sizes sample it. The last is the
+// "fortress", where every row but the bottom is armoured.
+const char *FORMATIONS[7][4] = {
+    {"########", "########", "########", "########"},   // block
+    {"##....##", ".##..##.", "..####..", "...##..."},   // V
+    {"..####..", ".######.", ".######.", "..####.."},   // diamond
+    {"#.#.#.#.", ".#.#.#.#", "#.#.#.#.", ".#.#.#.#"},   // checkerboard
+    {"###..###", "###..###", "###..###", "###..###"},   // two squads
+    {"...##...", "..####..", ".######.", "########"},   // pyramid
+    {"########", "########", "########", "########"},   // fortress
+};
+
+enum class Power { None, Double, Rapid, Pierce, Shields, Laser, Life };
+struct PowerInfo {
+    const char *word;
+    RGB colour;
+};
+const PowerInfo POWERS[] = {
+    {"", {0, 0, 0}},
+    {"DOUBLE", {0.1f, 0.9f, 1.0f}},
+    {"RAPID", {1.0f, 0.85f, 0.1f}},
+    {"PIERCE", {1.0f, 1.0f, 1.0f}},
+    {"SHIELDS", {0.2f, 1.0f, 0.3f}},
+    {"LASER", {1.0f, 0.2f, 0.9f}},
+    {"LIFE", {1.0f, 0.15f, 0.15f}},
+};
+constexpr float POWER_TIME = 12.0f;
+
 enum : uint32_t { LEFT = 1, RIGHT = 2, FIRE = 4 };
 
 }  // namespace
 
 class StarDefendersEffect : public FPPArcadeGameEffect {
 public:
-    StarDefendersEffect(PixelOverlayModel *m, int lives) : FPPArcadeGameEffect(m), rng(std::random_device{}()) {
+    StarDefendersEffect(PixelOverlayModel *m, int lives, int firstWave) : FPPArcadeGameEffect(m), rng(std::random_device{}()) {
+        startWaveNumber = std::clamp(firstWave, 1, 99);
         model->getSize(W, H);
         W = std::max(20, W);
         H = std::max(16, H);
@@ -120,8 +153,21 @@ private:
     static constexpr int FRAME_MS = 25;
     enum class State { Intro, Play, Dying, Clear, Over };
 
+    struct Alien {
+        int c, r, kind, hp;
+        bool alive;
+        bool diving;
+        float x, y;      // where a diver is
+        float targetX;   // where it's swooping to
+        int phase;       // 0 down at the cannon, 1 back to its place
+    };
     struct Shot {
         float x, y, vy;
+        bool pierce;
+    };
+    struct Capsule {
+        float x, y;
+        Power p;
     };
     struct Spark {
         float x, y, vx, vy, age, life;
@@ -132,26 +178,43 @@ private:
 
     // ---------------------------------------------------------------- game flow
     void newGame() {
-        wave = 1;
+        wave = startWaveNumber;
         score = 0;
         lives = startLives;
+        laser = 0;
+        power = Power::None;
+        powerT = 0;
         startWave();
     }
 
+    int formationIndex() const { return (wave - 1) % 7; }
+
     void startWave() {
-        alive.assign(rows * cols, 1);
-        aliensLeft = rows * cols;
+        aliens.clear();
+        const int f = formationIndex();
+        // Armour: the top row from wave 4 and the top two from wave 8, and
+        // every row but the bottom in the fortress.
+        const int armouredRows = f == 6 ? rows - 1 : (wave >= 8 ? 2 : (wave >= 4 ? 1 : 0));
+        for (int r = 0; r < rows; ++r) {
+            for (int c = 0; c < cols; ++c) {
+                if (FORMATIONS[f][r * 4 / rows][c * 8 / cols] == '#') {
+                    aliens.push_back({c, r, kindOf(r), r < armouredRows ? 2 : 1, true, false, 0, 0, 0, 0});
+                }
+            }
+        }
+        total = (int)aliens.size();
         fx = 1;
-        fy = 2 + std::min(4, wave - 1);   // each wave starts a little lower
+        fy = 2 + std::min(4, (wave - 1) / 2);   // later waves start a little lower
         fdir = 1;
         frame = 0;
         marchT = 0;
         shots.clear();
         bombs.clear();
+        capsules.clear();
         saucer = false;
-        saucerT = 10 + rnd() * 10;
-        laser = 1;
-        laserT = -1;
+        saucerT = 8 + rnd() * 8;
+        diveT = 4.0f;
+        laser = std::max(laser, 1);   // at least one laser a wave
         buildShields();
         cannonX = W / 2 - 1;
         state = State::Intro;
@@ -166,18 +229,26 @@ private:
             const int cx = (int)((k + 0.5f) * W / n);
             for (int dx = -2; dx <= 2; ++dx) {
                 shield[y * W + cx + dx] = 1;
-                if (std::abs(dx) != 0) {
+                if (dx != 0) {
                     shield[(y + 1) * W + cx + dx] = 1;   // an arch: open under the middle
                 }
             }
         }
     }
 
-    int formationW() const { return cols * 5 - 2; }
-    int alienX(int c) const { return fx + c * 5; }
-    int alienY(int r) const { return fy + r * 3; }
+    int alienX(const Alien &a) const { return a.diving ? (int)std::lround(a.x) : fx + a.c * 5; }
+    int alienY(const Alien &a) const { return a.diving ? (int)std::lround(a.y) : fy + a.r * 3; }
+    int homeX(const Alien &a) const { return fx + a.c * 5; }
+    int homeY(const Alien &a) const { return fy + a.r * 3; }
     int kindOf(int r) const { return r == 0 ? 0 : (r <= (rows - 1) / 2 ? 1 : 2); }
-    float marchEvery() const { return 0.04f + 0.55f * (float)aliensLeft / (rows * cols) / (1.0f + 0.15f * (wave - 1)); }
+    int aliveCount() const {
+        int n = 0;
+        for (auto &a : aliens) n += a.alive ? 1 : 0;
+        return n;
+    }
+    float marchEvery() const {
+        return 0.04f + 0.55f * (float)aliveCount() / std::max(1, total) / (1.0f + 0.15f * (wave - 1));
+    }
 
     void burst(float x, float y, const RGB &col, int n) {
         for (int k = 0; k < n; ++k) {
@@ -188,6 +259,7 @@ private:
 
     void step(float dt) {
         stepSparks(dt);
+        wordT = std::max(0.0f, wordT - dt);
         switch (state) {
         case State::Intro:
             if (stateT > 1.8f) {
@@ -202,6 +274,9 @@ private:
                 if (--lives > 0) {
                     bombs.clear();
                     shots.clear();
+                    for (auto &a : aliens) {
+                        a.diving = false;   // divers go home while you respawn
+                    }
                     state = State::Play;
                     stateT = 0;
                 } else {
@@ -222,6 +297,14 @@ private:
             break;
         }
 
+        // The weapon in hand runs down.
+        if (power != Power::None) {
+            powerT -= dt;
+            if (powerT <= 0) {
+                power = Power::None;
+            }
+        }
+
         // The cannon.
         const uint32_t h = held.load();
         const int dir = ((h & RIGHT) ? 1 : 0) - ((h & LEFT) ? 1 : 0);
@@ -234,9 +317,17 @@ private:
             cannonX = std::clamp(cannonX + dir, 0, W - 3);
         }
         fireT -= dt;
-        if ((fireNow.exchange(false) || ((h & FIRE) && fireT <= 0)) && shots.size() < 2 && fireT <= 0) {
-            shots.push_back({cannonX + 1.0f, (float)H - 3, -30.0f});
-            fireT = 0.35f;
+        const bool rapid = power == Power::Rapid, twin = power == Power::Double;
+        const size_t maxShots = (rapid ? 4 : 2) * (twin ? 2 : 1);
+        if ((fireNow.exchange(false) || ((h & FIRE) && fireT <= 0)) && fireT <= 0 && shots.size() < maxShots) {
+            const bool pierce = power == Power::Pierce;
+            if (twin) {
+                shots.push_back({(float)cannonX, (float)H - 2, -30.0f, pierce});
+                shots.push_back({cannonX + 2.0f, (float)H - 2, -30.0f, pierce});
+            } else {
+                shots.push_back({cannonX + 1.0f, (float)H - 3, -30.0f, pierce});
+            }
+            fireT = rapid ? 0.12f : 0.35f;
         }
         if (laserNow.exchange(false) && laser > 0) {
             --laser;
@@ -246,69 +337,32 @@ private:
         }
         laserT -= dt;
 
-        // The formation: one step at a time, down a row at the edges.
-        marchT += dt;
-        if (marchT >= marchEvery()) {
-            marchT = 0;
-            frame ^= 1;
-            int lo = W, hi = -1;
-            for (int c = 0; c < cols; ++c) {
-                for (int r = 0; r < rows; ++r) {
-                    if (alive[r * cols + c]) {
-                        lo = std::min(lo, alienX(c));
-                        hi = std::max(hi, alienX(c) + 2);
-                    }
-                }
-            }
-            if ((fdir > 0 && hi + 1 >= W) || (fdir < 0 && lo - 1 < 0)) {
-                fdir = -fdir;
-                ++fy;
-            } else {
-                fx += fdir;
-            }
+        march(dt);
+        if (state != State::Play) {
+            return;
         }
-        // Landed: the formation's bottom row reached the cannon.
-        for (int r = rows - 1; r >= 0; --r) {
-            bool any = false;
-            for (int c = 0; c < cols; ++c) {
-                any = any || alive[r * cols + c];
-            }
-            if (any) {
-                if (alienY(r) + 1 >= H - 2) {
-                    lives = 1;
-                    die();
-                    return;
-                }
-                // Aliens wipe out the shields they march through.
-                for (int c = 0; c < cols; ++c) {
-                    if (alive[r * cols + c]) {
-                        for (int y = alienY(r); y <= alienY(r) + 1; ++y) {
-                            for (int x = alienX(c); x <= alienX(c) + 2; ++x) {
-                                if (x >= 0 && x < W && y >= 0 && y < H) {
-                                    shield[y * W + x] = 0;
-                                }
-                            }
-                        }
-                    }
-                }
-                break;
-            }
+        dive(dt);
+        if (state != State::Play) {
+            return;
         }
 
-        // Bombs from the lowest alien in a random column.
+        // Bombs from the lowest alien in a random column of the formation.
         bombT -= dt;
         if (bombT <= 0 && (int)bombs.size() < 2 + wave / 2) {
             bombT = std::max(0.25f, 1.1f - 0.1f * wave) * (0.5f + rnd());
             const int c = (int)(rnd() * cols) % cols;
-            for (int r = rows - 1; r >= 0; --r) {
-                if (alive[r * cols + c]) {
-                    bombs.push_back({alienX(c) + 1.0f, alienY(r) + 2.0f, std::min(16.0f, 8.0f + wave)});
-                    break;
+            const Alien *low = nullptr;
+            for (auto &a : aliens) {
+                if (a.alive && !a.diving && a.c == c && (!low || a.r > low->r)) {
+                    low = &a;
                 }
+            }
+            if (low) {
+                bombs.push_back({alienX(*low) + 1.0f, alienY(*low) + 2.0f, std::min(16.0f, 8.0f + wave), false});
             }
         }
 
-        // The saucer along the top row now and then.
+        // The saucer along the top row now and then; it always drops a capsule.
         saucerT -= dt;
         if (!saucer && saucerT <= 0) {
             saucer = true;
@@ -319,7 +373,7 @@ private:
             saucerX += saucerDir * 9.0f * dt;
             if (saucerX < -4 || saucerX > W + 1) {
                 saucer = false;
-                saucerT = 12 + rnd() * 12;
+                saucerT = 14 + rnd() * 10;
             }
         }
 
@@ -327,21 +381,138 @@ private:
         if (state != State::Play) {
             return;
         }
-        if (aliensLeft == 0) {
+        moveCapsules(dt);
+        if (aliveCount() == 0) {
             score += 100 * wave;
             state = State::Clear;
             stateT = 0;
         }
     }
 
-    // B: a beam straight up from the cannon, three LEDs wide, through
-    // everything - aliens, shields, bombs and the saucer.
-    void fireLaser() {
-        for (int r = 0; r < rows; ++r) {
-            for (int c = 0; c < cols; ++c) {
-                if (alive[r * cols + c] && std::abs(alienX(c) + 1 - laserX) <= 2) {
-                    killAlien(r, c);
+    // The formation: one step at a time, down a row at the edges. Divers are
+    // out of it and don't count toward the edges.
+    void march(float dt) {
+        marchT += dt;
+        if (marchT < marchEvery()) {
+            return;
+        }
+        marchT = 0;
+        frame ^= 1;
+        int lo = W, hi = -1;
+        for (auto &a : aliens) {
+            if (a.alive && !a.diving) {
+                lo = std::min(lo, homeX(a));
+                hi = std::max(hi, homeX(a) + 2);
+            }
+        }
+        if (hi < 0) {
+            return;
+        }
+        if ((fdir > 0 && hi + 1 >= W) || (fdir < 0 && lo - 1 < 0)) {
+            fdir = -fdir;
+            ++fy;
+        } else {
+            fx += fdir;
+        }
+        for (auto &a : aliens) {
+            if (!a.alive || a.diving) {
+                continue;
+            }
+            // Landed on the cannon's row: the game is over.
+            if (homeY(a) + 1 >= H - 2) {
+                lives = 1;
+                die();
+                return;
+            }
+            // Aliens wipe out the shields they march through.
+            for (int y = homeY(a); y <= homeY(a) + 1; ++y) {
+                for (int x = homeX(a); x <= homeX(a) + 2; ++x) {
+                    if (x >= 0 && x < W && y >= 0 && y < H) {
+                        shield[y * W + x] = 0;
+                    }
                 }
+            }
+        }
+    }
+
+    // From wave 3, aliens peel off now and then and swoop at the cannon,
+    // dropping a bomb on the way, then fly back to their place.
+    void dive(float dt) {
+        if (wave >= 3) {
+            diveT -= dt;
+            if (diveT <= 0) {
+                diveT = std::max(1.5f, 6.0f - 0.4f * wave) * (0.7f + 0.6f * rnd());
+                std::vector<Alien *> ready;
+                for (auto &a : aliens) {
+                    if (a.alive && !a.diving) ready.push_back(&a);
+                }
+                int diving = 0;
+                for (auto &a : aliens) diving += (a.alive && a.diving) ? 1 : 0;
+                if (!ready.empty() && diving < 1 + wave / 4) {
+                    Alien &a = *ready[(size_t)(rnd() * ready.size()) % ready.size()];
+                    a.diving = true;
+                    a.phase = 0;
+                    a.x = (float)homeX(a);
+                    a.y = (float)homeY(a);
+                    a.targetX = cannonX + (rnd() - 0.5f) * 6.0f;
+                    diveBombed = false;
+                }
+            }
+        }
+        for (auto &a : aliens) {
+            if (!a.alive || !a.diving) {
+                continue;
+            }
+            if (a.phase == 0) {
+                a.y += 11.0f * dt;
+                a.x += std::clamp(a.targetX - a.x, -7.0f * dt, 7.0f * dt) + std::sin(a.y * 0.6f) * 6.0f * dt;
+                a.x = std::clamp(a.x, 0.0f, (float)(W - 3));
+                if (!diveBombed && a.y > H * 0.45f) {
+                    diveBombed = true;
+                    bombs.push_back({a.x + 1, a.y + 2, std::min(16.0f, 9.0f + wave), false});
+                }
+                if (hitsCannon(alienX(a), alienY(a))) {
+                    a.alive = false;
+                    burst(a.x + 1, a.y + 1, KIND_COLOUR[a.kind], 8);
+                    die();
+                    return;
+                }
+                if (a.y > H) {
+                    a.phase = 1;
+                    a.y = -2;   // round the back of the screen to its place
+                }
+            } else {
+                const float tx = (float)homeX(a), ty = (float)homeY(a);
+                const float dx = tx - a.x, dy = ty - a.y, d = std::hypot(dx, dy);
+                if (d < 1.0f) {
+                    a.diving = false;
+                } else {
+                    a.x += dx / d * 14.0f * dt;
+                    a.y += dy / d * 14.0f * dt;
+                }
+            }
+        }
+    }
+
+    bool hitsCannon(int x, int y) const {
+        for (int sy = 0; sy < 2; ++sy) {
+            for (int sx = 0; sx < 3; ++sx) {
+                const int px = x + sx, py = y + sy;
+                if ((py == H - 1 && px >= cannonX && px <= cannonX + 2) || (py == H - 2 && px == cannonX + 1)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // B: a beam straight up from the cannon, three LEDs wide, through
+    // everything - aliens (armour too), shields, bombs and the saucer.
+    void fireLaser() {
+        for (auto &a : aliens) {
+            if (a.alive && std::abs(alienX(a) + 1 - laserX) <= 2) {
+                a.hp = 1;
+                hitAlien(a);
             }
         }
         for (int y = 0; y < H; ++y) {
@@ -358,23 +529,78 @@ private:
         }
     }
 
-    void killAlien(int r, int c) {
-        alive[r * cols + c] = 0;
-        --aliensLeft;
-        score += KIND_POINTS[kindOf(r)];
-        burst(alienX(c) + 1, alienY(r) + 1, KIND_COLOUR[kindOf(r)], 8);
+    // Armour takes the first hit; the second kills. Divers are worth double,
+    // and a quarter of them, and a few others, drop a capsule.
+    void hitAlien(Alien &a) {
+        if (--a.hp > 0) {
+            burst(alienX(a) + 1, alienY(a) + 1, ARMOUR, 3);
+            return;
+        }
+        a.alive = false;
+        score += KIND_POINTS[a.kind] * (a.diving ? 2 : 1);
+        burst(alienX(a) + 1, alienY(a) + 1, KIND_COLOUR[a.kind], 8);
+        if (rnd() < (a.diving ? 0.25f : 0.04f)) {
+            dropCapsule(alienX(a) + 1.0f, alienY(a) + 1.0f);
+        }
     }
 
     void hitSaucer() {
         static const int values[] = {50, 100, 150, 300};
         score += values[(int)(rnd() * 4) % 4];
         burst(saucerX + 1, 0, SAUCER, 14);
+        dropCapsule(saucerX + 1, 1);
         saucer = false;
-        saucerT = 12 + rnd() * 12;
+        saucerT = 14 + rnd() * 10;
+    }
+
+    void dropCapsule(float x, float y) {
+        // Extra lives are rare; the rest are equally likely.
+        const float p = rnd();
+        Power kind = p < 0.06f ? Power::Life : (Power)(1 + (int)(rnd() * 5) % 5);
+        capsules.push_back({std::clamp(x, 0.0f, (float)(W - 1)), y, kind});
+    }
+
+    void moveCapsules(float dt) {
+        for (size_t k = 0; k < capsules.size();) {
+            Capsule &c = capsules[k];
+            c.y += 6.0f * dt;
+            const int x = (int)std::lround(c.x), y = (int)std::lround(c.y);
+            if (y >= H - 2 && x >= cannonX && x <= cannonX + 2) {
+                collect(c.p);
+                capsules.erase(capsules.begin() + k);
+            } else if (y >= H) {
+                capsules.erase(capsules.begin() + k);
+            } else {
+                ++k;
+            }
+        }
+    }
+
+    void collect(Power p) {
+        word = POWERS[(int)p].word;
+        wordColour = POWERS[(int)p].colour;
+        wordT = 1.4f;
+        burst(cannonX + 1, H - 2, wordColour, 10);
+        switch (p) {
+        case Power::Shields:
+            buildShields();
+            break;
+        case Power::Laser:
+            laser = std::min(5, laser + 1);
+            break;
+        case Power::Life:
+            lives = std::min(9, lives + 1);
+            break;
+        default:
+            power = p;   // a new weapon replaces the old one
+            powerT = POWER_TIME;
+            break;
+        }
     }
 
     void die() {
         burst(cannonX + 1, H - 1, CANNON, 16);
+        power = Power::None;
         state = State::Dying;
         stateT = 0;
     }
@@ -402,19 +628,21 @@ private:
                     gone = true;
                     break;
                 }
-                for (int r = 0; r < rows && !gone; ++r) {
-                    for (int c = 0; c < cols && !gone; ++c) {
-                        if (alive[r * cols + c] && x >= alienX(c) && x <= alienX(c) + 2 && y >= alienY(r) && y <= alienY(r) + 1 &&
-                            SPRITES[kindOf(r)][frame][y - alienY(r)][x - alienX(c)] == '#') {
-                            killAlien(r, c);
-                            gone = true;
-                        }
+                for (auto &a : aliens) {
+                    if (!a.alive || gone) {
+                        continue;
+                    }
+                    const int ax = alienX(a), ay = alienY(a);
+                    if (x >= ax && x <= ax + 2 && y >= ay && y <= ay + 1 && SPRITES[a.kind][frame][y - ay][x - ax] == '#') {
+                        hitAlien(a);
+                        gone = !s.pierce;   // a piercing shot carries on up the column
                     }
                 }
                 for (size_t j = 0; j < bombs.size() && !gone; ++j) {
                     if ((int)bombs[j].x == x && std::abs((int)std::lround(bombs[j].y) - y) <= 1) {
                         bombs.erase(bombs.begin() + j);
-                        gone = true;
+                        gone = !s.pierce;
+                        break;
                     }
                 }
             }
@@ -435,7 +663,7 @@ private:
                     gone = true;
                     break;
                 }
-                if (shield[y * W + x]) {
+                if (y >= 0 && x >= 0 && x < W && shield[y * W + x]) {
                     shield[y * W + x] = 0;
                     gone = true;
                     break;
@@ -478,17 +706,17 @@ private:
             }
         }
         if (state != State::Over) {
-            for (int r = 0; r < rows; ++r) {
-                const int k = kindOf(r);
-                for (int c = 0; c < cols; ++c) {
-                    if (!alive[r * cols + c]) {
-                        continue;
-                    }
-                    for (int sy = 0; sy < 2; ++sy) {
-                        for (int sx = 0; sx < 3; ++sx) {
-                            if (SPRITES[k][frame][sy][sx] == '#') {
-                                canvas.add(alienX(c) + sx, alienY(r) + sy, KIND_COLOUR[k], 0.75f);
-                            }
+            for (auto &a : aliens) {
+                if (!a.alive) {
+                    continue;
+                }
+                // Armour shows silver until its first hit.
+                const RGB col = a.hp > 1 ? armourColour(a.kind) : KIND_COLOUR[a.kind];
+                const int ax = alienX(a), ay = alienY(a);
+                for (int sy = 0; sy < 2; ++sy) {
+                    for (int sx = 0; sx < 3; ++sx) {
+                        if (SPRITES[a.kind][frame][sy][sx] == '#') {
+                            canvas.add(ax + sx, ay + sy, col, a.diving ? 1.0f : 0.75f);
                         }
                     }
                 }
@@ -500,8 +728,17 @@ private:
             canvas.add(sx + 1, 0, ArcadeCanvas::WHITE, std::fmod(clock, 0.3f) < 0.15f ? 1.0f : 0.4f);
             canvas.add(sx + 2, 0, SAUCER, 0.9f);
         }
+        for (auto &c : capsules) {
+            // Blinks between its colour and white so it reads as a pickup.
+            const bool flash = std::fmod(clock, 0.3f) < 0.15f;
+            canvas.add((int)std::lround(c.x), (int)std::lround(c.y), flash ? ArcadeCanvas::WHITE : POWERS[(int)c.p].colour, 1.0f);
+        }
+        const RGB shotCol = power == Power::None ? SHOT : POWERS[(int)power].colour;
         for (auto &s : shots) {
-            canvas.add((int)s.x, (int)std::lround(s.y), SHOT, 1.0f);
+            canvas.add((int)s.x, (int)std::lround(s.y), shotCol, 1.0f);
+            if (s.pierce) {
+                canvas.add((int)s.x, (int)std::lround(s.y) + 1, shotCol, 0.4f);
+            }
         }
         for (auto &b : bombs) {
             canvas.add((int)b.x, (int)std::lround(b.y), BOMB, std::fmod(clock + b.x, 0.2f) < 0.1f ? 1.0f : 0.6f);
@@ -515,20 +752,29 @@ private:
         }
         const bool showCannon = state != State::Over && !(state == State::Dying && std::fmod(stateT, 0.2f) < 0.1f);
         if (showCannon) {
-            canvas.add(cannonX + 1, H - 2, CANNON, 1.0f);
+            // The cannon takes the colour of the weapon it has.
+            const RGB cc = power == Power::None ? CANNON : POWERS[(int)power].colour;
+            canvas.add(cannonX + 1, H - 2, cc, 1.0f);
             for (int x = 0; x < 3; ++x) {
-                canvas.add(cannonX + x, H - 1, CANNON, 0.9f);
+                canvas.add(cannonX + x, H - 1, cc, 0.9f);
             }
         }
         for (auto &s : sparks) {
             canvas.add((int)std::lround(s.x), (int)std::lround(s.y), s.col, 1.0f - s.age / s.life);
         }
-        // Lives (white) and the laser charge (magenta) in the top corner.
+        // Top row: laser charges (magenta) from the left, then the weapon's
+        // time left as a bar in its colour; spare lives (white) top right.
+        for (int k = 0; k < laser; ++k) {
+            canvas.add(2 * k, 0, LASER, 0.5f);
+        }
+        if (power != Power::None) {
+            const int len = (int)std::ceil(powerT / POWER_TIME * std::max(4, W / 5));
+            for (int k = 0; k < len; ++k) {
+                canvas.add(11 + k, 0, POWERS[(int)power].colour, 0.35f);
+            }
+        }
         for (int k = 0; k < lives - 1; ++k) {
             canvas.add(W - 1 - 2 * k, 0, ArcadeCanvas::WHITE, 0.3f);
-        }
-        if (laser > 0) {
-            canvas.add(0, 0, LASER, 0.5f);
         }
         canvas.writeTo(model);
 
@@ -538,8 +784,14 @@ private:
             textBox({std::to_string(score)}, 255, 220, 0);
         } else if (state == State::Over && stateT > 1.0f) {
             textBox({"GAME", "OVER", std::to_string(score)}, 255, 255, 255);
+        } else if (wordT > 0) {
+            // What you just caught, low on the left, out of the way of the play.
+            PanelTransform pt(this);
+            outputString(word, 1, H - 13, (int)(wordColour.r * 255), (int)(wordColour.g * 255), (int)(wordColour.b * 255), 1);
         }
     }
+
+    static RGB armourColour(int kind) { return ArcadeCanvas::mix(KIND_COLOUR[kind], ARMOUR, 0.65f); }
 
     std::mt19937 rng;
     ArcadeCanvas::Canvas canvas;
@@ -547,15 +799,18 @@ private:
 
     State state = State::Intro;
     float stateT = 0, clock = 0;
-    int wave = 1, score = 0, lives = 3, startLives = 3;
+    int wave = 1, score = 0, lives = 3, startLives = 3, startWaveNumber = 1;
 
-    std::vector<uint8_t> alive, shield;
-    int aliensLeft = 0, fx = 1, fy = 2, fdir = 1, frame = 0;
-    float marchT = 0, bombT = 1.0f;
+    std::vector<Alien> aliens;
+    std::vector<uint8_t> shield;
+    int total = 1, fx = 1, fy = 2, fdir = 1, frame = 0;
+    float marchT = 0, bombT = 1.0f, diveT = 4.0f;
+    bool diveBombed = false;
 
     int cannonX = 0;
     float cannonAcc = 0, fireT = 0;
     std::vector<Shot> shots, bombs;
+    std::vector<Capsule> capsules;
     std::vector<Spark> sparks;
 
     bool saucer = false;
@@ -564,6 +819,11 @@ private:
 
     int laser = 1, laserX = 0;
     float laserT = -1;
+    Power power = Power::None;
+    float powerT = 0;
+    std::string word;
+    RGB wordColour = {1, 1, 1};
+    float wordT = 0;
 
     std::atomic<uint32_t> held{0};
     std::atomic<bool> fireNow{false}, laserNow{false};
@@ -589,7 +849,7 @@ void FPPStarDefenders::button(const std::string &button) {
         } else {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
         }
-        effect = new StarDefendersEffect(m, findIntOption("Lives", 3));
+        effect = new StarDefendersEffect(m, findIntOption("Lives", 3), findIntOption("Start Wave", 1));
         m->setRunningEffect(effect, 25);
     }
     if (!starting || button.compare(0, 5, "Start") != 0) {

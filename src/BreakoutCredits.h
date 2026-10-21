@@ -27,8 +27,10 @@ class BreakoutCredits {
 public:
     using RGB = ArcadeCanvas::RGB;
 
-    // extraLines: the credits from the settings, shown in the roll.
-    void start(int w, int h, int bricks, double playMs, const std::vector<std::string> &extraLines, double lengthMs) {
+    // thanks and extraLines: the SPECIAL THANKS and the closing lines of the
+    // roll, from the settings. No thanks leaves that heading out.
+    void start(int w, int h, int bricks, double playMs, const std::vector<std::string> &thanks,
+               const std::vector<std::string> &extraLines, double lengthMs) {
         W = std::max(8, w);
         H = std::max(8, h);
         T = std::max(5000.0, lengthMs);
@@ -45,7 +47,7 @@ public:
         roll = std::max(1, H / 40);
         buildSky();
         buildTown();
-        buildRoll(extraLines);
+        buildRoll(thanks, extraLines);
         sleighReset();
     }
 
@@ -550,7 +552,7 @@ private:
     }
 
     // ------------------------------------------------------------ roll
-    void buildRoll(const std::vector<std::string> &extra) {
+    void buildRoll(const std::vector<std::string> &thanks, const std::vector<std::string> &extra) {
         lines.clear();
         const RGB HEAD = {1.0f, 0.8f, 0.2f}, WHITE = {1, 1, 1}, RED = {1, 0.3f, 0.25f}, GREEN = {0.35f, 1, 0.45f};
         const int maxChars = std::max(1, (W + roll) / (4 * roll));
@@ -595,10 +597,14 @@ private:
         add("THE PADDLE", WHITE);
         add("AND", HEAD);
         add(std::to_string(bricksBroken) + " BRICKS", WHITE);
-        add("", WHITE);
-        add("SPECIAL THANKS", HEAD);
-        add("SANTA", RED);
-        add("RUDOLPH", GREEN);
+        if (!thanks.empty()) {
+            add("", WHITE);
+            add("SPECIAL THANKS", HEAD);
+            int n = 0;
+            for (const auto &l : thanks) {
+                add(l, n++ % 2 ? GREEN : RED);
+            }
+        }
         if (!extra.empty()) {
             add("", WHITE);
             int n = 0;

@@ -228,6 +228,8 @@ FPPBreakout::FPPBreakout(Json::Value &config)
                 winCredits = value != "0";
             } else if (name == "Credits") {
                 credits = value;
+            } else if (name == "Special Thanks") {
+                thanks = value;
             }
         }
     }
@@ -833,7 +835,7 @@ public:
             const int music = ArcadeSound::lengthMs("breakout", "WonGame");
             const double len = music > 0 ? std::clamp((double)music, 15000.0, 180000.0) : 30000.0;
             creditsCanvas.resize(model->getWidth(), model->getHeight());
-            credits.start(model->getWidth(), model->getHeight(), bricksBroken, playMs, creditLines, len);
+            credits.start(model->getWidth(), model->getHeight(), bricksBroken, playMs, thanksLines, creditLines, len);
             creditsSkip.store(false);
             creditsOn.store(true);
             resetFrameTimer();
@@ -997,23 +999,29 @@ public:
     float levelFactor() const { return std::min(1.0f + 0.1f * currentLevel, topSpeed); }
     float levelSpeed() const { return configuredBallSpeed * levelFactor(); }
 
-    void setExtras(float top, bool credits, const std::string &lines) {
+    void setExtras(float top, bool credits, const std::string &lines, const std::string &thanks) {
         topSpeed = std::max(1.0f, top);
         winCredits = credits;
-        creditLines.clear();
+        creditLines = splitLines(lines);
+        thanksLines = splitLines(thanks);
+        ballSpeedMultiplier = levelSpeed();
+        setAllBallSpeeds();
+    }
+    // "A|B|C" from the settings, trimmed, blanks dropped.
+    static std::vector<std::string> splitLines(const std::string &s) {
+        std::vector<std::string> out;
         size_t i = 0;
-        while (i <= lines.size()) {
-            const size_t j = std::min(lines.find('|', i), lines.size());
-            std::string l = lines.substr(i, j - i);
+        while (i <= s.size()) {
+            const size_t j = std::min(s.find('|', i), s.size());
+            std::string l = s.substr(i, j - i);
             l.erase(0, l.find_first_not_of(' '));
             l.erase(l.find_last_not_of(' ') + 1);
             if (!l.empty()) {
-                creditLines.push_back(l);
+                out.push_back(l);
             }
             i = j + 1;
         }
-        ballSpeedMultiplier = levelSpeed();
-        setAllBallSpeeds();
+        return out;
     }
     void playLevelStartSound() {
         restartSoundMs = 0.0;
@@ -1681,6 +1689,7 @@ public:
     float topSpeed = 1.6f;
     bool winCredits = true;
     std::vector<std::string> creditLines;
+    std::vector<std::string> thanksLines;
     int bricksBroken = 0;
     double playMs = 0.0;           // time actually playing, for the credits
     // The credits after the last level. creditsOn is read by button() on the
@@ -1741,7 +1750,7 @@ void FPPBreakout::button(const std::string &button) {
                 getBallSpeed(),
                 playfieldWidthOption()
             );
-            effect->setExtras(getTopSpeed(), getWinCredits(), getCredits());
+            effect->setExtras(getTopSpeed(), getWinCredits(), getCredits(), getThanks());
             m->setRunningEffect(effect, 50);
         } else {
             effect->button(button);

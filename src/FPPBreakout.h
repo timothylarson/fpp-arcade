@@ -19,6 +19,7 @@ public:
     float getTopSpeed() const { return topSpeed; }
     bool getWinCredits() const { return winCredits; }
     const std::string &getCredits() const { return credits; }
+    const std::string &getThanks() const { return thanks; }
 
 protected:
     int brickPixelWidth = 2;
@@ -29,6 +30,7 @@ protected:
     float topSpeed = 1.6f;      // the most the levels speed the ball (and paddle) up
     bool winCredits = true;     // the credits show after the last level
     std::string credits = "THANKS FOR PLAYING|MERRY CHRISTMAS";   // lines for it, | between
+    std::string thanks = "SANTA|RUDOLPH";                         // its SPECIAL THANKS, | between
 };
 
 #endif

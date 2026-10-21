@@ -68,7 +68,8 @@ up to *Fastest ball* (1.6 times level 1 by default, reached at level 7).
 Clearing the last level plays the credits, for as long as the WonGame music (30 seconds with
 sound off): YOU WON! over fireworks, the bricks broken and time played, a short story (Santa's
 sleigh comes for the ball and drops presents down the chimneys), rolling credits and THE END.
-*Credits lines* adds your own lines to the roll, separated by `|` (letters, numbers and
+*Special thanks* sets the names under SPECIAL THANKS (blank leaves it out) and *Credits lines*
+adds your own lines at the end of the roll, both separated by `|` (letters, numbers and
 `: ! . , - '`); *Credits when won* turns the show off. Any button skips it after two seconds.
 
 ## Orb Pop (Kinect)

@@ -847,6 +847,7 @@ public:
         currentLevel++;
         if (currentLevel < (int)LEVEL_LAYOUTS.size()) {
             LogInfo(VB_PLUGIN, "[Breakout] Advancing to level %d", currentLevel + 1);
+            lives = std::min(MAX_LIVES, lives + 2);   // two extra lives for every level cleared
             loadLevel(currentLevel);
             CopyToModel();
             return 50;
@@ -1336,10 +1337,9 @@ public:
             return -1;
         }
         if (takeCheat()) {
-            // The cheat code: the final layout, with 9 lives (more than an
-            // extra-life capsule can reach, so those just don't add any).
+            // The cheat code: the final layout, with every life there is.
             loadLevel((int)LEVEL_LAYOUTS.size() - 1);
-            lives = std::max(lives, 9);
+            lives = MAX_LIVES;
         }
         constexpr double baseFrameMs = 50.0;
         double elapsedMs = consumeElapsedMs(baseFrameMs);
@@ -1737,7 +1737,7 @@ public:
 
     // --- Lives ---
     int lives = 3;
-    static constexpr int MAX_LIVES = 5;
+    static constexpr int MAX_LIVES = 9;   // level bonuses and capsules stop here
 
     bool GameOn = true;
     bool WaitingUntilOutput = false;

@@ -64,8 +64,10 @@ Two pages are added to the FPP UI:
 
 Fifteen levels of bricks, with power-ups. Each level makes the ball and the paddle 10% faster,
 up to *Fastest ball* (1.6 times level 1 by default, reached at level 7).
-*Gap between rows* at No stacks the brick rows edge to edge, Arkanoid style, with *Space above
-bricks* (3 LEDs by default) left open above them for the ball to get into.
+The brick rows are stacked edge to edge, Arkanoid style, with bricks twice as tall where the
+level fits (it always ends above the lower third), and *Space above bricks* (3 LEDs by default)
+open above them for the ball to get into. *Gap between rows* at Yes spaces the rows out instead,
+as before.
 
 Clearing the last level plays the credits, for as long as the WonGame music (30 seconds with
 sound off): YOU WON! over fireworks, the bricks broken and time played, a short story (Santa's

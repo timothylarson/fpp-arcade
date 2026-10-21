@@ -373,12 +373,12 @@ class BreakoutEffect : public FPPArcadeGameEffect {
 public:
     int userBrickWidth = 2;
     bool spacingEnabled = true;
-    bool rowGaps = true;       // a gap between rows, or rows stacked edge to edge
+    bool rowGaps = false;      // a gap between rows, or rows stacked edge to edge
     int topSpace = 3;          // with stacked rows: LEDs above the top row for the ball
     int maxBricksPerRow = 15;
     int userPaddleWidth = 0;
         BreakoutEffect(PixelOverlayModel *m, int brickW, bool spacing, int maxBricks, int paddleW, float initialBallSpeed, int playfieldW,
-                       bool rowGap = true, int spaceAbove = 3)
+                       bool rowGap = false, int spaceAbove = 3)
         : FPPArcadeGameEffect(m),
             userBrickWidth(brickW),
             spacingEnabled(spacing),
@@ -548,9 +548,15 @@ public:
             }
         } else {
             // Rows stacked edge to edge, as in Arkanoid, below an open strip
-            // the ball can get into once it breaks through. Never so low that
-            // the paddle has under a third of the panel to work in.
-            const int lowest = std::max(0, (int)(paddle.y * 2 / 3) - brickRows * brickHeight);
+            // the ball can get into once it breaks through. The bricks take
+            // the height the gaps would have had (twice as tall), as long as
+            // the field ends above the lower third, which is the paddle's.
+            const int limit = std::max(1, (int)(paddle.y * 2 / 3) + 1);
+            brickHeight = std::max(1, 2 * brickHeight);
+            while (brickHeight > 1 && std::min(topSpace, limit) + brickRows * brickHeight > limit) {
+                --brickHeight;
+            }
+            const int lowest = std::max(0, limit - brickRows * brickHeight);
             const float top = (float)std::min(topSpace, lowest);
             for (int r = 0; r < brickRows; ++r) {
                 rowStarts[r] = top + r * brickHeight;

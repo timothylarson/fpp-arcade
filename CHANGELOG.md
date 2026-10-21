@@ -1,6 +1,6 @@
 # FPP Arcade Changelog
 
-- Breakout: Gap between rows (default Yes). No stacks the brick rows edge to edge, Arkanoid style, under Space above bricks (default 3 LEDs) for the ball to get into.
+- Breakout: brick rows are stacked edge to edge, Arkanoid style, with bricks twice as tall where the level fits, under Space above bricks (default 3 LEDs) for the ball to get into. Gap between rows at Yes brings back the spaced rows.
 - Breakout: winning plays a credits show as long as the WonGame music (30 s without sound): YOU WON! over fireworks, bricks broken and time played, a little story (Santa's sleigh collects the ball and drops presents down the chimneys), rolling credits with your own special thanks and closing lines (the new Special thanks and Credits lines settings) and THE END. Any button skips it. Credits when won turns it off.
 - Breakout: the ball and paddle stop speeding up at Fastest ball (default 1.6x level 1, reached at level 7) instead of reaching 2.4x on the last level. The Slow power-up now slows the ball relative to the level and Ball speed, and wearing off restores them, instead of resetting to 1.0.
 - The letter font has ! . , - and '.

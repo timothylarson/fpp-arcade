@@ -582,7 +582,7 @@ public:
         showingLevelIntro = true;
         // Each level opens with its jingle, the last one with its own.
         stopSounds();
-        sound(currentLevel + 1 >= (int)LEVEL_LAYOUTS.size() ? "LastLevel" : "StartLevel");
+        playLevelStartSound();
         levelIntroTimerMs = 1500.0;
         levelIntroText = "LEVEL " + std::to_string(currentLevel + 1);
         GameOn = true;
@@ -973,6 +973,13 @@ public:
     // ArcadeSound.h. A name with no file there is simply silent. They go to
     // this model's controller speakers, so each player hears their own game.
     void sound(const char *name) { ArcadeSound::play("breakout", name, 1.0f, model->getName()); }
+    void playLevelStartSound() {
+        restartSoundMs = 0.0;
+        const char *name = currentLevel + 1 >= (int)LEVEL_LAYOUTS.size() ? "LastLevel" : "StartLevel";
+        sound(name);
+        // The ball doesn't launch by itself until the jingle is over.
+        launchHoldMs = ArcadeSound::lengthMs("breakout", name);
+    }
     void stopSounds() { ArcadeSound::stopAll("breakout", model->getName()); }
 
     // A brick that took a hit: it breaks (tough ones with their own sound) or
@@ -1250,6 +1257,7 @@ public:
             bounceRandomMsAccumulator -= 5000.0;
         }
 
+        launchHoldMs = std::max(0.0, launchHoldMs - elapsedMs);
         if (showingLevelIntro) {
             levelIntroTimerMs -= elapsedMs;
             CopyToModel(0.2f);
@@ -1263,6 +1271,13 @@ public:
                 resetFrameTimer();
             }
             return 50;
+        }
+
+        if (restartSoundMs > 0.0) {
+            restartSoundMs -= elapsedMs;
+            if (restartSoundMs <= 0.0) {
+                playLevelStartSound();
+            }
         }
 
         // Advance portal pulse and handle portal open / touch mechanics.
@@ -1316,11 +1331,13 @@ public:
         if (paddle.x < fieldX) paddle.x = fieldX;
         else if ((paddle.x + paddle.width) >= fieldRight()) paddle.x = fieldRight() - paddle.width;
 
-        // Auto-release any ball that has been stuck to the paddle for >= 3000 ms
+        // Auto-release any ball that has been stuck to the paddle for >= 3000 ms,
+        // and not while the level's start jingle (or the wait for it after a
+        // lost life) is still going. A button launches it any time.
         for (auto &ball : balls) {
             if (!ball.stuck) continue;
             ball.stuckTimerMs += elapsedMs;
-            if (ball.stuckTimerMs >= 3000.0) {
+            if (ball.stuckTimerMs >= 3000.0 && launchHoldMs <= 0.0 && restartSoundMs <= 0.0) {
                 // Release this ball now (same logic as releaseStuckBalls)
                 sound("BounceFromPaddle");
                 ball.stuck = false;
@@ -1423,6 +1440,10 @@ public:
                 paddle.width = basePaddleWidth;
                 enforcePaddleBounds();
 
+                // The level's start jingle again for the new ball, once
+                // LoseLife has finished.
+                restartSoundMs = 1000.0;
+
                 // Re-center paddle, respawn a stuck ball
                 paddle.x = fieldX + (fieldW - paddle.width) / 2.0f;
                 enforcePaddleBounds();
@@ -1521,6 +1542,8 @@ public:
     void restart() override {
         // Reset to initial game state: full lives and first level
         lives = 3;
+        restartSoundMs = 0.0;
+        launchHoldMs = 0.0;
         currentLevel = 0;
         // Clear all powerups and effects
         powerUps.clear();
@@ -1578,6 +1601,8 @@ public:
     int currentLevel = 0;
     bool showingLevelIntro = false;
     double levelIntroTimerMs = 0.0;
+    double restartSoundMs = 0.0;   // counts down to the start jingle after a life is lost
+    double launchHoldMs = 0.0;     // the start jingle still playing: no auto-launch yet
     std::string levelIntroText;
     // Timers and state to avoid pathological repeat bounces
     double totalElapsedMs = 0.0;

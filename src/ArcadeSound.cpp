@@ -192,6 +192,27 @@ public:
             sendToSpeakers(msg, model);
         }
         std::lock_guard<std::mutex> l(mu);
+        auto clip = clipFor(game, name);
+        if (!clip) {
+            return;
+        }
+        if (voices.size() >= MAX_VOICES) {
+            voices.erase(voices.begin());   // the oldest makes way
+        }
+        voices.push_back({clip, 0, gain, game});
+    }
+
+    int lengthMs(const std::string &game, const std::string &name) {
+        if (!enabled) {
+            return 0;
+        }
+        std::lock_guard<std::mutex> l(mu);
+        auto clip = clipFor(game, name);
+        return clip ? (int)(clip->samples.size() * 1000 / RATE) : 0;
+    }
+
+    // Call with mu held.
+    std::shared_ptr<const Clip> clipFor(const std::string &game, const std::string &name) {
         const std::string key = game + "/" + name;
         auto it = cache.find(key);
         if (it == cache.end()) {
@@ -199,13 +220,7 @@ public:
             // so a game without sounds doesn't look on disk every event.
             it = cache.emplace(key, loadWav(soundFile(key))).first;
         }
-        if (!it->second) {
-            return;
-        }
-        if (voices.size() >= MAX_VOICES) {
-            voices.erase(voices.begin());   // the oldest makes way
-        }
-        voices.push_back({it->second, 0, gain, game});
+        return it->second;
     }
 
     void stopAll(const std::string &game, const std::string &model) {
@@ -532,6 +547,7 @@ void configure(const Json::Value &cfg) { engine().configure(cfg); }
 void play(const std::string &game, const std::string &name, float gain, const std::string &model) {
     engine().play(game, name, gain, model);
 }
+int lengthMs(const std::string &game, const std::string &name) { return engine().lengthMs(game, name); }
 void stopAll(const std::string &game, const std::string &model) { engine().stopAll(game, model); }
 void shutdown() {
     engine().stop();

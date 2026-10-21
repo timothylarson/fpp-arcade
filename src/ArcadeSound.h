@@ -46,6 +46,10 @@ void configure(const Json::Value &cfg);
 // model's controller speakers; empty sends it to every speaker.
 void play(const std::string &game, const std::string &name, float gain = 1.0f, const std::string &model = "");
 
+// How long a clip plays, in ms: 0 when sound is off or there is no such file.
+// Lets a game wait for a jingle to finish.
+int lengthMs(const std::string &game, const std::string &name);
+
 // Stop a game's clips (all clips when game is empty).
 void stopAll(const std::string &game = "", const std::string &model = "");
 

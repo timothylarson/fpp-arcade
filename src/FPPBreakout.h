@@ -20,6 +20,8 @@ public:
     bool getWinCredits() const { return winCredits; }
     const std::string &getCredits() const { return credits; }
     const std::string &getThanks() const { return thanks; }
+    bool getRowGaps() const { return rowGaps; }
+    int getTopSpace() const { return topSpace; }
 
 protected:
     int brickPixelWidth = 2;
@@ -31,6 +33,8 @@ protected:
     bool winCredits = true;     // the credits show after the last level
     std::string credits = "THANKS FOR PLAYING|MERRY CHRISTMAS";   // lines for it, | between
     std::string thanks = "SANTA|RUDOLPH";                         // its SPECIAL THANKS, | between
+    bool rowGaps = true;        // a gap between brick rows (No stacks them, Arkanoid style)
+    int topSpace = 3;           // with stacked rows, LEDs left open above the top row
 };
 
 #endif

@@ -230,6 +230,10 @@ FPPBreakout::FPPBreakout(Json::Value &config)
                 credits = value;
             } else if (name == "Special Thanks") {
                 thanks = value;
+            } else if (name == "Row Gap") {
+                rowGaps = value != "0";
+            } else if (name == "Space Above") {
+                topSpace = std::clamp(std::atoi(value.c_str()), 0, 50);
             }
         }
     }
@@ -369,12 +373,17 @@ class BreakoutEffect : public FPPArcadeGameEffect {
 public:
     int userBrickWidth = 2;
     bool spacingEnabled = true;
+    bool rowGaps = true;       // a gap between rows, or rows stacked edge to edge
+    int topSpace = 3;          // with stacked rows: LEDs above the top row for the ball
     int maxBricksPerRow = 15;
     int userPaddleWidth = 0;
-        BreakoutEffect(PixelOverlayModel *m, int brickW, bool spacing, int maxBricks, int paddleW, float initialBallSpeed, int playfieldW)
+        BreakoutEffect(PixelOverlayModel *m, int brickW, bool spacing, int maxBricks, int paddleW, float initialBallSpeed, int playfieldW,
+                       bool rowGap = true, int spaceAbove = 3)
         : FPPArcadeGameEffect(m),
             userBrickWidth(brickW),
             spacingEnabled(spacing),
+            rowGaps(rowGap),
+            topSpace(std::max(0, spaceAbove)),
             maxBricksPerRow(maxBricks),
             userPaddleWidth(paddleW),
             configuredBallSpeed(initialBallSpeed)
@@ -528,13 +537,24 @@ public:
         // Calculate Y positions for each row
         float computedHeight = std::max(1.0f, std::floor((h * 0.35f) / brickRows));
         brickHeight = static_cast<int>(computedHeight);
-        float playableHeight = static_cast<float>(paddle.y) - brickHeight;
-        float remainingHeight = std::max(0.0f, playableHeight - brickRows * brickHeight);
-        float verticalGap = std::max(1.0f, std::floor(remainingHeight / std::max(1, brickRows + 1)));
-        float curY = verticalGap;
-        for (int r = 0; r < brickRows; ++r) {
-            rowStarts[r] = curY;
-            curY += brickHeight + verticalGap;
+        if (rowGaps) {
+            float playableHeight = static_cast<float>(paddle.y) - brickHeight;
+            float remainingHeight = std::max(0.0f, playableHeight - brickRows * brickHeight);
+            float verticalGap = std::max(1.0f, std::floor(remainingHeight / std::max(1, brickRows + 1)));
+            float curY = verticalGap;
+            for (int r = 0; r < brickRows; ++r) {
+                rowStarts[r] = curY;
+                curY += brickHeight + verticalGap;
+            }
+        } else {
+            // Rows stacked edge to edge, as in Arkanoid, below an open strip
+            // the ball can get into once it breaks through. Never so low that
+            // the paddle has under a third of the panel to work in.
+            const int lowest = std::max(0, (int)(paddle.y * 2 / 3) - brickRows * brickHeight);
+            const float top = (float)std::min(topSpace, lowest);
+            for (int r = 0; r < brickRows; ++r) {
+                rowStarts[r] = top + r * brickHeight;
+            }
         }
 
         // Build blocks based on the level definition
@@ -1748,7 +1768,9 @@ void FPPBreakout::button(const std::string &button) {
                 getMaxBricksPerRow(),
                 getPaddleWidth(),
                 getBallSpeed(),
-                playfieldWidthOption()
+                playfieldWidthOption(),
+                getRowGaps(),
+                getTopSpace()
             );
             effect->setExtras(getTopSpeed(), getWinCredits(), getCredits(), getThanks());
             m->setRunningEffect(effect, 50);

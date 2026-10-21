@@ -1086,6 +1086,9 @@ public:
     }
 
     void releaseStuckBalls(bool keepEffect = false) {
+        if (anyBallStuck()) {
+            sound("BounceFromPaddle");   // leaving the paddle sounds like hitting it
+        }
         for (auto &ball : balls) {
             if (!ball.stuck) continue;
             // release immediately if minStuckMs < 0 (default behavior)
@@ -1317,6 +1320,7 @@ public:
             ball.stuckTimerMs += elapsedMs;
             if (ball.stuckTimerMs >= 3000.0) {
                 // Release this ball now (same logic as releaseStuckBalls)
+                sound("BounceFromPaddle");
                 ball.stuck = false;
                 float offsetNorm = 0.0f;
                 if (paddle.width > 0.0f) {

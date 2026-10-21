@@ -214,7 +214,7 @@ plugged into the player, and/or streamed over the network to a computer.
   | File | When |
   |---|---|
   | `StartLevel`, `LastLevel` | a level starts (`LastLevel` for the final one) |
-  | `BounceFromPaddle`, `StickToPaddle` | the ball hits the paddle (sticking, with Sticky) |
+  | `BounceFromPaddle`, `StickToPaddle` | the ball hits the paddle or is launched from it; it sticks, with Sticky |
   | `HitNoBreak` | a brick is hit but holds |
   | `BreakRegularBrick`, `BreakMetalicBrick` | a one-hit brick breaks; a multi-hit brick breaks |
   | `FireLaser` | a laser shot |

@@ -6,7 +6,7 @@ all: libfpp-arcade.$(SHLIB_EXT)
 debug: all
 
 CFLAGS+=-I.
-OBJECTS_fpp_arcade_so += src/FPPArcade.o src/FPPTetris.o src/FPPPong.o src/FPPSnake.o src/FPPBreakout.o src/FPPFrogger.o src/FPPOrbPop.o src/FPPAsteroidOrbit.o src/FPPMazeChase.o src/FPPBarrelClimb.o src/FPPStarDefenders.o src/FPPShapeFit.o src/FPPSimpleGames.o
+OBJECTS_fpp_arcade_so += src/FPPArcade.o src/FPPTetris.o src/FPPPong.o src/FPPSnake.o src/FPPBreakout.o src/FPPFrogger.o src/FPPOrbPop.o src/FPPAsteroidOrbit.o src/FPPMazeChase.o src/FPPBarrelClimb.o src/FPPStarDefenders.o src/FPPShapeFit.o src/FPPSimpleGames.o src/ArcadeSound.o
 LIBS_fpp_arcade_so += -L$(SRCDIR) -lfpp -ljsoncpp -ldrogon -ltrantor
 CXXFLAGS_src/FPPArcade.o += -I$(SRCDIR)
 
@@ -14,6 +14,9 @@ CXXFLAGS_src/FPPArcade.o += -I$(SRCDIR)
 # /dev/input/jsN. Linux/Pi use the raw Linux joystick API and don't link SDL.
 ifeq '$(ARCH)' 'OSX'
 LIBS_fpp_arcade_so += -lSDL2
+else
+# Sound effects go straight to ALSA (a USB sound card); see src/ArcadeSound.h.
+LIBS_fpp_arcade_so += -lasound
 endif
 
 

@@ -1,6 +1,7 @@
 #include <fpp-pch.h>
 
 #include "FPPBreakout.h"
+#include "ArcadeSound.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -579,6 +580,9 @@ public:
         spawnBallOnPaddle(/*stuck=*/true);
 
         showingLevelIntro = true;
+        // Each level opens with its jingle, the last one with its own.
+        ArcadeSound::stopAll("breakout");
+        sound(currentLevel + 1 >= (int)LEVEL_LAYOUTS.size() ? "LastLevel" : "StartLevel");
         levelIntroTimerMs = 1500.0;
         levelIntroText = "LEVEL " + std::to_string(currentLevel + 1);
         GameOn = true;
@@ -716,6 +720,7 @@ public:
                         }
                     }
                 }
+                brickSound(*it, destroyed);
 
                 if (destroyed) {
                     if (remainingDestructible > 0) --remainingDestructible;
@@ -813,6 +818,8 @@ public:
 
         GameOn = false;
         showingLevelIntro = false;
+        ArcadeSound::stopAll("breakout");
+        sound("WonGame");
         int scl = fitTextScale({"YOU", "WIN"}, std::max(1, (int)paddle.height));
         CopyToModel(0.2f);
         outputString("YOU", centeredTextX("YOU", scl),
@@ -962,8 +969,28 @@ public:
         }
     }
 
+    // Sounds are played by name from the Breakout sound folder; see
+    // ArcadeSound.h. A name with no file there is simply silent.
+    static void sound(const char *name) { ArcadeSound::play("breakout", name); }
+
+    // A brick that took a hit: it breaks (tough ones with their own sound) or
+    // it holds.
+    static void brickSound(const Block &b, bool destroyed) {
+        if (!destroyed) {
+            sound("HitNoBreak");
+        } else {
+            sound(b.maxHitPoints > 1 ? "BreakMetalicBrick" : "BreakRegularBrick");
+        }
+    }
+
     void applyPowerUp(PowerUp::Type type) {
         constexpr int durationMs = 8000;
+        switch (type) {
+            case PowerUp::Type::Expand:    sound("GrowPaddle"); break;
+            case PowerUp::Type::ExtraLife: sound("ExtraLife"); break;
+            case PowerUp::Type::Break:     sound("Shrill"); break;    // the power ball
+            default:                       sound("Coin"); break;
+        }
         switch (type) {
             case PowerUp::Type::Expand:
                 paddle.width = std::min<float>(fieldW * 0.8f,
@@ -1111,6 +1138,7 @@ public:
 
     void fireLasers() {
         if (!laserActive) return;
+        sound("FireLaser");
         float centerX = paddle.x + paddle.width / 2.0f;
         // Construct a Laser explicitly (avoid emplace_back with args for aggregate)
         Laser l;
@@ -1149,6 +1177,7 @@ public:
                         destroyed = true;
                     }
                 }
+                brickSound(*targetIt, destroyed);
                 if (destroyed) {
                     if (remainingDestructible > 0) --remainingDestructible;
                     maybeSpawnPowerUp(*targetIt);
@@ -1248,6 +1277,7 @@ public:
             int portalTop = std::max(0, model->getHeight() - 1 - 2);
             float paddleRight = paddle.x + paddle.width;
             if (paddleRight >= portalX - 0.5f && (paddle.y + paddle.height) >= portalTop) {
+                sound("LevelPortal");
                 portalTouched = true;
                 portalTouchedTimerMs = portalTouchDurationMs;
                 portalTouchStartX = paddle.x;
@@ -1317,6 +1347,7 @@ public:
 
         for (auto &ball : balls) {
             if (ball.bottom() >= paddle.y && ball.left() <= (paddle.x + paddle.width) && ball.right() >= paddle.x && ball.directionY > 0) {
+                sound(stickyActive ? "StickToPaddle" : "BounceFromPaddle");
                 if (!stickyActive) {
                     // Use ball CENTER relative to paddle center so left/right bias is reduced
                     float ballCenter = ball.x + ball.width / 2.0f;
@@ -1367,6 +1398,7 @@ public:
         if (balls.empty()) {
             if (lives > 0) {
                 --lives;
+                sound("LoseLife");
                 LogInfo(VB_PLUGIN, "[Breakout] Life lost. Lives remaining=%d (level %d)", lives, currentLevel + 1);
 
                 // Clear transient power-ups/effects on death
@@ -1396,6 +1428,8 @@ public:
                 return 300; // or 250 if you prefer snappier
             } else {
                 GameOn = false;
+                ArcadeSound::stopAll("breakout");
+                sound("LoseGame");
                 LogInfo(VB_PLUGIN, "[Breakout] GAME OVER on level %d", currentLevel + 1);
                 int scl = fitTextScale({"GAME", "OVER"}, std::max(1, (int)paddle.height));
                 CopyToModel(0.2f);

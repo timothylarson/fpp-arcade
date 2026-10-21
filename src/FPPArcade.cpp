@@ -55,6 +55,7 @@ extern "C" {
 #include "FPPStarDefenders.h"
 #include "FPPShapeFit.h"
 #include "FPPSimpleGames.h"
+#include "ArcadeSound.h"
 
 static std::vector<std::string> BUTTONS({
     "Up - Pressed", "Up - Released",
@@ -779,10 +780,13 @@ public:
         // across every model, so with games on Matrix-Left and Matrix-Right
         // the right-hand side's Breakout was game 6, not 1. A game that fails
         // to create is skipped rather than left in the list as a null.
-        if (FileExists(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"))) {
-            Json::Value root;
-            if (LoadJsonFromFile(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"), root)
-                && root.isMember("games")) {
+        Json::Value root;
+        const bool haveConfig = FileExists(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"))
+            && LoadJsonFromFile(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"), root);
+        // Sound settings live beside the games, so saving the page applies them too.
+        ArcadeSound::configure(haveConfig ? root["sound"] : Json::Value());
+        {
+            if (haveConfig && root.isMember("games")) {
                 for (int x = 0; x < root["games"].size(); x++) {
                     if (root["games"][x]["enabled"].asBool()) {
                         std::string model = root["games"][x]["model"].asString();
@@ -799,6 +803,7 @@ public:
 
     virtual std::function<bool()> shutdown() override {
         FileMonitor::INSTANCE.RemoveFile(name, FPP_DIR_CONFIG("/plugin.fpp-arcade.json"));
+        ArcadeSound::shutdown();   // its mixer thread runs code in this library
         for (auto &a : games) {
             for (auto &g : a.second) {
                 g->release();
@@ -904,6 +909,8 @@ public:
             return;
         }
         model->setRunningEffect(new GameTitleEffect(model, game->getName()), 20);
+        ArcadeSound::stopAll(ArcadeSound::folderFor(game->getName()));
+        ArcadeSound::play(ArcadeSound::folderFor(game->getName()), "GameSelected");
     }
     
 

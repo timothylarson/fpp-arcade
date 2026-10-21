@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Sound effects: a mixer that plays per-game WAV files from media/plugindata/fpp-arcade/sounds on a USB sound card and/or streams them over UDP (for the Matrix Viewer on a Mac), set up under Sound on the Arcade Games page. Breakout plays sounds for bounces, bricks, power-ups, lasers, the portal, levels and the end of the game; every game plays GameSelected on its title.
 - Maze Chase: wide mazes for the first levels, with two-LED paths and 2x2 characters that glide between cells; the one-LED maze starts at the Narrow maze from level setting (default 4).
 - Frogger: GAME OVER is centred on the panel over a black box, instead of on the top row over the score bar when Pixel Scaling is above 1.
 - Pong: GAME OVER is centred and sits below the score.

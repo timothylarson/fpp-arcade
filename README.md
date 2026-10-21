@@ -193,6 +193,38 @@ A thruster ship in a field of asteroids that each pull on it, after the Asteroid
 It needs the Released events as well as the Pressed ones, which joysticks and
 `tools/arcade-keyboard.html` both send.
 
+## Sound
+
+Games can play sound effects: short WAV clips, mixed together and played on a USB sound card
+plugged into the player, and/or streamed over the network to a computer.
+
+- Turn it on under **Sound** on the Arcade Games page. *Speaker* picks the first USB sound card
+  (it can be plugged in later), or none to stream only; *Volume* sets the level.
+- **Stream to** sends the same sound to a computer, for testing without a speaker on the
+  player: the Matrix Viewer for macOS plays it (Settings › Inputs › Game Sound, same port,
+  5570 by default). The stream is 10 ms blocks of 44.1 kHz mono 16-bit audio over UDP, sent only
+  while something is playing; the format is described in `src/ArcadeSound.h`.
+- The sound files are not part of the plugin. Put them on the player in
+  `media/plugindata/fpp-arcade/sounds/<game>/`, where `<game>` is the game's name in lower case
+  without spaces (`breakout`, `mazechase`), as 16-bit PCM WAV, ideally mono at 44.1 kHz with
+  no silence at the end. A sound with no file is simply silent, so a game can have as few or as
+  many as you like. Saving the Arcade Games page reloads them.
+- Every game plays `GameSelected` when its title is shown. **Breakout** also plays:
+
+  | File | When |
+  |---|---|
+  | `StartLevel`, `LastLevel` | a level starts (`LastLevel` for the final one) |
+  | `BounceFromPaddle`, `StickToPaddle` | the ball hits the paddle (sticking, with Sticky) |
+  | `HitNoBreak` | a brick is hit but holds |
+  | `BreakRegularBrick`, `BreakMetalicBrick` | a one-hit brick breaks; a multi-hit brick breaks |
+  | `FireLaser` | a laser shot |
+  | `GrowPaddle`, `ExtraLife`, `Shrill`, `Coin` | catching Expand, Extra Life, the power ball (Break), any other power-up |
+  | `LevelPortal` | the paddle goes through the portal |
+  | `LoseLife`, `LoseGame`, `WonGame` | a life lost, game over, all levels cleared |
+
+The sound card should be one FPP itself isn't using for show audio (leave FPP's own audio
+output on the player set to none or the Dummy device).
+
 ## Commands
 
 The plugin registers three FPP Commands:

@@ -75,6 +75,23 @@ Saving applies straight away, without restarting FPP, and stops any game being p
     <span id="arcadeError" class="arcadeError"></span>
 </div>
 
+<h3>Sound</h3>
+<table class="opts" id="arcadeSound">
+<tr><td>Sound effects</td><td><input type="checkbox" id="sndEnabled">
+    <div class="hint">Plays each game's sound files from <code>media/plugindata/fpp-arcade/sounds/&lt;game&gt;/</code>
+    (the game's name in lower case, no spaces: <code>breakout</code>, <code>mazechase</code>). A game with no files there is silent.</div></td></tr>
+<tr><td>Speaker</td><td><select id="sndDevice">
+        <option value="auto">USB sound card (the first one plugged in)</option>
+        <option value="none">None - stream only</option>
+    </select>
+    <div class="hint">A USB sound card can be plugged in at any time; it's picked up within a few seconds.</div></td></tr>
+<tr><td>Volume (%)</td><td><input type="number" id="sndVolume" min="0" max="100" step="5"></td></tr>
+<tr><td>Stream to</td><td><input type="text" id="sndHost" placeholder="computer's IP address" style="width: 200px">
+    port <input type="number" id="sndPort" min="1" max="65535" style="width: 90px">
+    <div class="hint">Sends the game sounds over the network too, for the Matrix Viewer on a Mac to play (turn on Game sound in its
+    settings, same port). Leave blank when the speaker is on the player.</div></td></tr>
+</table>
+
 <div id="arcadeModels"></div>
 
 <h3>Add a game</h3>
@@ -89,6 +106,8 @@ Saving applies straight away, without restarting FPP, and stops any game being p
 
 <script>
 var arcadeConfig = <?= json_encode($arcadeConfig) ?>;
+var ARCADE_SOUND_DEFAULTS = { enabled: false, device: 'auto', volume: 80, streamHost: '', streamPort: 5570 };
+arcadeConfig.sound = $.extend({}, ARCADE_SOUND_DEFAULTS, arcadeConfig.sound || {});
 var arcadeModels = [];
 
 // Every game, what it is, how it's played, and its options. Option names are
@@ -194,6 +213,26 @@ function arcadeNormalise(g) {
 }
 
 function arcadeSetDirty(d) { $('#arcadeDirty').toggle(d); }
+
+function arcadeShowSound() {
+    var s = arcadeConfig.sound;
+    $('#sndEnabled').prop('checked', !!s.enabled);
+    $('#sndDevice').val(s.device);
+    $('#sndVolume').val(s.volume);
+    $('#sndHost').val(s.streamHost);
+    $('#sndPort').val(s.streamPort);
+    $('#arcadeSound tr').not(':first').toggle(!!s.enabled);
+}
+$('#arcadeSound').on('change input', 'input, select', function () {
+    var s = arcadeConfig.sound;
+    s.enabled = $('#sndEnabled').is(':checked');
+    s.device = $('#sndDevice').val();
+    s.volume = parseInt($('#sndVolume').val(), 10) || 0;
+    s.streamHost = $.trim($('#sndHost').val());
+    s.streamPort = parseInt($('#sndPort').val(), 10) || 5570;
+    $('#arcadeSound tr').not(':first').toggle(s.enabled);
+    arcadeSetDirty(true);
+});
 
 function arcadeModelNames() {
     var names = arcadeModels.slice();
@@ -396,6 +435,7 @@ $.get('api/models').done(function (data) {
     $('#arcadeAddGame').html(Object.keys(ARCADE_GAMES).map(function (g) { return '<option>' + arcadeEsc(g) + '</option>'; }).join(''));
     $('#arcadeAddModel').html(arcadeModels.map(function (m) { return '<option>' + arcadeEsc(m) + '</option>'; }).join(''));
     arcadeRender();
+    arcadeShowSound();
     arcadeRefresh();
     setInterval(arcadeRefresh, 3000);
 });

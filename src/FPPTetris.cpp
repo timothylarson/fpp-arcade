@@ -371,6 +371,18 @@ public:
         return cleared;
     }
 
+    // The cheat code. Tetris has no last level; the drop is at full speed from
+    // 14 lines (level 2), so that is where this puts it. The board stays.
+    void jumpToTopSpeed() {
+        const int need = (int)std::ceil((initialTimer - minTimer) / perLineDrop);
+        lines = std::max(lines, need);
+        level = lines / 10 + 1;
+        accumulatedDrop = maxSpeedDrop;
+        timer = minTimer;
+        levelBannerMs = bannerMs;
+        sfx("tetris", "LevelUp");
+    }
+
     void increaseSpeed(int lines) {
         accumulatedDrop += static_cast<double>(lines) * perLineDrop;
         if (accumulatedDrop > maxSpeedDrop) {
@@ -483,6 +495,9 @@ public:
 
         if (!GameOn) {
             return showGameOver();
+        }
+        if (takeCheat()) {
+            jumpToTopSpeed();
         }
 
         double desiredFrame = std::max(minFrameInterval, timer / 2.0);

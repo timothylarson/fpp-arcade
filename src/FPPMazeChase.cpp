@@ -88,6 +88,16 @@ public:
         const float dt = (float)(consumeElapsedMs(FRAME_MS, 100.0) / 1000.0);
         clock += dt;
         stateT += dt;
+        if (takeCheat() && state != State::Over) {
+            // The cheat code: level 10, where both speeds, the ghosts' release
+            // gap and the scared time have all reached their limits (and the
+            // maze is the narrow one, unless that's turned off), with 9 lives.
+            level = std::max(10, narrowLevel);
+            lives = std::max(lives, 9);
+            buildMaze();
+            resetActors();
+            sfx("mazechase", "Start");
+        }
         step(dt);
         if (state == State::Over && stateT > 5.0f) {
             model->clearOverlayBuffer();

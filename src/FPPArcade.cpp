@@ -338,8 +338,56 @@ void FPPArcadeGame::axis(const std::string &axis, int value) {
         lastValues[1] = value;
     }
     if (btn != "") {
+        cheatInput(btn);   // directions only, so it never finishes the code here
         button(btn);
     }
+}
+
+// Up Up Down Down Left Right Left Right B A Start (the Konami code), while a game is playing (not
+// paused): the game jumps to its last level, and an endless one to its hardest
+// with lives and power-ups topped up. The directions play as usual; the B, A
+// and Start that finish the code are kept from the game, so they don't fire,
+// drop a Stacker row or pause it.
+bool FPPArcadeGame::cheatInput(const std::string &button) {
+    static const char *CODE[] = { "Up", "Up", "Down", "Down", "Left", "Right", "Left", "Right",
+                                  "B Button", "A Button", "Start" };
+    constexpr size_t LEN = sizeof(CODE) / sizeof(CODE[0]);
+    const size_t dash = button.find(" - ");
+    const std::string name = dash == std::string::npos ? button : button.substr(0, dash);
+    if (dash != std::string::npos && button.compare(dash, std::string::npos, " - Released") == 0) {
+        cheatHeld.erase(name);
+        return false;
+    }
+    if (!cheatHeld.insert(name).second && dash != std::string::npos) {
+        return false;   // still held: an axis sending its position again
+    }
+    if (dash == std::string::npos) {
+        cheatHeld.erase(name);   // a bare "Start" has no release to come
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (now - cheatAt > std::chrono::milliseconds(2000)) {
+        cheatPos = 0;   // too slow between presses: start over
+    }
+    cheatAt = now;
+    if (name == CODE[cheatPos]) {
+        ++cheatPos;
+    } else if (name == "Up") {
+        cheatPos = cheatPos == 2 ? 2 : 1;   // a third Up still leaves "Up Up"
+    } else {
+        cheatPos = 0;
+    }
+    if (cheatPos < LEN) {
+        return cheatPos > 8;   // the B and A after the directions
+    }
+    cheatPos = 0;
+    PixelOverlayModel *m = PixelOverlayManager::INSTANCE.getModel(modelName);
+    FPPArcadeGameEffect *effect = m ? dynamic_cast<FPPArcadeGameEffect *>(m->getRunningEffect()) : nullptr;
+    if (!effect || effect->isPaused()) {
+        return false;
+    }
+    LogInfo(VB_PLUGIN, "FPP Arcade: cheat code on %s\n", modelName.c_str());
+    effect->requestCheat();
+    return true;
 }
 
 
@@ -924,6 +972,9 @@ public:
 
     void handleButton(std::list<FPPArcadeGame *> &games, const std::string &button, const std::vector<std::string> &args) {
         if (games.empty()) {
+            return;
+        }
+        if (games.front()->isRunning() && games.front()->cheatInput(button)) {
             return;
         }
         if (button == "Start - Pressed") {

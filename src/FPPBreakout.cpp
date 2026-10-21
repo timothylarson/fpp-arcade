@@ -1242,6 +1242,9 @@ public:
             WaitingUntilOutput = true;
             return -1;
         }
+        if (takeCheat()) {
+            loadLevel((int)LEVEL_LAYOUTS.size() - 1);   // the cheat code: the final layout
+        }
         constexpr double baseFrameMs = 50.0;
         double elapsedMs = consumeElapsedMs(baseFrameMs);
         if (elapsedMs <= 0.0) elapsedMs = baseFrameMs;

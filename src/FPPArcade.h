@@ -3,7 +3,9 @@
 
 #include <string>
 #include <vector>
+#include <atomic>
 #include <chrono>
+#include <set>
 #include <cstdint>
 
 #include "overlays/PixelOverlayEffects.h"
@@ -18,6 +20,10 @@ public:
     
     virtual void button(const std::string &button) {}
     virtual void axis(const std::string &axis, int value);
+    // Watches for the cheat code (see FPPArcade.cpp) and passes it to the
+    // running game. True when this press finished the code, so the caller
+    // doesn't pass it on as well.
+    bool cheatInput(const std::string &button);
 
     
     virtual bool isRunning();
@@ -43,6 +49,10 @@ protected:
     Json::Value config;
     int lastValues[2];
     int idx;
+private:
+    size_t cheatPos = 0;
+    std::chrono::steady_clock::time_point cheatAt;
+    std::set<std::string> cheatHeld;   // directions held, so an axis repeat isn't a second press
 };
 
 
@@ -81,6 +91,12 @@ public:
     virtual void restart();
     void activatePauseSelection();
     bool isPaused() const { return paused; }
+
+    // The cheat code was entered. Button presses arrive on another thread, so
+    // this only raises a flag: a game with levels takes it with takeCheat()
+    // in its own update() and jumps to its last level (for an endless game,
+    // the level where it is at its hardest). Games without levels ignore it.
+    void requestCheat() { cheatPending.store(true); }
     
     // Size the logical playfield and centre it on the model. A game should
     // bound itself against pfW/pfH rather than model->getWidth()/getHeight(),
@@ -112,11 +128,13 @@ public:
     int offsetX;
     int offsetY;
 protected:
+    bool takeCheat() { return cheatPending.exchange(false); }
     void drawPauseMenu();
     virtual void handlePauseInput(const std::string &button);
 
     bool paused = false;
     PauseMenu pauseMenu;
+    std::atomic<bool> cheatPending{false};
 
 private:
     std::chrono::steady_clock::time_point lastFrameTime;

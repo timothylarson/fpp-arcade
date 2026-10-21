@@ -21,10 +21,29 @@ the games.
 | **Barrel Climb** | All four directions held and released (walk, climb), and A (jump). |
 | **Star Defenders** | Left/Right held and released, A (fire, hold to repeat; Up also fires), B (laser). |
 | **Shape Fit** | People in front of a Kinect (needs the fpp-kinect plugin). Any button starts; Start pauses. |
-| **Stacker** | Any button drops the sliding row. |
+| **Stacker** | A, B or Fire drops the sliding row. |
 | **Flap** | A, B or Up flaps. |
 | **Light Memory** | The four directional "Pressed" events. |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
+
+### Cheat code
+
+**Up Up Down Down Left Right Left Right B A Start** during a game (not on the pause menu), each
+press within 2 seconds of the last. The directions play as usual; the B, A and Start that finish
+the code are kept from the game, so it doesn't fire, drop a row or pause.
+
+| Game | What it does |
+|------|-----------|
+| **Breakout** | Straight to the final level. |
+| **Tetris** | Full drop speed (reached at 14 lines, level 2). The board stays. |
+| **Frogger** | Level 10, traffic about twice level 1's speed, and 9 lives. |
+| **Maze Chase** | Level 10 (every speed and timer at its limit, the narrow maze), and 9 lives. |
+| **Asteroid Orbit** | The sector where the rock count stops growing (at least 10), with full fuel and ammo, 9 shockwaves and 5 lives. |
+| **Barrel Climb** | The level where the barrels are at their fastest (at least 9), and 9 lives. |
+| **Star Defenders** | Wave 14, the fortress at full strength, with 9 lives, 5 lasers and the piercing shot. |
+| **Stacker** | The first 60-row tower. |
+
+Pong, Snake, Flap, Light Memory, Orb Pop and Shape Fit have no levels and ignore it.
 
 ## Installation
 
@@ -156,7 +175,7 @@ running on the same model.
 Three quick games for people walking up, each playable with one or four buttons:
 
 - **Stacker:** a row of blocks a quarter of the width slides back and forth, a little faster
-  each row. Any button drops it on the stack, and whatever hangs over the edge falls off and
+  each row. A, B or Fire drops it on the stack, and whatever hangs over the edge falls off and
   the next row is that much narrower. Reach the dotted goal line to clear the level; each
   level is a new tower four rows taller (11, 15, 19... on a 25-row model) that starts faster
   and tops out faster. Once the tower passes the lower third the view follows it up.

@@ -116,6 +116,15 @@ public:
         const float dt = (float)(consumeElapsedMs(FRAME_MS, 100.0) / 1000.0);
         clock += dt;
         stateT += dt;
+        if (takeCheat() && state != State::Over) {
+            // The cheat code: the level where everything has topped out - the
+            // roll speed at 9, and the barrels at their fastest setting - with
+            // 9 lives.
+            const int fastestAt = sooner > 0 ? 1 + (int)std::ceil((slowest - fastest) / sooner) : 1;
+            level = std::clamp(fastestAt, 9, 99);
+            lives = std::max(lives, 9);
+            startLevel();
+        }
         step(dt);
         if (state == State::Over && stateT > 5.0f) {
             model->clearOverlayBuffer();

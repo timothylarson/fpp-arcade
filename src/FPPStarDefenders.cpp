@@ -140,6 +140,17 @@ public:
         const float dt = (float)(consumeElapsedMs(FRAME_MS, 100.0) / 1000.0);
         clock += dt;
         stateT += dt;
+        if (takeCheat() && state != State::Over) {
+            // The cheat code: wave 14, the last formation (the fortress) on
+            // its second time round, with bombs and divers at full rate - and
+            // 9 lives, 5 lasers and the piercing shot.
+            wave = 14;
+            startWave();
+            lives = std::max(lives, 9);
+            laser = 5;
+            power = Power::Pierce;   // one weapon at a time; this one cuts through armour
+            powerT = POWER_TIME;
+        }
         step(dt);
         if (state == State::Over && stateT > 5.0f) {
             model->clearOverlayBuffer();

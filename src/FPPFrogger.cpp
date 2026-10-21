@@ -127,6 +127,16 @@ public:
             drawFrame(0.25f, /*drawPaused=*/true);
             return 50;
         }
+        if (takeCheat()) {
+            // The cheat code. Frogger keeps speeding up, so "last" is level
+            // 10 (traffic and logs about twice as fast as level 1), with 9
+            // spare frogs to try it.
+            level = 10;
+            lives = std::max(lives, 9);
+            speedBoost = 1.0f;
+            initLevel();
+            sfx("frogger", "LevelClear");
+        }
 
         // Which log is the frog standing on, and where along it, BEFORE anything
         // moves. Deciding this after the movers advance is what made a hop onto a

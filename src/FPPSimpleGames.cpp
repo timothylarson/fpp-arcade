@@ -86,7 +86,11 @@ public:
             std::lock_guard<std::mutex> l(pressLock);
             todo.swap(presses);
         }
+        const bool cheat = takeCheat();
         if (!over) {
+            if (cheat) {
+                lastLevel();
+            }
             for (auto &p : todo) {
                 onPress(p);
             }
@@ -123,6 +127,8 @@ protected:
     virtual void reset() = 0;
     virtual void onPress(const std::string &name) = 0;   // "A Button", "Up", ...
     virtual void stepGame(float dt) = 0;
+    // The cheat code; only Stacker has levels.
+    virtual void lastLevel() {}
     virtual void stepOver(float dt) {}
     virtual void draw() = 0;
     virtual void drawText() {}
@@ -205,6 +211,14 @@ private:
         startLevel();
     }
 
+    // The cheat code: the first level whose tower is the tallest (60 rows);
+    // the speed has topped out well before it.
+    void lastLevel() override {
+        const int base = H * 2 / (layerH * 5) + 6;
+        level = 1 + std::max(0, (60 - base + 3) / 4);
+        startLevel();
+    }
+
     // Each level is a new tower from a full-width base: taller, and faster
     // from the first row.
     void startLevel() {
@@ -246,8 +260,10 @@ private:
     // Scoring: 10 a row and 10 more for a perfect drop, both times the level,
     // and on reaching the top 25 for every block still in the row, times the
     // level - so finishing wide is worth a lot.
-    void onPress(const std::string &) override {
-        if (phase != Phase::Play) {
+    void onPress(const std::string &name) override {
+        // The buttons drop a row; the directions don't, so the cheat code's
+        // can't knock the tower down.
+        if (phase != Phase::Play || (name != "A Button" && name != "B Button" && name != "Fire" && name != "Fire Button")) {
             return;
         }
         const int x0 = (int)std::lround(x), x1 = x0 + width - 1;

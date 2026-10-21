@@ -1,5 +1,7 @@
 # FPP Arcade Changelog
 
+- Cheat code: Up Up Down Down Left Right Left Right B A Start during a game jumps to its last level; the endless games go to their hardest level with lives (and in Asteroid Orbit and Star Defenders, power-ups) topped up. See README.md.
+- Stacker: only A, B or Fire drops a row; the directions no longer do.
 - Breakout: after a lost life, the level's start sound plays again for the new ball once LoseLife has finished, and the ball no longer launches by itself until that sound (or the level's opening one) has finished. A button still launches it any time.
 - Frogger: riding a log or turtle to the edge of the screen no longer costs a life; only being carried off it does.
 - Orb Pop: a round no longer ends early while someone is still in view. Anyone the Kinect sees keeps it going (a player standing still had dropped out of the count), and it ends early only after 15 seconds with no one there.

@@ -68,7 +68,10 @@ Two pages are added to the FPP UI:
 
 ## Breakout
 
-Fifteen levels of bricks, with power-ups. Clearing a level gives two extra lives (up to 9, the
+Fifteen levels of bricks, with power-ups that fall from broken bricks: **laser** (red: the
+paddle's ends turn red and A or B fires two beams), **expand** (blue), **triple ball** (cyan),
+**extra life** (red and white checks, like a candy cane), **slow** (orange), **power ball**
+(yellow, goes through bricks), **sticky** (green) and the **portal** (magenta, to the next level). Clearing a level gives two extra lives (up to 9, the
 same limit as the extra-life capsule). Each level makes the ball and the paddle 10% faster,
 up to *Fastest ball* (1.6 times level 1 by default, reached at level 7).
 The brick rows are stacked edge to edge, Arkanoid style, with bricks twice as tall where the

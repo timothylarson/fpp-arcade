@@ -318,7 +318,7 @@ public:
         : type(t), x(px), y(py), width(size), height(size), fallSpeed(fall) {
         switch (type) {
             case Type::Expand:
-                r = 0; g = 200; b = 255;
+                r = 0; g = 60; b = 255;      // blue
                 break;
             case Type::Slow:
                 r = 255; g = 100; b = 0;
@@ -330,13 +330,13 @@ public:
                 r = 0; g = 255; b = 120;
                 break;
             case Type::Laser:
-                r = 220; g = 0; b = 0;
+                r = 255; g = 0; b = 0;       // red, like the paddle's cannons
                 break;
             case Type::Triple:
-                r = 173; g = 216; b = 230;
+                r = 0; g = 255; b = 255;     // cyan
                 break;
             case Type::ExtraLife:
-                r = 255; g = 255; b = 255;
+                r = 255; g = 255; b = 255;   // white, checked with red: a candy cane
                 break;
             case Type::Portal:
                 r = 255; g = 0;  b = 255;
@@ -351,9 +351,14 @@ public:
         int bb = std::clamp(static_cast<int>(b * scaled), 0, 255);
         int ix = static_cast<int>(std::round(x));
         int iy = static_cast<int>(std::round(y));
+        const int red = std::clamp(static_cast<int>(255 * scaled), 0, 255);
         for (int xp = 0; xp < (int)width; xp++) {
             for (int yp = 0; yp < (int)height; yp++) {
-                m->setOverlayPixelValue(ix + xp, iy + yp, rr, gg, bb);
+                if (type == Type::ExtraLife && ((xp + yp) & 1)) {
+                    m->setOverlayPixelValue(ix + xp, iy + yp, red, 0, 0);
+                } else {
+                    m->setOverlayPixelValue(ix + xp, iy + yp, rr, gg, bb);
+                }
             }
         }
     }
@@ -926,6 +931,18 @@ public:
             b.draw(model, scaled);
         }
         paddle.draw(model, scaled);
+        if (laserActive) {
+            // Red cannons at both ends while the laser is armed, blinking in
+            // its last two seconds, so it's clear that A or B will fire.
+            const bool off = laserTimerMs < 2000.0 && std::fmod(laserTimerMs, 300.0) < 150.0;
+            if (!off) {
+                const int red = std::clamp(static_cast<int>(255 * scaled), 0, 255);
+                for (int y = 0; y < std::max(1, (int)paddle.height); ++y) {
+                    model->setOverlayPixelValue((int)paddle.x, (int)paddle.y + y, red, 0, 0);
+                    model->setOverlayPixelValue((int)(paddle.x + paddle.width - 1), (int)paddle.y + y, red, 0, 0);
+                }
+            }
+        }
         int ballColor = std::clamp(static_cast<int>(255 * scaled), 0, 255);
         for (auto &ball : balls) {
             int ix = static_cast<int>(std::round(ball.x));
@@ -1228,13 +1245,16 @@ public:
     void fireLasers() {
         if (!laserActive) return;
         sound("FireLaser");
-        float centerX = paddle.x + paddle.width / 2.0f;
-        // Construct a Laser explicitly (avoid emplace_back with args for aggregate)
-        Laser l;
-        l.x = centerX;
-        l.y = paddle.y - 1;
-        l.speed = 4.0f;
-        lasers.push_back(l);
+        // Two beams, one from each end of the paddle, as in Arkanoid. Slow
+        // enough to see: at 4 LEDs a frame they reached the bricks in two
+        // frames and were gone before anyone noticed them.
+        for (float x : {paddle.x, paddle.x + paddle.width - 1.0f}) {
+            Laser l;
+            l.x = std::round(x);   // on a whole LED, where it's drawn, so it hits what it's seen to hit
+            l.y = paddle.y - 1;
+            l.speed = 1.5f;
+            lasers.push_back(l);
+        }
     }
 
     void updateLasers(float frameScalar) {
@@ -1251,7 +1271,11 @@ public:
             float bestBottom = -1;
             for (auto brickIt = blocks.begin(); brickIt != blocks.end(); ++brickIt) {
                 if (it->x >= brickIt->left() && it->x <= brickIt->right()) {
-                    if (brickIt->bottom() < prevY && brickIt->bottom() > bestBottom) {
+                    // Only a brick whose bottom edge the beam crossed this
+                    // frame. Without the second test a beam hit the nearest
+                    // brick above it on its first frame, however far away, and
+                    // vanished before it was ever drawn.
+                    if (brickIt->bottom() < prevY && brickIt->bottom() >= it->y && brickIt->bottom() > bestBottom) {
                         bestBottom = brickIt->bottom();
                         targetIt = brickIt;
                     }

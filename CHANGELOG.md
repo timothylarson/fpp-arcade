@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Breakout: the laser fires two slower beams, one from each end of the paddle, which shows red cannons while it's armed (blinking as it runs out); before, a beam hit the nearest brick above it on its first frame, however far away, so it was never seen. Triple ball is cyan, expand is blue and extra life is a red-and-white candy cane, so they no longer look alike. The power-ups are listed in README.md.
 - A second cheat code, Up Up Down Down Left Right Left Right A B Start, skips to the next level in every game that has levels (in Breakout as if the level were cleared, with its two extra lives).
 - Breakout: clearing a level gives two extra lives, up to 9; the extra-life capsule now also goes up to 9 (it stopped at 5).
 - Breakout: brick rows are stacked edge to edge, Arkanoid style, with bricks twice as tall where the level fits, under Space above bricks (default 3 LEDs) for the ball to get into. Gap between rows at Yes brings back the spaced rows.

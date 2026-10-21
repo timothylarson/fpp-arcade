@@ -34,6 +34,7 @@ public:
         
         ballPosX = cols / 2;
         ballPosY = rows / 2;
+        startSound();
     }
     ~PongEffect() {
     }
@@ -121,6 +122,8 @@ public:
             const int y0 = std::max(8, (rows - 11) / 2 + 1);
             outputString("GAME", centerTextX("GAME"), y0);
             outputString("OVER", centerTextX("OVER"), y0 + 6);
+            sfxStop("pong");
+            sfx("pong", "GameOver");
             model->flushOverlayBuffer();
             return 2000;
         }
@@ -154,6 +157,9 @@ public:
              // set fly direction depending on where it hit the racket
              // (t is 0.5 if hit at top, 0 at center, -0.5 at bottom)
              float t = ((ballPosY - racketP1Pos) / racketSize) - 0.5f;
+             if (ballDirX < 0) {
+                 sfx("pong", "Paddle");
+             }
              ballDirX = std::fabs(ballDirX);
              ballDirY = t;
          }
@@ -165,6 +171,9 @@ public:
              // set fly direction depending on where it hit the racket
              // (t is 0.5 if hit at top, 0 at center, -0.5 at bottom)
              float t = ((ballPosY - racketP2Pos) / racketSize) - 0.5f;
+             if (ballDirX > 0) {
+                 sfx("pong", "Paddle");
+             }
              ballDirX = -std::fabs(ballDirX);
              ballDirY = t;
          }
@@ -172,6 +181,7 @@ public:
          if (ballPosX < 1) {
              //left wall
              ++p2Score;
+             sfx("pong", "Point");
              ballPosX = cols / 2;
              ballPosY = rows / 2;
              ballDirX = std::fabs(ballDirX);
@@ -182,6 +192,7 @@ public:
          if (ballPosX >= cols - 1) {
              //right wall
              ++p1Score;
+             sfx("pong", "Point");
              ballPosX = cols / 2;
              ballPosY = rows / 2;
              ballDirX = -std::fabs(ballDirX);
@@ -190,11 +201,17 @@ public:
 
          if (ballPosY >= rows - 1) {
              //hit bottom
+             if (ballDirY > 0) {
+                 sfx("pong", "Wall");
+             }
              ballDirY = -std::fabs(ballDirY);
              ballPosY = rows-2;
          }
          if (ballPosY < 1) {
              //hit top
+             if (ballDirY < 0) {
+                 sfx("pong", "Wall");
+             }
              ballDirY = std::fabs(ballDirY);
              ballPosY = 1;
          }
@@ -310,6 +327,12 @@ public:
     
     long long timer = 50;
 
+    void startSound() {
+        // Cuts off the title jingle (or a game-over one) still playing.
+        sfxStop("pong");
+        sfx("pong", "StartGame");
+    }
+
     void restart() override {
         // Reset scores and positions
         p1Score = 0;
@@ -326,6 +349,7 @@ public:
         GameOn = true;
         WaitingUntilOutput = false;
         resetFrameTimer();
+        startSound();
     }
 };
 

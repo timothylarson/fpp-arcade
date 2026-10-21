@@ -155,16 +155,16 @@ public:
                 // log drifting right.
                 frog.gx = moverDrawX(movers[rideIdx]) + rideOffset;
                 if (frog.gx <= 0 || frog.gx >= gridCols - 1) {
-                    loseLife();   // carried off the end of the row
+                    loseLife("Splash");   // carried off the end of the row
                 }
             } else {
-                loseLife();
+                loseLife("Splash");
             }
         }
 
         // Road: car collision
         if (isRoadRow(frog.gy) && hitByCar(frog)) {
-            loseLife();
+            loseLife("Squash");
         }
 
         // Home row: must land on a free slot
@@ -178,9 +178,12 @@ public:
                     level++;
                     score += 100;
                     initLevel();
+                    sfx("frogger", "LevelClear");
+                } else {
+                    sfx("frogger", "Home");
                 }
             } else {
-                loseLife(); // missed the slot -> water
+                loseLife("Splash"); // missed the slot -> water
             }
         }
 
@@ -231,8 +234,14 @@ public:
 
         // A speeds everything on the road and river up a step, B slows it
         // back down - never below the level's own speed.
-        if (faster) { speedBoost = std::min(MAX_BOOST, speedBoost + BOOST_STEP); return; }
-        if (slower) { speedBoost = std::max(1.0f, speedBoost - BOOST_STEP); return; }
+        // At either end of the range the press does nothing, and sounds it.
+        if (faster || slower) {
+            const float was = speedBoost;
+            speedBoost = faster ? std::min(MAX_BOOST, speedBoost + BOOST_STEP)
+                                : std::max(1.0f, speedBoost - BOOST_STEP);
+            sfx("frogger", speedBoost == was ? "Bump" : (faster ? "SpeedUp" : "SpeedDown"));
+            return;
+        }
 
         if (aPress || up)       moveFrog(0, -1);
         else if (down)          moveFrog(0, +1);
@@ -303,6 +312,8 @@ private:
         waitingUntilOutput = false;
         gameOverShown = false;
         initLevel();
+        sfxStop("frogger");   // cuts off the title's GameSelected, or the last game's sounds
+        sfx("frogger", "Start");
     }
 
     void initLevel() {
@@ -328,14 +339,18 @@ private:
         resetFrameTimer();
     }
 
-    void loseLife() {
+    // sound: "Splash" in the water, "Squash" under a car.
+    void loseLife(const char *sound) {
         if (invulnTimerMs > 0.0) return; // grace
         lives--;
         LogInfo(VB_PLUGIN, "[Frogger] Life lost. Lives left=%d", lives);
         if (lives < 0) {
             gameOn = false;
+            sfxStop("frogger");
+            sfx("frogger", "GameOver");
             return;
         }
+        sfx("frogger", sound);
         score = std::max(0, score - 25);
         resetFrog();
         invulnTimerMs = 800.0; // ms
@@ -507,9 +522,11 @@ private:
     }
 
     void moveFrog(int dx, int dy) {
+        const int oldX = frog.gx, oldY = frog.gy;
         frog.gx = std::clamp(frog.gx + dx, 0, gridCols - 1);
         frog.gy = std::clamp(frog.gy + dy, 0, gridRows - 1);
         if (dy < 0) score += 1; // reward forward hops
+        sfx("frogger", (frog.gx == oldX && frog.gy == oldY) ? "Bump" : "Hop");
     }
 
     // homes

@@ -312,6 +312,7 @@ private:
     void crash() {
         burst(shipX, shipY, SHIP, 14, 12.0f);
         burst(shipX, shipY, FLAME, 10, 9.0f);
+        sfx("asteroidorbit", "Crash");
         landedOn = -1;
         --lives;
         state = lives > 0 ? State::Dead : State::Over;
@@ -327,6 +328,12 @@ private:
         }
         score += r.size == 3 ? 20 : r.size == 2 ? 50 : 100;
         burst(r.x, r.y, rockColour(), 4 + r.size * 3, 7.0f);
+        // A shockwave can break several at once: one sound a frame, the biggest.
+        if (breakSfxAt != clock || r.size > breakSfxSize) {
+            breakSfxAt = clock;
+            breakSfxSize = r.size;
+            sfx("asteroidorbit", r.size == 3 ? "BreakLarge" : r.size == 2 ? "BreakMedium" : "BreakSmall");
+        }
         if (r.size > 1) {
             const float speedUp = 1.0f + 0.12f * (sector - 1);
             spawnRock(r.x, r.y, r.size - 1, r.vx * 0.5f, r.vy * 0.5f, speedUp);
@@ -361,6 +368,10 @@ private:
 
         switch (state) {
         case State::Intro:
+            // A beat in, so the warp that led here has finished.
+            if (stateT >= 0.4f && stateT - dt < 0.4f) {
+                sfx("asteroidorbit", "SectorStart");
+            }
             if (stateT > 2.0f) {
                 state = State::Play;
                 stateT = 0;
@@ -372,6 +383,10 @@ private:
             }
             return;
         case State::Over:
+            if (stateT >= 1.0f && stateT - dt < 1.0f) {   // with the words
+                sfxStop("asteroidorbit");
+                sfx("asteroidorbit", "GameOver");
+            }
             return;
         case State::Play:
             break;
@@ -385,6 +400,7 @@ private:
             holeT = 0;
             holeX = wrapX(shipX + W / 2.0f + (rnd() - 0.5f) * W * 0.3f);
             holeY = wrapY(shipY + PH / 2.0f + (rnd() - 0.5f) * PH * 0.3f);
+            sfx("asteroidorbit", "HoleOpen");
         }
     }
 
@@ -423,6 +439,7 @@ private:
             if (reloadT >= 0.8f && ammo < MAX_AMMO) {
                 reloadT = 0;
                 ++ammo;
+                sfx("asteroidorbit", "Reload", 0.5f);
             }
             // Thrust that isn't into the rock takes off.
             if (tl > 0 && tx * headX + ty * headY > -0.3f && fuel > 0) {
@@ -433,6 +450,7 @@ private:
                 landedOn = -1;
                 headX = tx;
                 headY = ty;
+                sfx("asteroidorbit", "TakeOff");
             }
         } else {
             if (tl > 0) {
@@ -443,6 +461,11 @@ private:
                     shipVY += ty * THRUST * dt;
                     fuel = std::max(0.0f, fuel - FUEL_PER_S * dt);
                     thrusting = true;
+                    // Held thrust is a soft puff now and then, not a sound a frame.
+                    if (clock >= thrustSfxAt) {
+                        thrustSfxAt = clock + 0.22f;
+                        sfx("asteroidorbit", "Thrust", 0.35f);
+                    }
                 }
             }
             noPullT = std::max(0.0f, noPullT - dt);
@@ -471,6 +494,7 @@ private:
                 shipVY += dy / d * a * dt;
                 if (dx * dx + dy * dy < 1.7f && holeR > 1.5f) {
                     // Through to the next sector.
+                    sfx("asteroidorbit", "Warp");
                     score += 500;
                     ++sector;
                     pulses = std::min(9, pulses + 1);
@@ -506,11 +530,16 @@ private:
                     landNY = dy;
                     reloadT = 0;
                     ammo = std::min(MAX_AMMO, ammo + 3);
+                    sfx("asteroidorbit", "Land");
                 } else if (safeT > 0) {
                     // Still flashing after a respawn: bounce off instead.
                     const float d = std::max(0.01f, std::hypot(dx, dy));
                     shipVX = r.vx + dx / d * 6.0f;
                     shipVY = r.vy + dy / d * 6.0f;
+                    if (clock >= bounceSfxAt) {   // it can take a few frames to come clear
+                        bounceSfxAt = clock + 0.3f;
+                        sfx("asteroidorbit", "Bounce");
+                    }
                 } else {
                     crash();
                     return;
@@ -521,12 +550,17 @@ private:
 
         // Fire: once on the press, then repeatedly while A stays down.
         fireT = std::max(0.0f, fireT - dt);
-        const bool want = fireNow.exchange(false) || ((h & FIRE) && fireT <= 0);
+        const bool press = fireNow.exchange(false);
+        const bool want = press || ((h & FIRE) && fireT <= 0);
+        if (press && ammo == 0) {
+            sfx("asteroidorbit", "Empty", 0.6f);   // a dry click: go and land
+        }
         if (want && fireT <= 0 && ammo > 0) {
             shots.push_back({shipX + headX, shipY + headY, shipVX * 0.5f + headX * BULLET_SPEED,
                              shipVY * 0.5f + headY * BULLET_SPEED, BULLET_LIFE});
             --ammo;
             fireT = FIRE_EVERY;
+            sfx("asteroidorbit", "Fire");
         }
         if (pulseNow.exchange(false) && pulses > 0 && pulseT < 0) {
             --pulses;
@@ -534,6 +568,7 @@ private:
             pulseX = shipX;
             pulseY = shipY;
             pushed.clear();
+            sfx("asteroidorbit", "Shockwave");
         }
 
         for (size_t k = 0; k < crystals.size();) {
@@ -543,6 +578,7 @@ private:
                 if (c.kind == Kind::Fuel) fuel = std::min(1.0f, fuel + 0.35f);
                 if (c.kind == Kind::Ammo) ammo = std::min(MAX_AMMO, ammo + 6);
                 if (c.kind == Kind::Pulse) pulses = std::min(9, pulses + 1);
+                sfx("asteroidorbit", c.kind == Kind::Fuel ? "CrystalFuel" : (c.kind == Kind::Ammo ? "CrystalAmmo" : "CrystalPulse"));
                 burst(c.x, c.y, crystalColour(c.kind), 6, 5.0f);
                 crystals.erase(crystals.begin() + k);
             } else {
@@ -811,6 +847,8 @@ private:
     int landedOn = -1, noPullFrom = -1;
     float landNX = 0, landNY = -1;
     bool thrusting = false;
+    float thrustSfxAt = 0, bounceSfxAt = 0, breakSfxAt = -1;
+    int breakSfxSize = 0;
 
     std::vector<Rock> rocks;
     std::vector<Shot> shots;

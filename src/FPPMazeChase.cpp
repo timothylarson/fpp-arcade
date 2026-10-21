@@ -363,6 +363,10 @@ private:
         lives = startLives;
         buildMaze();
         resetActors();
+        // The intro tune runs through READY, as in the original; later lives
+        // and levels start quietly.
+        sfxStop("mazechase");
+        sfx("mazechase", "Start");
     }
 
     void resetActors() {
@@ -408,6 +412,8 @@ private:
                 } else {
                     state = State::Over;
                     stateT = 0;
+                    sfxStop("mazechase");
+                    sfx("mazechase", "GameOver");
                 }
             }
             return;
@@ -453,6 +459,7 @@ private:
         if (state == State::Play && dotsLeft == 0) {
             state = State::Clear;
             stateT = 0;
+            sfx("mazechase", "LevelClear");
         }
     }
 
@@ -478,7 +485,19 @@ private:
             uint8_t &d = dots[py * mw + px];
             if (d) {
                 score += d == 2 ? 50 : 10;
-                if (d == 2) {
+                if (d == 1) {
+                    // The two halves of the waka, alternating. Dots come at
+                    // most ten or so a second; the gap keeps a burst of steps
+                    // after a long frame from stacking clips up.
+                    if (clock - wakaT >= 0.06f) {
+                        wakaT = clock;
+                        sfx("mazechase", wakaB ? "WakaB" : "WakaA");
+                        wakaB = !wakaB;
+                    }
+                } else {
+                    // One sound for the whole fright rather than a siren loop.
+                    sfx("mazechase", "PowerPellet");
+                    sfx("mazechase", "Scared");
                     scaredT = std::max(1.5f, 6.0f - (level - 1));
                     combo = 0;
                     for (auto &g : ghosts) {
@@ -638,9 +657,12 @@ private:
                 score += 200 << std::min(combo, 3);
                 ++combo;
                 flashT = 0.25f;
+                sfx("mazechase", "EatGhost");
             } else {
                 state = State::Dying;
                 stateT = 0;
+                sfxStop("mazechase");
+                sfx("mazechase", "Death");
                 return;
             }
         }
@@ -770,6 +792,8 @@ private:
 
     State state = State::Ready;
     float stateT = 0, clock = 0, modeT = 0, scaredT = 0, playT = 0, flashT = 0;
+    float wakaT = -1;
+    bool wakaB = false;
     int level = 1, score = 0, lives = 3, startLives = 3, combo = 0;
 
     int px = 0, py = 0, pdir = 1;

@@ -34,6 +34,7 @@ public:
         addFood();
         addFood();
         addFood();
+        startSound();
     }
     ~SnakeEffect() {
     }
@@ -128,6 +129,10 @@ public:
         } else {
             food.remove({x, y});
             addFood();
+            // Every tenth bite gets a fanfare, the only progress marker a
+            // game without levels has.
+            ++eaten;
+            sfx("snake", eaten % 10 == 0 ? "Milestone" : "Eat");
         }
         snake.push_front({x, y});
         if (x == 0 || y == 0 || x == (cols-1) || y == (rows-1)) {
@@ -168,6 +173,8 @@ public:
         CopyToModel();
         if (!GameOn) {
             moveAccumulatorMs = 0.0;
+            sfxStop("snake");
+            sfx("snake", "GameOver");
             char buf[25];
             snprintf(buf, sizeof(buf), "%u", (uint32_t)snake.size());
             // Centred in the playfield, so fit it to the playfield's width.
@@ -209,6 +216,7 @@ public:
             if (isPaused()) return;
         }
 
+        const int was = direction;
         if (button == "Left - Pressed" && direction != 2) {
             direction = 0;
         } else if (button == "Right - Pressed" && direction != 0) {
@@ -217,6 +225,10 @@ public:
             direction = 1;
         } else if (button == "Down - Pressed" && direction != 1) {
             direction = 3;
+        }
+        if (GameOn && direction != was) {
+            // Quiet: turns are frequent, and the bites should stand out.
+            sfx("snake", "Turn", 0.5f);
         }
     }
     
@@ -232,6 +244,13 @@ public:
     bool GameOn = true;
     bool WaitingUntilOutput = false;
     long long timer = 100;
+    int eaten = 0;
+
+    void startSound() {
+        // Cuts off the title jingle (or a game-over one) still playing.
+        sfxStop("snake");
+        sfx("snake", "StartGame");
+    }
     
     void restart() override {
         // Reinitialize snake to starting state
@@ -242,10 +261,12 @@ public:
         snake.push_back(std::pair<int, int>(cols / 2 + 1, rows / 2));
         snake.push_back(std::pair<int, int>(cols / 2 + 2, rows / 2));
         addFood(); addFood(); addFood();
+        eaten = 0;
         moveAccumulatorMs = 0.0;
         GameOn = true;
         WaitingUntilOutput = false;
         resetFrameTimer();
+        startSound();
     }
 };
 const std::string &FPPSnake::getName() {

@@ -207,7 +207,10 @@ private:
     void startCountdown() {
         mode = Mode::Countdown;
         modeMs = 0;
+        countBeat = -1;
     }
+
+    void sound(const char *name, float gain = 1.0f) { sfx("orbpop", name, gain); }
 
     // The Kinect's view, scaled to this model if the two differ in size.
     bool readKinect() {
@@ -281,7 +284,14 @@ private:
                 startCountdown();
             }
             break;
-        case Mode::Countdown:
+        case Mode::Countdown: {
+            // A chime as each of 3, 2, 1 shows, and a brighter one for GO. The
+            // first is also the only sound attract mode makes: someone was seen.
+            const int beat = std::min(3, (int)(modeMs / 1000));
+            if (beat != countBeat) {
+                countBeat = beat;
+                sound(beat < 3 ? "Count" : "Go");
+            }
             if (modeMs >= 3600) {
                 mode = Mode::Round;
                 modeMs = 0;
@@ -289,19 +299,40 @@ private:
                 orbs.clear();
                 spawnInMs = 300;
                 awayMs = 0;
+                lastTick = -1;
             }
             break;
-        case Mode::Round:
+        }
+        case Mode::Round: {
             awayMs = someone ? 0 : awayMs + dt;
+            // A soft tick for each of the last three seconds; the timer bar
+            // along the top is easy to miss while reaching for orbs.
+            const int secsLeft = (int)std::ceil((set.roundMs - modeMs) / 1000.0);
+            if (secsLeft <= 3 && secsLeft >= 1 && secsLeft != lastTick) {
+                lastTick = secsLeft;
+                sound("Tick", 0.6f);
+            }
             if (modeMs >= set.roundMs || awayMs >= 8000) {
                 mode = Mode::Score;
                 modeMs = 0;
+                scoreSounded = false;
                 for (auto &o : orbs) {
                     o.dying = true;
                 }
+                sfxStop("orbpop");
+                sound("RoundEnd");
             }
             break;
+        }
         case Mode::Score:
+            // The reveal jingle as the number fades in, after the round-end
+            // chime has had its moment. Nothing for a round nobody played.
+            if (!scoreSounded && modeMs >= 700) {
+                scoreSounded = true;
+                if (score > 0) {
+                    sound("Score");
+                }
+            }
             if (modeMs >= 6000) {
                 mode = Mode::Mirror;
                 modeMs = 0;
@@ -491,6 +522,7 @@ private:
     void pop(Orb &o) {
         o.popped = true;
         score += o.gold ? 5 : 1;
+        popSound(o.gold);
         const int n = (int)std::lround(10 + o.rad * 4);
         for (int k = 0; k < n; ++k) {
             const float ang = rnd() * 6.2831853f, sp = (8.0f + rnd() * 16.0f) / 1000.0f;
@@ -505,6 +537,26 @@ private:
             }
         }
     }
+
+    // Pops in quick succession climb a pentatonic scale (Pop1..Pop8), so a
+    // group popping a lot hears a run of notes rather than one sound over and
+    // over; after a pause it starts again low, at a random step. Several orbs
+    // popped in the same instant play once. The gold orb always sparkles.
+    void popSound(bool gold) {
+        const double now = steadyMs();
+        if (gold) {
+            sound("GoldPop");
+            lastPopMs = now;
+            return;
+        }
+        if (now - lastPopMs < 70) {
+            return;
+        }
+        popNote = now - lastPopMs < 1200 ? (popNote + 1) % 8 : (int)(rnd() * 2.999f);
+        lastPopMs = now;
+        sound(POP_NAMES[popNote]);
+    }
+    static constexpr const char *POP_NAMES[8] = {"Pop1", "Pop2", "Pop3", "Pop4", "Pop5", "Pop6", "Pop7", "Pop8"};
 
     void stepSparks(double dt) {
         const float drag = std::pow(0.5f, (float)(dt / 400.0));
@@ -589,6 +641,9 @@ private:
     std::vector<Spark> sparks;
     int score = 0;
     bool ending = false;
+    int countBeat = -1, lastTick = -1, popNote = 0;
+    double lastPopMs = -1e9;
+    bool scoreSounded = false;
 };
 
 

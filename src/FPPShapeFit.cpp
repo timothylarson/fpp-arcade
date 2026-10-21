@@ -121,18 +121,34 @@ public:
         noKinectT = haveKinect ? 0 : noKinectT + dt;
 
         switch (state) {
-        case State::Pose:
+        case State::Pose: {
+            // A tick as each second shown in the corner goes by, sharper for
+            // the last three. None while the pose name is up: it has its own.
+            const int secs = (int)std::ceil(roundTime - stateT);
+            if (secs != lastTick && secs >= 1) {
+                lastTick = secs;
+                sfx("shapefit", secs <= 3 ? "TickUrgent" : "Tick", secs <= 3 ? 1.0f : 0.6f);
+            }
             if (stateT >= roundTime) {
                 scoreRound();
                 state = State::Result;
                 stateT = 0;
+                verdictSounded = false;
+                sfx("shapefit", "Snap");
             }
             break;
+        }
         case State::Result:
+            if (!verdictSounded && stateT > 0.4f) {   // with the verdict appearing
+                verdictSounded = true;
+                sfx("shapefit", verdictSound(lastScore));
+            }
             if (stateT >= 3.0f) {
                 if (++round >= ROUNDS) {
                     state = State::Total;
                     stateT = 0;
+                    sfxStop("shapefit");
+                    sfx("shapefit", "Total");
                 } else {
                     startRound();
                 }
@@ -205,6 +221,8 @@ private:
         }
         state = State::Pose;
         stateT = 0;
+        lastTick = (int)std::ceil(roundTime);
+        sfx("shapefit", "Pose");
     }
 
     void scoreRound() {
@@ -222,6 +240,10 @@ private:
 
     static const char *verdict(int s) {
         return s >= 85 ? "PERFECT" : s >= 65 ? "GREAT" : s >= 40 ? "GOOD" : s >= 15 ? "OK" : "MISS";
+    }
+
+    static const char *verdictSound(int s) {
+        return s >= 85 ? "Perfect" : s >= 65 ? "Great" : s >= 40 ? "Good" : s >= 15 ? "Ok" : "Miss";
     }
 
     void render(bool haveKinect) {
@@ -293,6 +315,8 @@ private:
     int round = 0, total = 0, lastScore = 0, area = 0;
     std::string poseName;
     bool finished = false;
+    int lastTick = 0;
+    bool verdictSounded = false;
 };
 
 

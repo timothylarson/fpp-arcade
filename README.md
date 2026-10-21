@@ -204,12 +204,15 @@ plugged into the player, and/or streamed over the network to a computer.
   player: the Matrix Viewer for macOS plays it (Settings › Inputs › Game Sound, same port,
   5570 by default). The stream is 10 ms blocks of 44.1 kHz mono 16-bit audio over UDP, sent only
   while something is playing; the format is described in `src/ArcadeSound.h`.
-- The sound files are not part of the plugin. Put them on the player in
-  `media/plugindata/fpp-arcade/sounds/<game>/`, where `<game>` is the game's name in lower case
-  without spaces (`breakout`, `mazechase`), as 16-bit PCM WAV, ideally mono at 44.1 kHz with
-  no silence at the end. A sound with no file is simply silent, so a game can have as few or as
-  many as you like. Saving the Arcade Games page reloads them.
-- Every game plays `GameSelected` when its title is shown. **Breakout** also plays:
+- Every game except Breakout comes with its own retro sound effects, made with the synthesizer
+  in `tools/sfx/`; [SOUNDS.md](SOUNDS.md) lists each game's sounds and when they play. To use your
+  own, put files on the player in `media/plugindata/fpp-arcade/sounds/<game>/`, where `<game>` is
+  the game's name in lower case without spaces (`breakout`, `mazechase`): a file there replaces
+  the bundled sound of the same name. Use 16-bit PCM WAV, ideally mono at 44.1 kHz with no
+  silence at the end. A sound with no file is simply silent. Saving the Arcade Games page
+  reloads them.
+- Every game plays `GameSelected` when its title is shown. **Breakout**, whose sounds you supply,
+  also plays:
 
   | File | When |
   |---|---|

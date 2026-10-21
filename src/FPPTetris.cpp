@@ -152,6 +152,7 @@ public:
         levelBannerMs = bannerMs;   // show LEVEL 1 straight away, not only on a change
         newShape();
         CopyToModel();
+        startSound();
     }
     ~TetrisEffect() {
         if (currentShape) {
@@ -293,6 +294,8 @@ public:
         currentShape->row = 0;
         if (!CheckPosition(currentShape)) {
             GameOn = false;
+            sfxStop("tetris");
+            sfx("tetris", "GameOver");
         }
     }
     bool CheckPosition(Shape *shape) {
@@ -319,7 +322,7 @@ public:
         }
     }
     
-    void CheckLines() {
+    int CheckLines() {
         int count = 0;
         int cleared = 0;
         for(int i = 0; i < rows; i++) {
@@ -355,10 +358,17 @@ public:
             const int newLevel = lines / 10 + 1;
             if (newLevel != level) {
                 levelBannerMs = bannerMs;
+                // The level-up jingle opens with the clear sweep, so it stands
+                // in for the line sound rather than fighting it.
+                sfx("tetris", "LevelUp");
+            } else {
+                static const char *CLEAR_SOUND[5] = { "", "Single", "Double", "Triple", "Tetris" };
+                sfx("tetris", CLEAR_SOUND[std::min(cleared, 4)]);
             }
             level = newLevel;
             increaseSpeed(cleared);
         }
+        return cleared;
     }
 
     void increaseSpeed(int lines) {
@@ -550,12 +560,14 @@ public:
             tmp.rotate();
             if (CheckPosition(&tmp)) {
                 currentShape->rotate();
+                sfx("tetris", "Rotate");
             }
         } else if (button == "B Button - Pressed") {
             Shape tmp(*currentShape);
             tmp.rotateCounterClockwise();
             if (CheckPosition(&tmp)) {
                 currentShape->rotateCounterClockwise();
+                sfx("tetris", "Rotate");
             }
         } else if (button == "Down - Pressed") {
             softDropHeld = true;
@@ -575,6 +587,13 @@ public:
         tmp.col += delta;
         if (CheckPosition(&tmp)) {
             currentShape->col += delta;
+            // Auto-repeat shifts every 90 ms, and a frame that catches up can
+            // shift twice at once; a tick per shift there turns into a buzz.
+            const auto now = std::chrono::steady_clock::now();
+            if (now - lastMoveSound >= std::chrono::milliseconds(70)) {
+                lastMoveSound = now;
+                sfx("tetris", "Move", 0.6f);
+            }
             return true;
         }
         return false;
@@ -591,7 +610,9 @@ public:
             CopyToModel();
         } else {
             WriteToTable();
-            CheckLines();
+            if (CheckLines() == 0) {
+                sfx("tetris", "Lock");
+            }
             newShape();
             CopyToModel();
         }
@@ -678,6 +699,13 @@ public:
     bool softDropHeld = false;
     double softDropAccumulatorMs = 0.0;
     const double softDropIntervalMs = 60.0;
+    std::chrono::steady_clock::time_point lastMoveSound;
+
+    void startSound() {
+        // Cuts off the title jingle (or a game-over one) still playing.
+        sfxStop("tetris");
+        sfx("tetris", "StartGame");
+    }
 
     void restart() override {
         // Clear table and reset game state
@@ -705,6 +733,7 @@ public:
         }
         newShape();
         resetFrameTimer();
+        startSound();
     }
 
 };

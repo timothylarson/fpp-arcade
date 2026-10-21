@@ -4,6 +4,7 @@
 #include "ArcadeCanvas.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <mutex>
 #include <random>
@@ -92,6 +93,10 @@ public:
             stepGame(dt);
         } else {
             overT += dt;
+            if (overT > 1.0f && overT - dt <= 1.0f) {
+                sfxStop(folder());
+                sound("GameOver");   // with the GAME OVER box
+            }
             stepOver(dt);
             if (overT > 5.0f) {
                 model->clearOverlayBuffer();
@@ -130,6 +135,13 @@ protected:
         overTitle[1] = line2;
     }
     float rnd() { return std::uniform_real_distribution<float>(0.0f, 1.0f)(rng); }
+    // sounds/<game>/<n>.wav, the folder being the effect's name in lower case.
+    std::string folder() const {
+        std::string f = name();
+        for (auto &ch : f) ch = (char)std::tolower((unsigned char)ch);
+        return f;
+    }
+    void sound(const char *n, float gain = 1.0f) { sfx(folder(), n, gain); }
 
     std::mt19937 rng;
     ArcadeCanvas::Canvas canvas;
@@ -205,6 +217,8 @@ private:
         phase = Phase::Intro;
         phaseT = 0;
         perfectT = 0;
+        sfxStop("stacker");
+        sound("LevelStart");
     }
 
     void newRow() {
@@ -246,6 +260,7 @@ private:
         const RGB col = layerColour(layer);
         if (hi < lo) {
             chunks.push_back({(float)x0, (float)x1, (float)rowY(layer), 0, col});
+            sound("Miss");
             gameOver(score);
             return;
         }
@@ -253,9 +268,15 @@ private:
         if (x0 < lo) chunks.push_back({(float)x0, (float)lo - 1, (float)rowY(layer), 0, col});
         if (x1 > hi) chunks.push_back({(float)hi + 1, (float)x1, (float)rowY(layer), 0, col});
         score += 10 * level;
+        // The drop climbs a scale as the tower nears the top.
+        const int note = std::min(15, layer * 16 / std::max(1, goal));
+        sound(("Drop" + std::to_string(note + 1)).c_str());
         if (!stack.empty() && lo == x0 && hi == x1) {
             score += 10 * level;
             perfectT = 0.6f;
+            sound("Perfect");
+        } else if (x0 < lo || x1 > hi) {
+            sound("Chop", 0.8f);
         }
         stack.push_back({lo, hi});
         width = hi - lo + 1;
@@ -263,6 +284,8 @@ private:
             score += 25 * width * level;
             phase = Phase::Clear;
             phaseT = 0;
+            sfxStop("stacker");
+            sound("LevelClear");
             return;
         }
         newRow();
@@ -410,6 +433,12 @@ private:
 
     void onPress(const std::string &name) override {
         if (name == "A Button" || name == "B Button" || name == "Up" || name == "Fire") {
+            if (!flying) {
+                sound("Start");
+            } else if (clock - flapSoundT > 0.08f) {   // mashing shouldn't stack up flaps
+                flapSoundT = clock;
+                sound("Flap", 0.7f);
+            }
             flying = true;
             vy = -11.0f;
             flapT = 0.15f;
@@ -438,17 +467,20 @@ private:
             if (!p.passed && p.x + 1 < birdX) {
                 p.passed = true;
                 ++score;
+                sound("Score");
             }
         }
         pipes.erase(std::remove_if(pipes.begin(), pipes.end(), [](const Pipe &p) { return p.x < -3; }), pipes.end());
         const int by = (int)y;
         if (by >= H) {
+            sound("Crash");
             gameOver(score);
             return;
         }
         for (auto &p : pipes) {
             const int px = (int)std::floor(p.x);
             if (birdX >= px && birdX <= px + 1 && (by < p.gapTop || by >= p.gapTop + p.gap)) {
+                sound("Crash");
                 gameOver(score);
                 return;
             }
@@ -491,7 +523,7 @@ private:
     }
 
     int birdX = 15, score = 0;
-    float y = 0, vy = 0, nextPipe = 0, flapT = 0;
+    float y = 0, vy = 0, nextPipe = 0, flapT = 0, flapSoundT = -1;
     bool flying = false;
     std::vector<Pipe> pipes;
 };
@@ -530,6 +562,11 @@ public:
 
 private:
     enum class Phase { Wait, Show, Input };
+    // Simon's four notes, one per triangle: up, right, down, left.
+    void tone(int r) {
+        static const char *TONES[4] = {"Up", "Right", "Down", "Left"};
+        sound(TONES[r]);
+    }
 
     void reset() override {
         seq.clear();
@@ -537,6 +574,7 @@ private:
         phaseT = 0;
         lit = -1;
         litT = 0;
+        cheer = false;
         addStep();
     }
 
@@ -566,11 +604,14 @@ private:
         phaseT = 0;
         if (r != seq[pos]) {
             wrong = seq[pos];
+            sound("Wrong");
             gameOver((int)seq.size() - 1);
             return;
         }
+        tone(r);
         if (++pos >= (int)seq.size()) {
             addStep();
+            cheer = true;
         }
     }
 
@@ -582,10 +623,16 @@ private:
         }
         switch (phase) {
         case Phase::Wait:
+            // After the last note of the round has rung, not over it.
+            if (cheer && phaseT > 0.3f) {
+                cheer = false;
+                sound("RoundClear");
+            }
             if (phaseT > 0.9f) {
                 phase = Phase::Show;
                 phaseT = 0;
                 pos = 0;
+                shown = -1;
             }
             break;
         case Phase::Show: {
@@ -599,12 +646,17 @@ private:
                 lit = -1;
             } else {
                 lit = (phaseT - k * slot) < onTime() ? seq[k] : -1;
+                if (k != shown) {
+                    shown = k;
+                    tone(seq[k]);
+                }
             }
             break;
         }
         case Phase::Input:
             if (phaseT > 6.0f) {
                 wrong = seq[pos];
+                sound("Wrong");
                 gameOver((int)seq.size() - 1);   // too slow
             }
             break;
@@ -633,7 +685,8 @@ private:
     std::vector<int> region, seq;
     Phase phase = Phase::Wait;
     float phaseT = 0, litT = 0;
-    int lit = -1, pos = 0, wrong = -1;
+    int lit = -1, pos = 0, wrong = -1, shown = -1;
+    bool cheer = false;   // a round was just completed
 };
 
 const std::string &FPPLightMemory::getName() {

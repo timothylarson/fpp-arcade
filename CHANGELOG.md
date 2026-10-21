@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Sound effects for every game: Tetris, Pong, Snake, Frogger, Maze Chase, Asteroid Orbit, Barrel Climb, Star Defenders, Orb Pop, Shape Fit, Stacker, Flap and Light Memory, with original retro sounds bundled in sounds/ (made by tools/sfx) and listed in SOUNDS.md. A file of the same name in media/plugindata/fpp-arcade/sounds replaces a bundled one.
 - Controller speakers: ESP32-S3 firmware (speaker/) that says hello to FPP, fetches each game's sounds over HTTP and plays the events FPP sends it for its own model. The plugin sends PLAY/STOP/SYNC per model, serves the sound list and files, and lists connected speakers on the Arcade Games page.
 - Breakout: launching a ball off the paddle (by button or after its 3 seconds) plays BounceFromPaddle.
 - Sound effects: a mixer that plays per-game WAV files from media/plugindata/fpp-arcade/sounds on a USB sound card and/or streams them over UDP (for the Matrix Viewer on a Mac), set up under Sound on the Arcade Games page. Breakout plays sounds for bounces, bricks, power-ups, lasers, the portal, levels and the end of the game; every game plays GameSelected on its title.

@@ -146,6 +146,7 @@ private:
     };
 
     float rnd() { return std::uniform_real_distribution<float>(0.0f, 1.0f)(rng); }
+    void sound(const char *n, float gain = 1.0f) { sfx("barrelclimb", n, gain); }
 
     // ---------------------------------------------------------------- the level
     // Barrels roll right on the top girder, and each girder below the other way.
@@ -223,6 +224,8 @@ private:
         resetRun();
         state = State::Intro;
         stateT = 0;
+        sfxStop("barrelclimb");
+        sound("LevelStart");
     }
 
     void resetRun() {
@@ -240,8 +243,13 @@ private:
     }
 
     void die() {
+        if (state == State::Dying) {
+            return;
+        }
         state = State::Dying;
         stateT = 0;
+        sfxStop("barrelclimb");
+        sound("Die");
     }
 
     void step(float dt) {
@@ -261,6 +269,7 @@ private:
                 } else {
                     state = State::Over;
                     stateT = 0;
+                    sound("GameOver");
                 }
             }
             return;
@@ -307,6 +316,8 @@ private:
             score += bonus;
             state = State::Clear;
             stateT = 0;
+            sfxStop("barrelclimb");
+            sound("Rescue");
         }
     }
 
@@ -318,6 +329,7 @@ private:
         const int x = rollsRight(top) ? apeX + 3 : apeX - 1;
         const bool blue = level >= 2 && rnd() < std::min(0.4f, 0.12f * (level - 1));
         barrels.push_back({x, surface(top, x) - 1, top, rollsRight(top) ? 1 : -1, 0, BMode::Roll, false, blue});
+        sound("Throw");
     }
 
     bool hitsPlayer(int x, int y) const { return x == px && y <= feet && y >= feet - 2; }
@@ -340,12 +352,14 @@ private:
                 mode = Mode::Climb;
                 climbK = pk;
                 pacc = 0;
+                steps = 0;
                 break;
             }
             if ((h & DOWN) && pk > 0 && ladderAt(px, pk - 1)) {
                 mode = Mode::Climb;
                 climbK = pk - 1;
                 pacc = 0;
+                steps = 0;
                 break;
             }
             if (jumpNow.exchange(false)) {
@@ -353,6 +367,7 @@ private:
                 jumpT = 0;
                 jumpDir = dir;
                 pacc = 0;
+                sound("Jump");
                 break;
             }
             if (dir) {
@@ -362,6 +377,10 @@ private:
                     walkTo(px + dir);
                     if (mode != Mode::Ground) {
                         break;
+                    }
+                    // A footstep every other LED: every one is a buzz at walking pace.
+                    if (++steps % 2 == 0) {
+                        sound("Step", 0.4f);
                     }
                 }
             } else {
@@ -381,6 +400,7 @@ private:
             while (pacc >= 1.0f) {
                 pacc -= 1.0f;
                 feet += v;
+                sound(steps++ % 2 ? "Climb2" : "Climb", 0.6f);
                 if (feet <= upTo) {
                     feet = upTo;
                     pk = climbK + 1;
@@ -420,6 +440,7 @@ private:
                     if (!b.scored && b.mode == BMode::Roll && b.k == pk && b.x == px && b.y > feet) {
                         b.scored = true;
                         score += 100;
+                        sound("Score");
                     }
                 }
             }
@@ -469,6 +490,7 @@ private:
         mode = Mode::Fall;
         fallFrom = feet;
         pacc = 0;
+        sound("Fall");
     }
 
     void moveBarrels(float dt) {
@@ -505,6 +527,11 @@ private:
                         b.k = k;
                         b.mode = BMode::Roll;
                         b.dir = rollsRight(k) ? 1 : -1;
+                        // Two barrels landing together make one thump, not a doubled one.
+                        if (clock - landT > 0.12f) {
+                            landT = clock;
+                            sound("BarrelLand", 0.7f);
+                        }
                     }
                 }
                 if (!gone && hitsPlayer(b.x, b.y)) {
@@ -593,10 +620,11 @@ private:
     float pairT = -1;   // a second barrel is coming when >= 0
 
     State state = State::Intro;
-    float stateT = 0, clock = 0, throwT = 0, bonusT = 0;
+    float stateT = 0, clock = 0, throwT = 0, bonusT = 0, landT = -1;
     int level = 1, score = 0, lives = 3, startLives = 3, bonus = 3000;
 
     int px = 0, pk = 0, feet = 0, climbK = 0, jumpDir = 0, fallFrom = 0;
+    int steps = 0;   // LEDs walked or rungs climbed, for alternating sounds
     Mode mode = Mode::Ground;
     float pacc = 0, jumpT = 0;
     std::vector<Barrel> barrels;

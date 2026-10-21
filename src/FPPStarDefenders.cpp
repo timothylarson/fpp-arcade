@@ -57,16 +57,19 @@ enum class Power { None, Double, Rapid, Pierce, Shields, Laser, Life };
 struct PowerInfo {
     const char *word;
     RGB colour;
+    const char *sound;   // played when its capsule is caught
 };
 const PowerInfo POWERS[] = {
-    {"", {0, 0, 0}},
-    {"DOUBLE", {0.1f, 0.9f, 1.0f}},
-    {"RAPID", {1.0f, 0.85f, 0.1f}},
-    {"PIERCE", {1.0f, 1.0f, 1.0f}},
-    {"SHIELDS", {0.2f, 1.0f, 0.3f}},
-    {"LASER", {1.0f, 0.2f, 0.9f}},
-    {"LIFE", {1.0f, 0.15f, 0.15f}},
+    {"", {0, 0, 0}, ""},
+    {"DOUBLE", {0.1f, 0.9f, 1.0f}, "PowerDouble"},
+    {"RAPID", {1.0f, 0.85f, 0.1f}, "PowerRapid"},
+    {"PIERCE", {1.0f, 1.0f, 1.0f}, "PowerPierce"},
+    {"SHIELDS", {0.2f, 1.0f, 0.3f}, "PowerShields"},
+    {"LASER", {1.0f, 0.2f, 0.9f}, "PowerLaser"},
+    {"LIFE", {1.0f, 0.15f, 0.15f}, "ExtraLife"},
 };
+// The march: four bass notes going down, one per formation step.
+const char *MARCH[4] = {"March1", "March2", "March3", "March4"};
 constexpr float POWER_TIME = 12.0f;
 
 enum : uint32_t { LEFT = 1, RIGHT = 2, FIRE = 4 };
@@ -217,8 +220,11 @@ private:
         laser = std::max(laser, 1);   // at least one laser a wave
         buildShields();
         cannonX = W / 2 - 1;
+        marchNote = 0;
         state = State::Intro;
         stateT = 0;
+        sfxStop("stardefenders");
+        sfx("stardefenders", "WaveStart");
     }
 
     void buildShields() {
@@ -282,6 +288,8 @@ private:
                 } else {
                     state = State::Over;
                     stateT = 0;
+                    sfxStop("stardefenders");
+                    sfx("stardefenders", "GameOver");
                 }
             }
             return;
@@ -328,11 +336,13 @@ private:
                 shots.push_back({cannonX + 1.0f, (float)H - 3, -30.0f, pierce});
             }
             fireT = rapid ? 0.12f : 0.35f;
+            sfx("stardefenders", "Shoot", rapid ? 0.7f : 1.0f);
         }
         if (laserNow.exchange(false) && laser > 0) {
             --laser;
             laserT = 0.35f;
             laserX = cannonX + 1;
+            sfx("stardefenders", "Laser");
             fireLaser();
         }
         laserT -= dt;
@@ -368,8 +378,14 @@ private:
             saucer = true;
             saucerDir = rnd() < 0.5f ? 1 : -1;
             saucerX = saucerDir > 0 ? -3.0f : (float)W;
+            saucerSfxAt = 0;
         }
         if (saucer) {
+            // Its warble, back to back for as long as it's on the screen.
+            if (clock >= saucerSfxAt) {
+                saucerSfxAt = clock + 0.4f;
+                sfx("stardefenders", "Saucer", 0.6f);
+            }
             saucerX += saucerDir * 9.0f * dt;
             if (saucerX < -4 || saucerX > W + 1) {
                 saucer = false;
@@ -383,6 +399,7 @@ private:
         }
         moveCapsules(dt);
         if (aliveCount() == 0) {
+            sfx("stardefenders", "WaveClear");
             score += 100 * wave;
             state = State::Clear;
             stateT = 0;
@@ -408,6 +425,9 @@ private:
         if (hi < 0) {
             return;
         }
+        // It speeds up with the formation, as it always has.
+        sfx("stardefenders", MARCH[marchNote]);
+        marchNote = (marchNote + 1) % 4;
         if ((fdir > 0 && hi + 1 >= W) || (fdir < 0 && lo - 1 < 0)) {
             fdir = -fdir;
             ++fy;
@@ -534,7 +554,13 @@ private:
     void hitAlien(Alien &a) {
         if (--a.hp > 0) {
             burst(alienX(a) + 1, alienY(a) + 1, ARMOUR, 3);
+            sfx("stardefenders", "ArmourHit");
             return;
+        }
+        // The laser or a piercing shot can take out a column at once: one sound.
+        if (killSfxAt != clock) {
+            killSfxAt = clock;
+            sfx("stardefenders", a.diving ? "DiverKill" : "AlienKill");
         }
         a.alive = false;
         score += KIND_POINTS[a.kind] * (a.diving ? 2 : 1);
@@ -548,6 +574,7 @@ private:
         static const int values[] = {50, 100, 150, 300};
         score += values[(int)(rnd() * 4) % 4];
         burst(saucerX + 1, 0, SAUCER, 14);
+        sfx("stardefenders", "SaucerHit");
         dropCapsule(saucerX + 1, 1);
         saucer = false;
         saucerT = 14 + rnd() * 10;
@@ -581,6 +608,7 @@ private:
         wordColour = POWERS[(int)p].colour;
         wordT = 1.4f;
         burst(cannonX + 1, H - 2, wordColour, 10);
+        sfx("stardefenders", POWERS[(int)p].sound);
         switch (p) {
         case Power::Shields:
             buildShields();
@@ -600,6 +628,7 @@ private:
 
     void die() {
         burst(cannonX + 1, H - 1, CANNON, 16);
+        sfx("stardefenders", "Death");
         power = Power::None;
         state = State::Dying;
         stateT = 0;
@@ -641,6 +670,7 @@ private:
                 for (size_t j = 0; j < bombs.size() && !gone; ++j) {
                     if ((int)bombs[j].x == x && std::abs((int)std::lround(bombs[j].y) - y) <= 1) {
                         bombs.erase(bombs.begin() + j);
+                        sfx("stardefenders", "BombShot", 0.7f);
                         gone = !s.pierce;
                         break;
                     }
@@ -666,6 +696,10 @@ private:
                 if (y >= 0 && x >= 0 && x < W && shield[y * W + x]) {
                     shield[y * W + x] = 0;
                     gone = true;
+                    if (clock >= shieldSfxAt) {   // several bombs can land together
+                        shieldSfxAt = clock + 0.1f;
+                        sfx("stardefenders", "ShieldHit", 0.5f);
+                    }
                     break;
                 }
                 // The cannon: ".#." over "###" on the bottom two rows.
@@ -806,6 +840,8 @@ private:
     int total = 1, fx = 1, fy = 2, fdir = 1, frame = 0;
     float marchT = 0, bombT = 1.0f, diveT = 4.0f;
     bool diveBombed = false;
+    int marchNote = 0;
+    float killSfxAt = -1, shieldSfxAt = 0, saucerSfxAt = 0;
 
     int cannonX = 0;
     float cannonAcc = 0, fireT = 0;

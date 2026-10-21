@@ -1243,7 +1243,10 @@ public:
             return -1;
         }
         if (takeCheat()) {
-            loadLevel((int)LEVEL_LAYOUTS.size() - 1);   // the cheat code: the final layout
+            // The cheat code: the final layout, with 9 lives (more than an
+            // extra-life capsule can reach, so those just don't add any).
+            loadLevel((int)LEVEL_LAYOUTS.size() - 1);
+            lives = std::max(lives, 9);
         }
         constexpr double baseFrameMs = 50.0;
         double elapsedMs = consumeElapsedMs(baseFrameMs);
@@ -1330,7 +1333,9 @@ public:
             }
         }
 
-        paddle.x += direction * paddle.height * frameScalar;
+        // The paddle speeds up with the level as the ball does (10% a level),
+        // so it can still get under the ball on the last levels.
+        paddle.x += direction * paddle.height * (1.0f + 0.1f * currentLevel) * frameScalar;
         if (paddle.x < fieldX) paddle.x = fieldX;
         else if ((paddle.x + paddle.width) >= fieldRight()) paddle.x = fieldRight() - paddle.width;
 

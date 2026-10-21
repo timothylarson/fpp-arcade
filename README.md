@@ -34,7 +34,7 @@ the code are kept from the game, so it doesn't fire, drop a row or pause.
 
 | Game | What it does |
 |------|-----------|
-| **Breakout** | Straight to the final level. |
+| **Breakout** | Straight to the final level, with 9 lives. |
 | **Tetris** | Full drop speed (reached at 14 lines, level 2). The board stays. |
 | **Frogger** | Level 10, traffic about twice level 1's speed, and 9 lives. |
 | **Maze Chase** | Level 10 (every speed and timer at its limit, the narrow maze), and 9 lives. |

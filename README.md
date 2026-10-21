@@ -182,8 +182,8 @@ A thruster ship in a field of asteroids that each pull on it, after the Asteroid
   take off, push any direction except into the rock.
 - Shot asteroids split into smaller ones and sometimes leave a crystal: blue refuels, yellow
   adds ammo, magenta adds a shockwave.
-- Clear the sector and a black hole opens; fly into it for the next sector, with more and
-  faster asteroids and stronger gravity.
+- Clear the sector and a black hole opens and starts pulling you in, harder every second;
+  through it is the next sector, with more and faster asteroids and stronger gravity.
 - Options: *Asteroids* at the start (0 fits the model: 3 on 60x25, 2 on a 30x25 half),
   *Gravity* (%), and *Lives*.
 

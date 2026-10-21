@@ -356,6 +356,7 @@ private:
         stepPulse(dt);
         if (hole) {
             holeR = std::min(2.2f, holeR + dt * 2.0f);
+            holeT += dt;
         }
 
         switch (state) {
@@ -381,6 +382,7 @@ private:
             // Sector clear: the way out opens somewhere away from the ship.
             hole = true;
             holeR = 0;
+            holeT = 0;
             holeX = wrapX(shipX + W / 2.0f + (rnd() - 0.5f) * W * 0.3f);
             holeY = wrapY(shipY + PH / 2.0f + (rnd() - 0.5f) * PH * 0.3f);
         }
@@ -458,7 +460,13 @@ private:
             if (hole) {
                 const float dx = dX(holeX, shipX), dy = dY(holeY, shipY);
                 const float d2 = std::max(dx * dx + dy * dy, 2.0f);
-                const float a = std::min(25.0f, HOLE_PULL / d2), d = std::sqrt(d2);
+                // A pull that reaches across the whole field and grows the
+                // longer the hole is open, so it sucks the ship in rather than
+                // waiting to be flown into; plus the close-in pull, which
+                // takes over near the middle. Pure inverse-square was a
+                // hundredth of the thrust from halfway across the wall, and
+                // drag soaked it up.
+                const float a = std::min(30.0f, 2.0f + 1.5f * holeT + HOLE_PULL / d2), d = std::sqrt(d2);
                 shipVX += dx / d * a * dt;
                 shipVY += dy / d * a * dt;
                 if (dx * dx + dy * dy < 1.7f && holeR > 1.5f) {
@@ -810,7 +818,7 @@ private:
     std::vector<Spark> sparks;
 
     bool hole = false;
-    float holeX = 0, holeY = 0, holeR = 0;
+    float holeX = 0, holeY = 0, holeR = 0, holeT = 0;   // holeT: seconds since it opened
 
     float pulseT = -1, pulseX = 0, pulseY = 0;
     std::vector<int> pushed;

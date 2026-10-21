@@ -60,6 +60,17 @@ Two pages are added to the FPP UI:
   the arcade button/axis commands. Detected controllers are listed automatically; "Set Defaults"
   fills in a standard mapping for a game pad or a dance mat.
 
+## Breakout
+
+Fifteen levels of bricks, with power-ups. Each level makes the ball and the paddle 10% faster,
+up to *Fastest ball* (1.6 times level 1 by default, reached at level 7).
+
+Clearing the last level plays the credits, for as long as the WonGame music (30 seconds with
+sound off): YOU WON! over fireworks, the bricks broken and time played, a short story (Santa's
+sleigh comes for the ball and drops presents down the chimneys), rolling credits and THE END.
+*Credits lines* adds your own lines to the roll, separated by `|` (letters, numbers and
+`: ! . , - '`); *Credits when won* turns the show off. Any button skips it after two seconds.
+
 ## Orb Pop (Kinect)
 
 Orb Pop is played with your body. It needs the

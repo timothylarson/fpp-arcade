@@ -11,6 +11,10 @@
 #include "overlays/PixelOverlayEffects.h"
 #include "FPPArcadePause.h"
 
+// One pixel of the 3x5 letter for c (A-Z, 0-9 and : ! . , - '): true if lit.
+// Anything else is blank.
+bool arcadeGlyph(char c, int x, int y);
+
 class FPPArcadeGame {
 public:
     FPPArcadeGame(Json::Value &config);

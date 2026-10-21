@@ -2,6 +2,7 @@
 
 #include "FPPBreakout.h"
 #include "ArcadeSound.h"
+#include "BreakoutCredits.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -221,6 +222,12 @@ FPPBreakout::FPPBreakout(Json::Value &config)
                 paddleWidth = std::stoi(value);
             } else if (name == "Ball Speed") {
                 ballSpeed = std::stof(value);
+            } else if (name == "Top Speed") {
+                topSpeed = std::clamp(std::stof(value), 1.0f, 5.0f);
+            } else if (name == "Win Credits") {
+                winCredits = value != "0";
+            } else if (name == "Credits") {
+                credits = value;
             }
         }
     }
@@ -455,7 +462,7 @@ public:
         portalTouchedTimerMs = 0.0;
 
     // Apply level-based scaling on top of the configured multiplier
-    ballSpeedMultiplier = configuredBallSpeed * (1.0f + 0.1f * currentLevel);
+    ballSpeedMultiplier = levelSpeed();
         slowTimerMs = expandTimerMs = breakTimerMs = stickyTimerMs = laserTimerMs = 0.0;
         powerBallActive = false;
         stickyActive = false;
@@ -724,6 +731,7 @@ public:
 
                 if (destroyed) {
                     if (remainingDestructible > 0) --remainingDestructible;
+                    ++bricksBroken;
                     maybeSpawnPowerUp(*it);
                     markBrickGone(it->row, it->col);
                     it = blocks.erase(it);
@@ -820,6 +828,17 @@ public:
         showingLevelIntro = false;
         stopSounds();
         sound("WonGame");
+        if (winCredits) {
+            // The show lasts as long as the music (30 s with no sound).
+            const int music = ArcadeSound::lengthMs("breakout", "WonGame");
+            const double len = music > 0 ? std::clamp((double)music, 15000.0, 180000.0) : 30000.0;
+            creditsCanvas.resize(model->getWidth(), model->getHeight());
+            credits.start(model->getWidth(), model->getHeight(), bricksBroken, playMs, creditLines, len);
+            creditsSkip.store(false);
+            creditsOn.store(true);
+            resetFrameTimer();
+            return 50;
+        }
         int scl = fitTextScale({"YOU", "WIN"}, std::max(1, (int)paddle.height));
         CopyToModel(0.2f);
         outputString("YOU", centeredTextX("YOU", scl),
@@ -973,6 +992,29 @@ public:
     // ArcadeSound.h. A name with no file there is simply silent. They go to
     // this model's controller speakers, so each player hears their own game.
     void sound(const char *name) { ArcadeSound::play("breakout", name, 1.0f, model->getName()); }
+
+    // Each level speeds the ball (and the paddle) up 10%, up to Top Speed.
+    float levelFactor() const { return std::min(1.0f + 0.1f * currentLevel, topSpeed); }
+    float levelSpeed() const { return configuredBallSpeed * levelFactor(); }
+
+    void setExtras(float top, bool credits, const std::string &lines) {
+        topSpeed = std::max(1.0f, top);
+        winCredits = credits;
+        creditLines.clear();
+        size_t i = 0;
+        while (i <= lines.size()) {
+            const size_t j = std::min(lines.find('|', i), lines.size());
+            std::string l = lines.substr(i, j - i);
+            l.erase(0, l.find_first_not_of(' '));
+            l.erase(l.find_last_not_of(' ') + 1);
+            if (!l.empty()) {
+                creditLines.push_back(l);
+            }
+            i = j + 1;
+        }
+        ballSpeedMultiplier = levelSpeed();
+        setAllBallSpeeds();
+    }
     void playLevelStartSound() {
         restartSoundMs = 0.0;
         const char *name = currentLevel + 1 >= (int)LEVEL_LAYOUTS.size() ? "LastLevel" : "StartLevel";
@@ -1008,7 +1050,7 @@ public:
                 enforcePaddleBounds();
                 break;
             case PowerUp::Type::Slow:
-                ballSpeedMultiplier = 0.6f;
+                ballSpeedMultiplier = levelSpeed() * 0.6f;
                 setAllBallSpeeds();
                 slowTimerMs = durationMs;
                 break;
@@ -1052,7 +1094,7 @@ public:
         if (slowTimerMs > 0.0) {
             slowTimerMs -= elapsedMs;
             if (slowTimerMs <= 0.0) {
-                ballSpeedMultiplier = 1.0f;
+                ballSpeedMultiplier = levelSpeed();
                 setAllBallSpeeds();
                 slowTimerMs = 0.0;
             }
@@ -1192,6 +1234,7 @@ public:
                 brickSound(*targetIt, destroyed);
                 if (destroyed) {
                     if (remainingDestructible > 0) --remainingDestructible;
+                    ++bricksBroken;
                     maybeSpawnPowerUp(*targetIt);
                     markBrickGone(targetIt->row, targetIt->col);
                     blocks.erase(targetIt);
@@ -1232,6 +1275,22 @@ public:
             return 50;
         }
 
+        if (creditsOn) {
+            const double dt = consumeElapsedMs(50.0);
+            // Any button skips the rest, once it has had a moment to be seen.
+            if (creditsSkip.exchange(false) && credits.elapsedMs() > 2000.0) {
+                credits.finish();
+                stopSounds();
+            }
+            credits.step(dt, creditsCanvas);
+            creditsCanvas.writeTo(model);
+            model->flushOverlayBuffer();
+            if (credits.over()) {
+                creditsOn.store(false);   // then the usual ending below
+            }
+            return 50;
+        }
+
         if (!GameOn) {
             model->clearOverlayBuffer();
             model->flushOverlayBuffer();
@@ -1257,6 +1316,7 @@ public:
         // Track total elapsed time and periodically enable a one-shot random
         // perturbation to help escape repeating trajectories.
         totalElapsedMs += elapsedMs;
+        playMs += elapsedMs;
         bounceRandomMsAccumulator += elapsedMs;
         if (bounceRandomMsAccumulator >= 5000.0) {
             bounceRandomNextCollision = true;
@@ -1333,9 +1393,9 @@ public:
             }
         }
 
-        // The paddle speeds up with the level as the ball does (10% a level),
-        // so it can still get under the ball on the last levels.
-        paddle.x += direction * paddle.height * (1.0f + 0.1f * currentLevel) * frameScalar;
+        // The paddle speeds up with the level as the ball does, so it can
+        // still get under the ball on the last levels.
+        paddle.x += direction * paddle.height * levelFactor() * frameScalar;
         if (paddle.x < fieldX) paddle.x = fieldX;
         else if ((paddle.x + paddle.width) >= fieldRight()) paddle.x = fieldRight() - paddle.width;
 
@@ -1500,6 +1560,12 @@ public:
     }
 
     void button(const std::string &button) {
+        if (creditsOn) {
+            if (button.find("Pressed") != std::string::npos) {
+                creditsSkip.store(true);
+            }
+            return;
+        }
         // If we're in a pause state, let base class handle ALL input
         if (GameOn && isPaused()) {
             FPPArcadeGameEffect::button(button);
@@ -1552,6 +1618,8 @@ public:
         lives = 3;
         restartSoundMs = 0.0;
         launchHoldMs = 0.0;
+        bricksBroken = 0;
+        playMs = 0.0;
         currentLevel = 0;
         // Clear all powerups and effects
         powerUps.clear();
@@ -1610,6 +1678,17 @@ public:
     bool showingLevelIntro = false;
     double levelIntroTimerMs = 0.0;
     double restartSoundMs = 0.0;   // counts down to the start jingle after a life is lost
+    float topSpeed = 1.6f;
+    bool winCredits = true;
+    std::vector<std::string> creditLines;
+    int bricksBroken = 0;
+    double playMs = 0.0;           // time actually playing, for the credits
+    // The credits after the last level. creditsOn is read by button() on the
+    // command thread; the show itself only runs in update().
+    std::atomic<bool> creditsOn{false};
+    std::atomic<bool> creditsSkip{false};
+    BreakoutCredits credits;
+    ArcadeCanvas::Canvas creditsCanvas;
     double launchHoldMs = 0.0;     // the start jingle still playing: no auto-launch yet
     std::string levelIntroText;
     // Timers and state to avoid pathological repeat bounces
@@ -1662,6 +1741,7 @@ void FPPBreakout::button(const std::string &button) {
                 getBallSpeed(),
                 playfieldWidthOption()
             );
+            effect->setExtras(getTopSpeed(), getWinCredits(), getCredits());
             m->setRunningEffect(effect, 50);
         } else {
             effect->button(button);

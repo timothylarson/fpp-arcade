@@ -1,5 +1,8 @@
 # FPP Arcade Changelog
 
+- Breakout: winning plays a credits show as long as the WonGame music (30 s without sound): YOU WON! over fireworks, bricks broken and time played, a little story (Santa's sleigh collects the ball and drops presents down the chimneys), rolling credits with your own lines (the new Credits lines setting) and THE END. Any button skips it. Credits when won turns it off.
+- Breakout: the ball and paddle stop speeding up at Fastest ball (default 1.6x level 1, reached at level 7) instead of reaching 2.4x on the last level. The Slow power-up now slows the ball relative to the level and Ball speed, and wearing off restores them, instead of resetting to 1.0.
+- The letter font has ! . , - and '.
 - Breakout: the paddle gets faster with each level, as the ball does (10% a level), so it can keep up on the last levels.
 - Cheat code: Up Up Down Down Left Right Left Right B A Start during a game jumps to its last level (Breakout with 9 lives); the endless games go to their hardest level with lives (and in Asteroid Orbit and Star Defenders, power-ups) topped up. See README.md.
 - Stacker: only A, B or Fire drops a row; the directions no longer do.

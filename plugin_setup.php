@@ -47,6 +47,7 @@ $pluginName = basename(dirname(__FILE__));
 #arcadePage table.opts td { padding: 5px 0; vertical-align: top; }
 #arcadePage table.opts td:first-child { width: 210px; padding-right: 16px; padding-top: 8px; }
 #arcadePage table.opts input[type=number] { width: 90px; }
+#arcadePage table.opts input[type=text] { width: 100%; max-width: 420px; box-sizing: border-box; }
 #arcadePage .hint { opacity: 0.7; font-size: 0.88em; margin-top: 3px; max-width: 560px; }
 #arcadePage .noOpts { opacity: 0.6; font-size: 0.9em; margin: 6px 0; }
 #arcadePage .addRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
@@ -139,7 +140,13 @@ var ARCADE_GAMES = {
                   { name: 'Max Bricks', label: 'Most bricks per row', type: 'number', def: 0, min: 0, max: 100, hint: '0 uses each level\'s own.' },
                   { name: 'Paddle Width', label: 'Paddle width', type: 'number', def: 0, min: 0, max: 100, hint: 'LEDs. 0 picks one.' },
                   { name: 'Ball Speed', label: 'Ball speed', type: 'number', def: 1.0, min: 0.1, max: 5, step: 0.1, hint: '1 is normal.' },
-                  { name: 'Playfield Width', label: 'Playfield width', type: 'number', def: 0, min: 0, max: 500, hint: 'In cells. 0 fits the bricks.' }] },
+                  { name: 'Top Speed', label: 'Fastest ball', type: 'number', def: 1.6, min: 1, max: 5, step: 0.1,
+                    hint: 'Each level is 10% faster (the paddle too), up to this many times level 1. 1.6 is reached at level 7.' },
+                  { name: 'Playfield Width', label: 'Playfield width', type: 'number', def: 0, min: 0, max: 500, hint: 'In cells. 0 fits the bricks.' },
+                  { name: 'Win Credits', label: 'Credits when won', type: 'select', def: '1', choices: YESNO,
+                    hint: 'After the last level: YOU WON!, fireworks, a little story and rolling credits, as long as the WonGame music.' },
+                  { name: 'Credits', label: 'Credits lines', type: 'text', def: 'THANKS FOR PLAYING|MERRY CHRISTMAS',
+                    hint: 'Your lines in the rolling credits, separated by |. Letters, numbers and : ! . , - \' only.' }] },
     'Frogger': { about: 'Hop across the road and the river.', controls: ['Directions hop', 'A traffic faster', 'B traffic slower'],
         options: [PS, { name: 'Lanes', label: 'Lanes', type: 'number', def: 5, min: 1, max: 20 },
                   { name: 'River Speed', label: 'River speed', type: 'number', def: 1, min: 1, max: 10 },
@@ -286,6 +293,9 @@ function arcadeRender() {
                             html += '<select class="gOpt" data-name="' + arcadeEsc(o.name) + '">' + o.choices.map(function (c) {
                                 return '<option value="' + arcadeEsc(c[0]) + '"' + (String(v) === String(c[0]) ? ' selected' : '') + '>' + arcadeEsc(c[1]) + '</option>';
                             }).join('') + '</select>';
+                        } else if (o.type === 'text') {
+                            html += '<input type="text" class="gOpt" data-name="' + arcadeEsc(o.name) + '" value="' +
+                                    arcadeEsc(v).replace(/"/g, '&quot;') + '">';
                         } else {
                             html += '<input type="number" class="gOpt" data-name="' + arcadeEsc(o.name) + '" value="' + arcadeEsc(v) + '"' +
                                     ' min="' + o.min + '" max="' + o.max + '" step="' + (o.step || 1) + '">';

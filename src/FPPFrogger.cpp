@@ -448,11 +448,16 @@ private:
         }
 
         const float dt = (float)(elapsedMs / 1000.0); // seconds
+        // A mover lives on [-gw, gridCols): from just off the left edge to
+        // just off the right. Leaving either side puts it just off the other,
+        // so it slides back in a cell at a time. The right-hand test used to
+        // be gx > gridCols + gw, which wrapped it to about 0 - fully on screen
+        // - so everything moving right popped in whole at the left edge.
         for (auto &m : movers) {
             m.gx += m.dir * m.speed * dt;
             const float wrap = (float)(gridCols + m.gw);
             if (m.gx < -m.gw)      m.gx += wrap;
-            if (m.gx > wrap)       m.gx -= wrap;
+            if (m.gx >= gridCols)  m.gx -= wrap;
         }
     }
 
@@ -516,6 +521,9 @@ private:
     }
 
     inline void fillCell(int gx,int gy,int r,int g,int b) {
+        // Only cells on the playfield: a mover part way on shows just the part
+        // that has arrived, rather than spilling into the margin beside it.
+        if (gx < 0 || gx >= gridCols || gy < 0 || gy >= gridRows) return;
         // draw an opt.scale x opt.scale block, offset into the centred playfield
         const int x0 = gx * cellW + offsetX;
         const int y0 = gy * cellH + offsetY;

@@ -626,21 +626,11 @@ private:
 
     void drawGameOver() {
         drawFrame(0.2f, false);
-        char scoreBuf[20];
-        snprintf(scoreBuf, sizeof(scoreBuf), "%d", score);
-        // GAME / OVER / final score, matching Tetris. Laid out as a block and
-        // centred so it fits whatever the playfield happens to be.
-        const int glyphH = 5, pitch = 7;
-        int wanted = 3;
-        while (wanted > 1 && (wanted - 1) * pitch + glyphH > gridRows) {
-            wanted--;
-        }
-        int y = std::max(0, (gridRows - ((wanted - 1) * pitch + glyphH)) / 2);
-        const std::string rows_[3] = { "GAME", "OVER", scoreBuf };
-        for (int i = 0; i < wanted; i++) {
-            outputString(rows_[i], centerTextX(rows_[i], 1), y, 255, 255, 255, 1);
-            y += pitch;
-        }
+        // GAME / OVER / final score, centred on the panel over a black box.
+        // This used to lay the lines out against gridRows, which counts game
+        // cells, not LEDs: with Pixel Scaling 2 it thought a 25-row matrix
+        // was 12 rows tall and put GAME on the top row, over the score bar.
+        textBox({"GAME", "OVER", std::to_string(score)}, 255, 255, 255);
     }
 
 private:

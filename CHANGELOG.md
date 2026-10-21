@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Frogger: GAME OVER is centred on the panel over a black box, instead of on the top row over the score bar when Pixel Scaling is above 1.
 - Pong: GAME OVER is centred and sits below the score.
 - Pong: a dim border marks the edge of the court; the paddles, ball and score all stay inside it.
 - Asteroid Orbit: the black hole pulls from anywhere on the field, more strongly the longer it is open, so it sucks the ship in.

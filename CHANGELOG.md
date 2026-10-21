@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Pong: a dim border marks the edge of the court.
 - Asteroid Orbit: the black hole pulls from anywhere on the field, more strongly the longer it is open, so it sucks the ship in.
 - Frogger: A speeds the cars, logs and turtles up a step (up to 3x), B slows them back down, never below the level's speed; yellow dots bottom right show how far up it is. A and B no longer hop.
 - Orb Pop's Start Automatically now defaults to No, so the Kinect picture is what a model shows until a button starts a game.

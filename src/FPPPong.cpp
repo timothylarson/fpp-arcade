@@ -41,6 +41,17 @@ public:
     
     void CopyToModel() {
         model->clearOverlayBuffer();
+        // The court's edge, dimly lit, so the walls the ball bounces off and
+        // the goal lines behind the paddles can be seen. Everything else is
+        // drawn over it.
+        for (int x = 0; x < cols; x++) {
+            outputPixel(x, 0, 35, 35, 70);
+            outputPixel(x, rows - 1, 35, 35, 70);
+        }
+        for (int y = 1; y < rows - 1; y++) {
+            outputPixel(0, y, 35, 35, 70);
+            outputPixel(cols - 1, y, 35, 35, 70);
+        }
         char buf[25];
         snprintf(buf, sizeof(buf), "%d:%d", p1Score, p2Score);
         int len = strlen(buf);

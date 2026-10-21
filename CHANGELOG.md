@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Maze Chase: wide mazes for the first levels, with two-LED paths and 2x2 characters that glide between cells; the one-LED maze starts at the Narrow maze from level setting (default 4).
 - Frogger: GAME OVER is centred on the panel over a black box, instead of on the top row over the score bar when Pixel Scaling is above 1.
 - Pong: GAME OVER is centred and sits below the score.
 - Pong: a dim border marks the edge of the court; the paddles, ball and score all stay inside it.

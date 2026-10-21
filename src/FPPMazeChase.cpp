@@ -40,19 +40,13 @@ int reverseOf(int d) { return (d + 2) & 3; }
 
 class MazeChaseEffect : public FPPArcadeGameEffect {
 public:
-    MazeChaseEffect(PixelOverlayModel *m, int lives) : FPPArcadeGameEffect(m), rng(std::random_device{}()) {
+    // narrowFrom: the first level drawn with one-LED paths; before it they
+    // are two LEDs wide. 0 keeps them wide.
+    MazeChaseEffect(PixelOverlayModel *m, int lives, int narrowFrom)
+        : FPPArcadeGameEffect(m), rng(std::random_device{}()), narrowLevel(std::max(0, narrowFrom)) {
         int w = 0, h = 0;
         model->getSize(w, h);
         canvas.resize(w, h);
-        // The maze is mirrored about a centre corridor, which needs a width of
-        // 4k+3; rows need to be odd.
-        mw = std::max(19, w - ((w - 3) % 4 + 4) % 4);
-        mh = std::max(15, (h % 2) ? h : h - 1);
-        ox = std::max(0, (w - mw) / 2);
-        oy = std::max(0, (h - mh) / 2);
-        c = (mw - 1) / 2;
-        r = ((mh - 1) / 2) & ~1;
-        tunnelY = r + 5;
         startLives = std::clamp(lives, 1, 9);
         newGame();
     }
@@ -133,7 +127,53 @@ private:
     bool inHouseArea(int x, int y) const { return x >= c - 4 && x <= c + 4 && y >= r - 3 && y <= r + 3; }
     bool isCell(int x, int y) const { return (x & 1) && (y & 1); }
 
+    // The maze is worked out on a logical grid: odd rows and columns are
+    // corridor cells, even ones the walls between them. Narrow, every logical
+    // unit is one LED. Wide, corridor units are two LEDs and wall units one,
+    // so paths are two wide, characters are 2x2, and logical unit i starts at
+    // LED ceil(i/2) + 2*floor(i/2). Everything the game does - moving,
+    // turning, catching - stays on the logical grid; only drawing changes.
+    int screenStart(int i) const { return wide ? (i + 1) / 2 + 2 * (i / 2) : i; }
+    int screenSpan(int i) const { return wide ? ((i & 1) ? 2 : 1) : 1; }
+    int screenSize(int n) const { return screenStart(n - 1) + screenSpan(n - 1); }
+    // Where a character's top-left LED goes for a (fractional) logical
+    // position: steps of 1.5 LEDs wide, so it glides evenly over cells and
+    // the walls between them.
+    float spritePos(float i) const { return wide ? 1.5f * i - 0.5f : i; }
+    int spriteSize() const { return wide ? 2 : 1; }
+
+    // Fit the logical maze to the model for this level. It is mirrored about
+    // a centre corridor, which needs a logical width of 4k+3; rows are odd.
+    void layout() {
+        const int w = canvas.W, h = canvas.H;
+        wide = narrowLevel <= 0 || level < narrowLevel;
+        if (wide) {
+            int lw = (2 * (w - 1)) / 3 + 1;
+            lw -= ((lw - 3) % 4 + 4) % 4;
+            int lh = (2 * (h - 1)) / 3 + 1;
+            if (!(lh & 1)) {
+                --lh;
+            }
+            if (lw >= 19 && lh >= 15) {
+                mw = lw;
+                mh = lh;
+            } else {
+                wide = false;   // too small for wide paths
+            }
+        }
+        if (!wide) {
+            mw = std::max(19, w - ((w - 3) % 4 + 4) % 4);
+            mh = std::max(15, (h % 2) ? h : h - 1);
+        }
+        ox = std::max(0, (w - screenSize(mw)) / 2);
+        oy = std::max(0, (h - screenSize(mh)) / 2);
+        c = (mw - 1) / 2;
+        r = ((mh - 1) / 2) & ~1;
+        tunnelY = r + 5;
+    }
+
     void buildMaze() {
+        layout();
         grid.assign(mw * mh, 0);
         const int nx = (mw - 1) / 2, ny = (mh - 1) / 2, mid = (nx - 1) / 2;
         for (int cy = 0; cy < ny; ++cy) {
@@ -238,7 +278,9 @@ private:
         dotsLeft = 0;
         for (int y = 0; y < mh; ++y) {
             for (int x = 1; x < mw - 1; ++x) {
-                if (isOpen(x, y) && !inHouseArea(x, y) && !(x == c && y == tunnelY)) {
+                // Wide paths get a dot per cell, not per logical unit, or
+                // they'd sit a LED and a half apart.
+                if (isOpen(x, y) && !inHouseArea(x, y) && !(x == c && y == tunnelY) && (!wide || isCell(x, y))) {
                     dots[y * mw + x] = 1;
                     ++dotsLeft;
                 }
@@ -609,9 +651,16 @@ private:
         canvas.clear();
         flashT = std::max(0.0f, flashT - 0.025f);
         const bool clearFlash = state == State::Clear && std::fmod(stateT, 0.5f) < 0.25f;
+        // Light a logical unit's LEDs: one LED narrow, up to 2x2 wide.
+        auto unit = [&](int x, int y, const RGB &col, float k) {
+            for (int yy = 0; yy < screenSpan(y); ++yy) {
+                for (int xx = 0; xx < screenSpan(x); ++xx) {
+                    canvas.add(ox + screenStart(x) + xx, oy + screenStart(y) + yy, col, k);
+                }
+            }
+        };
         for (int y = 0; y < mh; ++y) {
             for (int x = 0; x < mw; ++x) {
-                const int sx = ox + x, sy = oy + y;
                 if (!isOpen(x, y)) {
                     // Only walls that face a corridor; solid areas stay dark.
                     bool edge = false;
@@ -620,18 +669,24 @@ private:
                         edge = isOpen(x + ex[d], y + ey[d]);
                     }
                     if (edge) {
-                        canvas.add(sx, sy, clearFlash ? ArcadeCanvas::WHITE : WALL, clearFlash ? 0.45f : 0.12f);
+                        unit(x, y, clearFlash ? ArcadeCanvas::WHITE : WALL, clearFlash ? 0.45f : (wide ? 0.18f : 0.12f));
                     }
                     continue;
                 }
                 if (x == c && y == r - 2) {
-                    canvas.add(sx, sy, DOOR, 0.3f);
+                    unit(x, y, DOOR, 0.3f);
                 }
+                // Wide, a dot is one LED in its 2x2 cell, so the paths read as
+                // dark lanes with dots in them; power pellets fill the cell.
                 const uint8_t d = dots[y * mw + x];
                 if (d == 1) {
-                    canvas.add(sx, sy, DOT, 0.16f);
+                    if (wide) {
+                        canvas.add(ox + screenStart(x), oy + screenStart(y), DOT, 0.22f);
+                    } else {
+                        unit(x, y, DOT, 0.16f);
+                    }
                 } else if (d == 2) {
-                    canvas.add(sx, sy, DOT, std::fmod(clock, 0.5f) < 0.3f ? 1.0f : 0.15f);
+                    unit(x, y, DOT, std::fmod(clock, 0.5f) < 0.3f ? (wide ? 0.7f : 1.0f) : 0.12f);
                 }
             }
         }
@@ -648,17 +703,20 @@ private:
                     const bool ending = scaredT < 1.5f && std::fmod(scaredT, 0.3f) < 0.15f;
                     col = ending ? ArcadeCanvas::WHITE : SCARED;
                 }
-                canvas.set(ox + g.x, oy + g.y, col, kk);
+                // Part way to the next unit when it's free to move there.
+                float f = 0;
+                if ((g.st == GState::Active || g.st == GState::Eyes) && passable(g.x + DX[g.dir], g.y + DY[g.dir], false)) {
+                    f = std::min(1.0f, g.acc);
+                }
+                sprite(g.x + DX[g.dir] * f, g.y + DY[g.dir] * f, col, kk);
             }
         }
         const bool showPlayer = state != State::Over && !(state == State::Dying && (stateT > 1.0f || std::fmod(stateT, 0.2f) < 0.1f));
         if (showPlayer) {
             // A little chomp: brighter and dimmer as it moves.
             const float chomp = state == State::Play ? 0.8f + 0.2f * std::sin(clock * 25.0f) : 1.0f;
-            canvas.set(ox + px, oy + py, PLAYER, chomp);
-        }
-        if (flashT > 0) {
-            canvas.add(ox + px, oy + py, ArcadeCanvas::WHITE, 1.0f);
+            const float f = (state == State::Play && passable(px + DX[pdir], py + DY[pdir], false)) ? std::min(1.0f, pacc) : 0.0f;
+            sprite(px + DX[pdir] * f, py + DY[pdir] * f, flashT > 0 ? ArcadeCanvas::WHITE : PLAYER, chomp);
         }
         canvas.writeTo(model);
 
@@ -668,6 +726,16 @@ private:
             words({"GAME", "OVER", std::to_string(score)}, 255, 255, 255);
         } else if (state == State::Clear && stateT > 0.8f) {
             words({std::to_string(score)}, 255, 220, 0);
+        }
+    }
+
+    // A character: one LED narrow, 2x2 wide, at a fractional logical position.
+    void sprite(float lx, float ly, const RGB &col, float k) {
+        const int x0 = ox + (int)std::lround(spritePos(lx)), y0 = oy + (int)std::lround(spritePos(ly));
+        for (int yy = 0; yy < spriteSize(); ++yy) {
+            for (int xx = 0; xx < spriteSize(); ++xx) {
+                canvas.set(x0 + xx, y0 + yy, col, k);
+            }
         }
     }
 
@@ -695,6 +763,8 @@ private:
     std::mt19937 rng;
     ArcadeCanvas::Canvas canvas;
     int mw = 0, mh = 0, ox = 0, oy = 0, c = 0, r = 0, tunnelY = 0;
+    int narrowLevel = 4;
+    bool wide = true;
     std::vector<uint8_t> grid, dots;
     int dotsLeft = 0;
 
@@ -728,7 +798,7 @@ void FPPMazeChase::button(const std::string &button) {
         } else {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
         }
-        effect = new MazeChaseEffect(m, findIntOption("Lives", 3));
+        effect = new MazeChaseEffect(m, findIntOption("Lives", 3), findIntOption("Narrow From", 4));
         m->setRunningEffect(effect, 25);
     }
     // The starting press also sets the first direction - but not Start, which

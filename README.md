@@ -84,7 +84,10 @@ the corridors, the walls, you (yellow) and the ghosts.
   loses interest up close.
 - The tunnel on each side wraps around. Each level is a new maze, generated to fit the model
   (mirrored, no dead ends), and a bit faster.
-- Option: *Lives*.
+- The first levels have paths two LEDs wide, with 2x2 characters; from the *Narrow maze from
+  level* setting on (default 4) the maze is one LED per path, wall and character, which fits
+  about twice as many turns. 0 keeps the wide paths.
+- Options: *Lives* and *Narrow maze from level*.
 
 ## Barrel Climb
 

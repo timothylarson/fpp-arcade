@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Orb Pop's Start Automatically now defaults to No, so the Kinect picture is what a model shows until a button starts a game.
 - Frogger: logs, turtles and cars moving right slide in from the left edge a cell at a time, instead of appearing whole; nothing draws outside a smaller playfield.
 - Stacker: the goal line stops short of the counters in the top corners instead of running behind them.
 - Star Defenders: seven formations in turn, armoured aliens from wave 4, divers that swoop at the cannon from wave 3, and capsules for Double, Rapid and Pierce shots, shield repair, extra lasers and extra lives. New Start at wave setting.

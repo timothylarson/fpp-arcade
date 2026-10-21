@@ -55,7 +55,7 @@ and the same overlay model, and reads who is standing where from it every frame.
   one. Gold orbs are smaller and quicker and score 5. A bar along the top shows the time left
   and the score is in the corner. The round ends when time is up, or 8 seconds after everyone
   leaves, and shows the score before going back to attract mode.
-- **Start Automatically** (on by default) switches the model to Orb Pop whenever it is showing
+- **Start Automatically** (off by default) switches the model to Orb Pop whenever it is showing
   the plain Kinect picture. Another game selected and started on the model takes over as usual,
   and Orb Pop comes back about a second after it ends. If the Kinect stops sending frames for
   10 seconds, Orb Pop hands the model back.

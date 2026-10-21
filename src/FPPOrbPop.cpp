@@ -593,7 +593,7 @@ private:
 
 
 FPPOrbPop::FPPOrbPop(Json::Value &config) : FPPArcadeGame(config) {
-    if (findOption("Start Automatically", "1") == "1") {
+    if (findOption("Start Automatically", "0") == "1") {
         char buf[64];
         snprintf(buf, sizeof(buf), "ArcadeOrbPopAutoStart-%p", (void *)this);
         timerName = buf;

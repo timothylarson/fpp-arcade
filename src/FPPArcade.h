@@ -54,7 +54,7 @@ protected:
     int lastValues[2];
     int idx;
 private:
-    size_t cheatPos = 0;
+    std::vector<std::string> cheatHist;   // the last few presses, for the cheat codes
     std::chrono::steady_clock::time_point cheatAt;
     std::set<std::string> cheatHeld;   // directions held, so an axis repeat isn't a second press
 };
@@ -96,11 +96,13 @@ public:
     void activatePauseSelection();
     bool isPaused() const { return paused; }
 
-    // The cheat code was entered. Button presses arrive on another thread, so
+    // A cheat code was entered. Button presses arrive on another thread, so
     // this only raises a flag: a game with levels takes it with takeCheat()
     // in its own update() and jumps to its last level (for an endless game,
-    // the level where it is at its hardest). Games without levels ignore it.
-    void requestCheat() { cheatPending.store(true); }
+    // the level where it is at its hardest) or the next one. Games without
+    // levels ignore it.
+    static constexpr int CHEAT_LAST_LEVEL = 1, CHEAT_NEXT_LEVEL = 2;
+    void requestCheat(int which) { cheatPending.store(which); }
     
     // Size the logical playfield and centre it on the model. A game should
     // bound itself against pfW/pfH rather than model->getWidth()/getHeight(),
@@ -132,13 +134,13 @@ public:
     int offsetX;
     int offsetY;
 protected:
-    bool takeCheat() { return cheatPending.exchange(false); }
+    int takeCheat() { return cheatPending.exchange(0); }   // 0, or a CHEAT_ value
     void drawPauseMenu();
     virtual void handlePauseInput(const std::string &button);
 
     bool paused = false;
     PauseMenu pauseMenu;
-    std::atomic<bool> cheatPending{false};
+    std::atomic<int> cheatPending{0};
 
 private:
     std::chrono::steady_clock::time_point lastFrameTime;

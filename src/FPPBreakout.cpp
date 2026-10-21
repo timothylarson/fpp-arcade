@@ -1336,10 +1336,13 @@ public:
             WaitingUntilOutput = true;
             return -1;
         }
-        if (takeCheat()) {
-            // The cheat code: the final layout, with every life there is.
+        const int cheat = takeCheat();
+        if (cheat == CHEAT_LAST_LEVEL) {
+            // The final layout, with every life there is.
             loadLevel((int)LEVEL_LAYOUTS.size() - 1);
             lives = MAX_LIVES;
+        } else if (cheat == CHEAT_NEXT_LEVEL) {
+            return handleLevelClear();   // as if cleared: two more lives, or the credits after the last
         }
         constexpr double baseFrameMs = 50.0;
         double elapsedMs = consumeElapsedMs(baseFrameMs);

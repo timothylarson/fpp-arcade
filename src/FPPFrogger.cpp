@@ -127,8 +127,15 @@ public:
             drawFrame(0.25f, /*drawPaused=*/true);
             return 50;
         }
-        if (takeCheat()) {
-            // The cheat code. Frogger keeps speeding up, so "last" is level
+        const int cheat = takeCheat();
+        if (cheat == CHEAT_NEXT_LEVEL) {
+            level++;
+            speedBoost = 1.0f;
+            initLevel();
+            sfx("frogger", "LevelClear");
+        }
+        if (cheat == CHEAT_LAST_LEVEL) {
+            // Frogger keeps speeding up, so "last" is level
             // 10 (traffic and logs about twice as fast as level 1), with 9
             // spare frogs to try it.
             level = 10;

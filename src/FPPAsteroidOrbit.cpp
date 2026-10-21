@@ -140,8 +140,14 @@ public:
         const float dt = (float)(consumeElapsedMs(FRAME_MS, 100.0) / 1000.0);
         clock += dt;
         stateT += dt;
-        if (takeCheat() && state != State::Over) {
-            // The cheat code: the sector where the rock count stops growing
+        const int cheat = state != State::Over ? takeCheat() : 0;
+        if (cheat == CHEAT_NEXT_LEVEL) {
+            ++sector;
+            placeShip(W / 2.0f, top + PH / 2.0f);
+            startSector();
+        }
+        if (cheat == CHEAT_LAST_LEVEL) {
+            // The sector where the rock count stops growing
             // (12), and at least sector 10, with full fuel and ammo, every
             // shockwave and 5 lives (all that fit beside them on row 0).
             sector = std::max(10, 13 - baseRocks);

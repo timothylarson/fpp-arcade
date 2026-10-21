@@ -26,15 +26,21 @@ the games.
 | **Light Memory** | The four directional "Pressed" events. |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
 
-### Cheat code
+### Cheat codes
 
-**Up Up Down Down Left Right Left Right B A Start** during a game (not on the pause menu), each
-press within 2 seconds of the last. The directions play as usual; the B, A and Start that finish
-the code are kept from the game, so it doesn't fire, drop a row or pause.
+Entered during a game (not on the pause menu), each press within 2 seconds of the last:
+
+- **Up Up Down Down Left Right Left Right B A Start** (the Konami code): the last level, below.
+- **Up Up Down Down Left Right Left Right A B Start**: the next level, as if this one were
+  cleared (in Breakout that includes its two extra lives, and after the last level, the
+  credits). Handy for trying each level in turn.
+
+The directions play as usual; the B, A and Start that finish a code are kept from the game, so
+nothing fires, drops a row or pauses.
 
 | Game | What it does |
 |------|-----------|
-| **Breakout** | Straight to the final level, with 9 lives. |
+| **Breakout** | The final level, with 9 lives. |
 | **Tetris** | Full drop speed (reached at 14 lines, level 2). The board stays. |
 | **Frogger** | Level 10, traffic about twice level 1's speed, and 9 lives. |
 | **Maze Chase** | Level 10 (every speed and timer at its limit, the narrow maze), and 9 lives. |
@@ -43,7 +49,7 @@ the code are kept from the game, so it doesn't fire, drop a row or pause.
 | **Star Defenders** | Wave 14, the fortress at full strength, with 9 lives, 5 lasers and the piercing shot. |
 | **Stacker** | The first 60-row tower. |
 
-Pong, Snake, Flap, Light Memory, Orb Pop and Shape Fit have no levels and ignore it.
+Pong, Snake, Flap, Light Memory, Orb Pop and Shape Fit have no levels and ignore both codes.
 
 ## Installation
 

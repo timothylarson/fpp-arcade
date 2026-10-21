@@ -88,8 +88,15 @@ public:
         const float dt = (float)(consumeElapsedMs(FRAME_MS, 100.0) / 1000.0);
         clock += dt;
         stateT += dt;
-        if (takeCheat() && state != State::Over) {
-            // The cheat code: level 10, where both speeds, the ghosts' release
+        const int cheat = state != State::Over ? takeCheat() : 0;
+        if (cheat == CHEAT_NEXT_LEVEL) {
+            ++level;
+            buildMaze();
+            resetActors();
+            sfx("mazechase", "LevelClear");
+        }
+        if (cheat == CHEAT_LAST_LEVEL) {
+            // Level 10, where both speeds, the ghosts' release
             // gap and the scared time have all reached their limits (and the
             // maze is the narrow one, unless that's turned off), with 9 lives.
             level = std::max(10, narrowLevel);

@@ -86,10 +86,12 @@ public:
             std::lock_guard<std::mutex> l(pressLock);
             todo.swap(presses);
         }
-        const bool cheat = takeCheat();
+        const int cheat = takeCheat();
         if (!over) {
-            if (cheat) {
+            if (cheat == CHEAT_LAST_LEVEL) {
                 lastLevel();
+            } else if (cheat == CHEAT_NEXT_LEVEL) {
+                nextLevel();
             }
             for (auto &p : todo) {
                 onPress(p);
@@ -127,8 +129,9 @@ protected:
     virtual void reset() = 0;
     virtual void onPress(const std::string &name) = 0;   // "A Button", "Up", ...
     virtual void stepGame(float dt) = 0;
-    // The cheat code; only Stacker has levels.
+    // The cheat codes; only Stacker has levels.
     virtual void lastLevel() {}
+    virtual void nextLevel() {}
     virtual void stepOver(float dt) {}
     virtual void draw() = 0;
     virtual void drawText() {}
@@ -216,6 +219,10 @@ private:
     void lastLevel() override {
         const int base = H * 2 / (layerH * 5) + 6;
         level = 1 + std::max(0, (60 - base + 3) / 4);
+        startLevel();
+    }
+    void nextLevel() override {
+        ++level;
         startLevel();
     }
 

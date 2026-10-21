@@ -343,15 +343,25 @@ void FPPArcadeGame::axis(const std::string &axis, int value) {
     }
 }
 
-// Up Up Down Down Left Right Left Right B A Start (the Konami code), while a game is playing (not
-// paused): the game jumps to its last level, and an endless one to its hardest
-// with lives and power-ups topped up. The directions play as usual; the B, A
-// and Start that finish the code are kept from the game, so they don't fire,
-// drop a Stacker row or pause it.
+// Two codes, entered while a game is playing (not paused), each press within
+// 2 seconds of the last:
+//   Up Up Down Down Left Right Left Right B A Start (the Konami code): the
+//     last level, and an endless game's hardest with lives and power-ups
+//     topped up
+//   Up Up Down Down Left Right Left Right A B Start: the next level
+// The directions play as usual; the B, A and Start that finish a code are kept
+// from the game, so they don't fire, drop a Stacker row or pause it.
 bool FPPArcadeGame::cheatInput(const std::string &button) {
-    static const char *CODE[] = { "Up", "Up", "Down", "Down", "Left", "Right", "Left", "Right",
-                                  "B Button", "A Button", "Start" };
-    constexpr size_t LEN = sizeof(CODE) / sizeof(CODE[0]);
+    struct Code {
+        const char *first, *second;
+        int cheat;
+        const char *what;
+    };
+    static const Code CODES[] = {
+        { "B Button", "A Button", FPPArcadeGameEffect::CHEAT_LAST_LEVEL, "last level" },
+        { "A Button", "B Button", FPPArcadeGameEffect::CHEAT_NEXT_LEVEL, "next level" },
+    };
+    static const char *DIRS[] = { "Up", "Up", "Down", "Down", "Left", "Right", "Left", "Right" };
     const size_t dash = button.find(" - ");
     const std::string name = dash == std::string::npos ? button : button.substr(0, dash);
     if (dash != std::string::npos && button.compare(dash, std::string::npos, " - Released") == 0) {
@@ -366,28 +376,39 @@ bool FPPArcadeGame::cheatInput(const std::string &button) {
     }
     const auto now = std::chrono::steady_clock::now();
     if (now - cheatAt > std::chrono::milliseconds(2000)) {
-        cheatPos = 0;   // too slow between presses: start over
+        cheatHist.clear();   // too slow between presses: start over
     }
     cheatAt = now;
-    if (name == CODE[cheatPos]) {
-        ++cheatPos;
-    } else if (name == "Up") {
-        cheatPos = cheatPos == 2 ? 2 : 1;   // a third Up still leaves "Up Up"
-    } else {
-        cheatPos = 0;
+    cheatHist.push_back(name);
+    if (cheatHist.size() > 11) {
+        cheatHist.erase(cheatHist.begin());
     }
-    if (cheatPos < LEN) {
-        return cheatPos > 8;   // the B and A after the directions
+    for (const Code &c : CODES) {
+        std::vector<std::string> full(std::begin(DIRS), std::end(DIRS));
+        full.push_back(c.first);
+        full.push_back(c.second);
+        full.push_back("Start");
+        // Do the latest presses finish this code, or have they got as far
+        // as its first button (past the directions)?
+        for (size_t k = std::min(full.size(), cheatHist.size()); k >= 9; --k) {
+            if (!std::equal(full.begin(), full.begin() + k, cheatHist.end() - k)) {
+                continue;
+            }
+            if (k < full.size()) {
+                return true;   // partway: keep this A or B from the game
+            }
+            cheatHist.clear();
+            PixelOverlayModel *m = PixelOverlayManager::INSTANCE.getModel(modelName);
+            FPPArcadeGameEffect *effect = m ? dynamic_cast<FPPArcadeGameEffect *>(m->getRunningEffect()) : nullptr;
+            if (!effect || effect->isPaused()) {
+                return false;
+            }
+            LogInfo(VB_PLUGIN, "FPP Arcade: cheat code (%s) on %s\n", c.what, modelName.c_str());
+            effect->requestCheat(c.cheat);
+            return true;
+        }
     }
-    cheatPos = 0;
-    PixelOverlayModel *m = PixelOverlayManager::INSTANCE.getModel(modelName);
-    FPPArcadeGameEffect *effect = m ? dynamic_cast<FPPArcadeGameEffect *>(m->getRunningEffect()) : nullptr;
-    if (!effect || effect->isPaused()) {
-        return false;
-    }
-    LogInfo(VB_PLUGIN, "FPP Arcade: cheat code on %s\n", modelName.c_str());
-    effect->requestCheat();
-    return true;
+    return false;
 }
 
 

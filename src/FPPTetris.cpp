@@ -383,6 +383,16 @@ public:
         sfx("tetris", "LevelUp");
     }
 
+    // The next-level cheat: as if the lines to reach it had been cleared.
+    void jumpToNextLevel() {
+        lines = level * 10;
+        level = lines / 10 + 1;
+        accumulatedDrop = std::min(maxSpeedDrop, lines * perLineDrop);
+        timer = std::max(minTimer, initialTimer - accumulatedDrop);
+        levelBannerMs = bannerMs;
+        sfx("tetris", "LevelUp");
+    }
+
     void increaseSpeed(int lines) {
         accumulatedDrop += static_cast<double>(lines) * perLineDrop;
         if (accumulatedDrop > maxSpeedDrop) {
@@ -496,8 +506,11 @@ public:
         if (!GameOn) {
             return showGameOver();
         }
-        if (takeCheat()) {
+        const int cheat = takeCheat();
+        if (cheat == CHEAT_LAST_LEVEL) {
             jumpToTopSpeed();
+        } else if (cheat == CHEAT_NEXT_LEVEL) {
+            jumpToNextLevel();
         }
 
         double desiredFrame = std::max(minFrameInterval, timer / 2.0);

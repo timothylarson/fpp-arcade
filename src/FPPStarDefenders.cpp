@@ -140,8 +140,13 @@ public:
         const float dt = (float)(consumeElapsedMs(FRAME_MS, 100.0) / 1000.0);
         clock += dt;
         stateT += dt;
-        if (takeCheat() && state != State::Over) {
-            // The cheat code: wave 14, the last formation (the fortress) on
+        const int cheat = state != State::Over ? takeCheat() : 0;
+        if (cheat == CHEAT_NEXT_LEVEL) {
+            ++wave;
+            startWave();
+        }
+        if (cheat == CHEAT_LAST_LEVEL) {
+            // Wave 14, the last formation (the fortress) on
             // its second time round, with bombs and divers at full rate - and
             // 9 lives, 5 lasers and the piercing shot.
             wave = 14;

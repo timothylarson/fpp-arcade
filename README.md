@@ -15,7 +15,7 @@ the games.
 | **Pong** | "Pressed" and "Released" events. Player one uses Up/Down; player two uses Left/Right, or B (up) and A (down) with the *Up/Down and B/A* controls setting. |
 | **Snake** | The four directional "Pressed" events. |
 | **Breakout** | Directional "Pressed"/"Released" events. |
-| **Frogger** | The four directional "Pressed" events. |
+| **Frogger** | The four directional "Pressed" events hop; A speeds the traffic up a step, B slows it back down to the level's own speed. |
 | **Orb Pop** | People in front of a Kinect (needs the fpp-kinect plugin). A starts a round; Start pauses. |
 | **Maze Chase** | The four directional "Pressed" events. |
 | **Barrel Climb** | All four directions held and released (walk, climb), and A (jump). |

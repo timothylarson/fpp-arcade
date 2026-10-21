@@ -118,7 +118,7 @@ var ARCADE_GAMES = {
                   { name: 'Paddle Width', label: 'Paddle width', type: 'number', def: 0, min: 0, max: 100, hint: 'LEDs. 0 picks one.' },
                   { name: 'Ball Speed', label: 'Ball speed', type: 'number', def: 1.0, min: 0.1, max: 5, step: 0.1, hint: '1 is normal.' },
                   { name: 'Playfield Width', label: 'Playfield width', type: 'number', def: 0, min: 0, max: 500, hint: 'In cells. 0 fits the bricks.' }] },
-    'Frogger': { about: 'Hop across the road and the river.', controls: ['Directions hop'],
+    'Frogger': { about: 'Hop across the road and the river.', controls: ['Directions hop', 'A traffic faster', 'B traffic slower'],
         options: [PS, { name: 'Lanes', label: 'Lanes', type: 'number', def: 5, min: 1, max: 20 },
                   { name: 'River Speed', label: 'River speed', type: 'number', def: 1, min: 1, max: 10 },
                   { name: 'Road Speed', label: 'Road speed', type: 'number', def: 1, min: 1, max: 10 },

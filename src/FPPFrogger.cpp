@@ -197,10 +197,12 @@ public:
         const bool right  = (button=="Right - Pressed");
         const bool up     = (button=="Up - Pressed");
         const bool down   = (button=="Down - Pressed");
+        // A and B change the traffic speed; Fire still hops forward.
         const bool aPress =
-            (button=="A Button - Pressed") || (button=="B Button - Pressed") ||
             (button=="Fire - Pressed")     || (button=="Fire") ||
             (button=="Fire Button - Pressed");
+        const bool faster = (button=="A Button - Pressed");
+        const bool slower = (button=="B Button - Pressed");
         const bool startPress = (button=="Start - Pressed") || (button=="Start");
 
         // allow base pause menu handling while game is active
@@ -226,6 +228,11 @@ public:
         }
 
         if (paused) return;
+
+        // A speeds everything on the road and river up a step, B slows it
+        // back down - never below the level's own speed.
+        if (faster) { speedBoost = std::min(MAX_BOOST, speedBoost + BOOST_STEP); return; }
+        if (slower) { speedBoost = std::max(1.0f, speedBoost - BOOST_STEP); return; }
 
         if (aPress || up)       moveFrog(0, -1);
         else if (down)          moveFrog(0, +1);
@@ -287,6 +294,7 @@ private:
 
     // ------------ Game state ------------
     void resetGame(bool /*newGame*/) {
+        speedBoost = 1.0f;
         level  = 1;
         score  = 0;
         lives  = 3;
@@ -454,7 +462,7 @@ private:
         // be gx > gridCols + gw, which wrapped it to about 0 - fully on screen
         // - so everything moving right popped in whole at the left edge.
         for (auto &m : movers) {
-            m.gx += m.dir * m.speed * dt;
+            m.gx += m.dir * m.speed * speedBoost * dt;
             const float wrap = (float)(gridCols + m.gw);
             if (m.gx < -m.gw)      m.gx += wrap;
             if (m.gx >= gridCols)  m.gx -= wrap;
@@ -602,6 +610,13 @@ private:
             if (xLives >= panelW) break;
         }
 
+        // Traffic speed above the level's own: a yellow dot per A press,
+        // from the bottom right.
+        const int boostDots = (int)std::lround((speedBoost - 1.0f) / BOOST_STEP);
+        for (int i=0; i<boostDots && 2*i < panelW; ++i) {
+            pxRaw(offsetX + panelW - 1 - 2*i, yLives, 255,200,40);
+        }
+
         if (drawPaused) {
             outputString("PAUSED", centerTextX("PAUSED", 1), std::max(0, gridRows/2-3), 255,255,255, 1);
         }
@@ -651,6 +666,11 @@ private:
 
     // state
     int    level=1;
+    // Multiplies every mover's speed: 1 is the level's own, A raises it a
+    // step at a time up to MAX_BOOST, B lowers it back. Kept across levels.
+    static constexpr float BOOST_STEP = 0.25f;
+    static constexpr float MAX_BOOST = 3.0f;
+    float  speedBoost = 1.0f;
     int    lives=3;
     int    score=0;
     bool   paused=false;

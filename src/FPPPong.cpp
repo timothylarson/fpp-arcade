@@ -115,8 +115,12 @@ public:
         }
         if (p1Score >= 5 || p2Score >= 5) {
             GameOn = false;
-            outputString("GAME", (cols-8)/ 2, rows/2-6);
-            outputString("OVER", (cols-8)/ 2, rows/2);
+            // Centred across the court, and below the score (rows 2 to 6)
+            // rather than on top of it. The old x of (cols - 8) / 2 assumed
+            // two-letter words and sat four columns right of centre.
+            const int y0 = std::max(8, (rows - 11) / 2 + 1);
+            outputString("GAME", centerTextX("GAME"), y0);
+            outputString("OVER", centerTextX("OVER"), y0 + 6);
             model->flushOverlayBuffer();
             return 2000;
         }

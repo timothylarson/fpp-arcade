@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Pong: GAME OVER is centred and sits below the score.
 - Pong: a dim border marks the edge of the court; the paddles, ball and score all stay inside it.
 - Asteroid Orbit: the black hole pulls from anywhere on the field, more strongly the longer it is open, so it sucks the ship in.
 - Frogger: A speeds the cars, logs and turtles up a step (up to 3x), B slows them back down, never below the level's speed; yellow dots bottom right show how far up it is. A and B no longer hop.

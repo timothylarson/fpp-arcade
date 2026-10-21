@@ -634,6 +634,14 @@ int FPPArcadeGameEffect::fitTextScale(const std::vector<std::string> &lines, int
     return std::max(1, std::min(want, widthPx / textW));
 }
 
+void FPPArcadeGameEffect::sfx(const std::string &game, const std::string &name, float gain) {
+    ArcadeSound::play(game, name, gain, model->getName());
+}
+
+void FPPArcadeGameEffect::sfxStop(const std::string &game) {
+    ArcadeSound::stopAll(game, model->getName());
+}
+
 void FPPArcadeGameEffect::textBox(const std::vector<std::string> &lines, int r, int g, int b) {
     const int W = model->getWidth(), H = model->getHeight();
     const int n = std::min<int>((int)lines.size(), std::max(1, (H + 1) / 6));

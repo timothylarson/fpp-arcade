@@ -66,6 +66,11 @@ public:
     // Lines of 3x5 text centred on the panel over a black box, so a busy
     // playfield doesn't show through the letters. Draws as many lines as fit.
     void textBox(const std::vector<std::string> &lines, int r, int g, int b);
+    // Sound effects, by name from sounds/<game>/<name>.wav (see ArcadeSound.h),
+    // sent to this model's speakers. A name with no file is silent, so call it
+    // for every event worth hearing.
+    void sfx(const std::string &game, const std::string &name, float gain = 1.0f);
+    void sfxStop(const std::string &game);
     void outputPixel(int x, int y, int r, int g, int b, int scl = -1);
     double consumeElapsedMs(double fallbackMs, double maxClampMs = 250.0);
     void resetFrameTimer();

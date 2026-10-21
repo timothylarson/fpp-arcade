@@ -108,7 +108,15 @@ std::shared_ptr<Clip> loadWav(const std::string &path) {
     return clip;
 }
 
+// Sounds put on the player win over the ones that come with the plugin, so
+// any bundled sound can be replaced by dropping a file of the same name in.
 std::string soundsDir() { return FPP_DIR_MEDIA("/plugindata/fpp-arcade/sounds"); }
+std::string bundledDir() { return FPP_DIR_MEDIA("/plugins/fpp-arcade/sounds"); }
+std::string soundFile(const std::string &key) {
+    const std::string own = soundsDir() + "/" + key + ".wav";
+    struct stat st{};
+    return stat(own.c_str(), &st) == 0 ? own : bundledDir() + "/" + key + ".wav";
+}
 
 // Only letters, digits, '_', '-' and one '/': a sound path from a request
 // can't reach outside the sounds folder.
@@ -189,7 +197,7 @@ public:
         if (it == cache.end()) {
             // Loaded on first use and kept; a missing file is remembered too,
             // so a game without sounds doesn't look on disk every event.
-            it = cache.emplace(key, loadWav(FPP_DIR_MEDIA("/plugindata/fpp-arcade/sounds/" + key + ".wav"))).first;
+            it = cache.emplace(key, loadWav(soundFile(key))).first;
         }
         if (!it->second) {
             return;
@@ -531,17 +539,22 @@ void shutdown() {
 }
 std::string speakersJson() { return engine().speakersJson(); }
 
-// Every <game>/<name>.wav, with a version (size and modification time) a
-// speaker compares to decide what to fetch again.
+// Every <game>/<name>.wav, the player's own and the bundled ones (the
+// player's winning), with a version (where it's from, size and modification
+// time) a speaker compares to decide what to fetch again.
 std::string soundListJson() {
-    std::string o = "{\"files\":[";
-    bool first = true;
-    if (DIR *games = opendir(soundsDir().c_str())) {
+    std::map<std::string, std::string> found;
+    for (const std::string &root : {bundledDir(), soundsDir()}) {   // own last, so it wins
+        const char tag = root == soundsDir() ? 'u' : 'b';
+        DIR *games = opendir(root.c_str());
+        if (!games) {
+            continue;
+        }
         while (dirent *g = readdir(games)) {
             if (g->d_name[0] == '.') {
                 continue;
             }
-            const std::string gdir = soundsDir() + "/" + g->d_name;
+            const std::string gdir = root + "/" + g->d_name;
             DIR *files = opendir(gdir.c_str());
             if (!files) {
                 continue;
@@ -556,14 +569,19 @@ std::string soundListJson() {
                 if (!safePath(path) || stat((gdir + "/" + n).c_str(), &st) != 0) {
                     continue;
                 }
-                o += first ? "" : ",";
-                first = false;
-                o += "{\"path\":\"" + path + "\",\"version\":\"" + std::to_string((long long)st.st_size) + "-" +
-                     std::to_string((long long)st.st_mtime) + "\"}";
+                found[path] = std::string(1, tag) + std::to_string((long long)st.st_size) + "-" +
+                              std::to_string((long long)st.st_mtime);
             }
             closedir(files);
         }
         closedir(games);
+    }
+    std::string o = "{\"files\":[";
+    bool first = true;
+    for (auto &[path, version] : found) {
+        o += first ? "" : ",";
+        first = false;
+        o += "{\"path\":\"" + path + "\",\"version\":\"" + version + "\"}";
     }
     return o + "]}";
 }
@@ -572,7 +590,7 @@ bool soundPcm(const std::string &path, int rate, std::string &out) {
     if (!safePath(path) || rate < 8000 || rate > RATE) {
         return false;
     }
-    auto clip = loadWav(soundsDir() + "/" + path + ".wav");
+    auto clip = loadWav(soundFile(path));
     if (!clip) {
         return false;
     }

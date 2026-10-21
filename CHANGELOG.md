@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Controller speakers: ESP32-S3 firmware (speaker/) that says hello to FPP, fetches each game's sounds over HTTP and plays the events FPP sends it for its own model. The plugin sends PLAY/STOP/SYNC per model, serves the sound list and files, and lists connected speakers on the Arcade Games page.
 - Breakout: launching a ball off the paddle (by button or after its 3 seconds) plays BounceFromPaddle.
 - Sound effects: a mixer that plays per-game WAV files from media/plugindata/fpp-arcade/sounds on a USB sound card and/or streams them over UDP (for the Matrix Viewer on a Mac), set up under Sound on the Arcade Games page. Breakout plays sounds for bounces, bricks, power-ups, lasers, the portal, levels and the end of the game; every game plays GameSelected on its title.
 - Maze Chase: wide mazes for the first levels, with two-LED paths and 2x2 characters that glide between cells; the one-LED maze starts at the Narrow maze from level setting (default 4).

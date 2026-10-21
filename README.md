@@ -225,6 +225,13 @@ plugged into the player, and/or streamed over the network to a computer.
 The sound card should be one FPP itself isn't using for show audio (leave FPP's own audio
 output on the player set to none or the Dummy device).
 
+**Controller speakers:** an ESP32-S3 with an amp and speaker inside each controller, on Wi-Fi,
+playing just its own model's sounds. It keeps its own copy of the sound files (fetched from
+here) and is sent an event per sound rather than audio, so sounds land instantly and a busy
+network costs at most a sound. Parts, wiring, firmware and set-up are in
+[speaker/README.md](speaker/README.md); connected speakers are listed under Sound on the Arcade
+Games page.
+
 ## Commands
 
 The plugin registers three FPP Commands:

@@ -581,7 +581,7 @@ public:
 
         showingLevelIntro = true;
         // Each level opens with its jingle, the last one with its own.
-        ArcadeSound::stopAll("breakout");
+        stopSounds();
         sound(currentLevel + 1 >= (int)LEVEL_LAYOUTS.size() ? "LastLevel" : "StartLevel");
         levelIntroTimerMs = 1500.0;
         levelIntroText = "LEVEL " + std::to_string(currentLevel + 1);
@@ -818,7 +818,7 @@ public:
 
         GameOn = false;
         showingLevelIntro = false;
-        ArcadeSound::stopAll("breakout");
+        stopSounds();
         sound("WonGame");
         int scl = fitTextScale({"YOU", "WIN"}, std::max(1, (int)paddle.height));
         CopyToModel(0.2f);
@@ -970,12 +970,14 @@ public:
     }
 
     // Sounds are played by name from the Breakout sound folder; see
-    // ArcadeSound.h. A name with no file there is simply silent.
-    static void sound(const char *name) { ArcadeSound::play("breakout", name); }
+    // ArcadeSound.h. A name with no file there is simply silent. They go to
+    // this model's controller speakers, so each player hears their own game.
+    void sound(const char *name) { ArcadeSound::play("breakout", name, 1.0f, model->getName()); }
+    void stopSounds() { ArcadeSound::stopAll("breakout", model->getName()); }
 
     // A brick that took a hit: it breaks (tough ones with their own sound) or
     // it holds.
-    static void brickSound(const Block &b, bool destroyed) {
+    void brickSound(const Block &b, bool destroyed) {
         if (!destroyed) {
             sound("HitNoBreak");
         } else {
@@ -1432,7 +1434,7 @@ public:
                 return 300; // or 250 if you prefer snappier
             } else {
                 GameOn = false;
-                ArcadeSound::stopAll("breakout");
+                stopSounds();
                 sound("LoseGame");
                 LogInfo(VB_PLUGIN, "[Breakout] GAME OVER on level %d", currentLevel + 1);
                 int scl = fitTextScale({"GAME", "OVER"}, std::max(1, (int)paddle.height));

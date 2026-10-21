@@ -909,8 +909,8 @@ public:
             return;
         }
         model->setRunningEffect(new GameTitleEffect(model, game->getName()), 20);
-        ArcadeSound::stopAll(ArcadeSound::folderFor(game->getName()));
-        ArcadeSound::play(ArcadeSound::folderFor(game->getName()), "GameSelected");
+        ArcadeSound::stopAll(ArcadeSound::folderFor(game->getName()), game->getModelName());
+        ArcadeSound::play(ArcadeSound::folderFor(game->getName()), "GameSelected", 1.0f, game->getModelName());
     }
     
 
@@ -1035,11 +1035,27 @@ public:
                     v += a + "\n";
                 }
                 callback(makeStringResponse(v, 200));
+            } else if (path == "speakers") {
+                callback(makeStringResponse(ArcadeSound::speakersJson(), 200, "application/json"));
+            } else if (path == "sounds") {
+                callback(makeStringResponse(ArcadeSound::soundListJson(), 200, "application/json"));
+            } else if (path == "sound") {
+                // One sound as raw PCM for a controller speaker; see ArcadeSound.h.
+                std::string pcm;
+                const int rate = atoi(req->getParameter("rate").c_str());
+                if (ArcadeSound::soundPcm(req->getParameter("f"), rate > 0 ? rate : 22050, pcm)) {
+                    callback(makeStringResponse(pcm, 200, "application/octet-stream"));
+                } else {
+                    callback(makeStringResponse("No such sound", 404));
+                }
             } else {
                 callback(makeStringResponse("Not found", 404));
             }
         };
         auto handleArcade2 = handleArcade;
+        auto handleArcade3 = handleArcade;
+        auto handleArcade4 = handleArcade;
+        auto handleArcade5 = handleArcade;
 
         // Only the plain paths are needed: Apache rewrites
         // api/plugin-apis/arcade/* to localhost:32322/arcade/*, stripping the
@@ -1051,6 +1067,9 @@ public:
         // be withdrawn and would pin this plugin in memory for the life of fppd.
         FPPPlugins::registerPluginApi("/arcade/controllers", std::move(handleArcade), {drogon::Get});
         FPPPlugins::registerPluginApi("/arcade/events", std::move(handleArcade2), {drogon::Get});
+        FPPPlugins::registerPluginApi("/arcade/speakers", std::move(handleArcade3), {drogon::Get});
+        FPPPlugins::registerPluginApi("/arcade/sounds", std::move(handleArcade4), {drogon::Get});
+        FPPPlugins::registerPluginApi("/arcade/sound", std::move(handleArcade5), {drogon::Get});
     }
 
     void unregisterApis() override {
@@ -1059,6 +1078,9 @@ public:
         // dlclose() safe.
         FPPPlugins::unregisterPluginApi("/arcade/controllers");
         FPPPlugins::unregisterPluginApi("/arcade/events");
+        FPPPlugins::unregisterPluginApi("/arcade/speakers");
+        FPPPlugins::unregisterPluginApi("/arcade/sounds");
+        FPPPlugins::unregisterPluginApi("/arcade/sound");
     }
 
 #ifdef USE_SDL_CONTROLLERS

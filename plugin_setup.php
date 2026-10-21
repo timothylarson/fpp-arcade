@@ -90,6 +90,9 @@ Saving applies straight away, without restarting FPP, and stops any game being p
     port <input type="number" id="sndPort" min="1" max="65535" style="width: 90px">
     <div class="hint">Sends the game sounds over the network too, for the Matrix Viewer on a Mac to play (turn on Game sound in its
     settings, same port). Leave blank when the speaker is on the player.</div></td></tr>
+<tr><td>Controller speakers</td><td><div id="sndSpeakers">Looking...</div>
+    <div class="hint">ESP32 speakers built into the controllers (see <code>speaker/README.md</code> in the plugin). Each plays the sounds of
+    the model it's set to, from its own copy of the files, which it fetches from here.</div></td></tr>
 </table>
 
 <div id="arcadeModels"></div>
@@ -403,8 +406,22 @@ function arcadeAdd() {
     $('html, body').animate({ scrollTop: $('#arcadeModels .game').last().offset().top - 80 }, 300);
 }
 
+function arcadeRefreshSpeakers() {
+    $.get('api/plugin-apis/arcade/speakers').done(function (list) {
+        if (!list || !list.length) {
+            $('#sndSpeakers').text('None heard from.');
+            return;
+        }
+        $('#sndSpeakers').html(list.map(function (s) {
+            return '<div><a href="http://' + arcadeEsc(s.ip) + '/" target="_blank">' + arcadeEsc(s.name || s.ip) + '</a> - ' +
+                arcadeEsc(s.model) + ', volume ' + s.volume + '%, ' + arcadeEsc(s.ip) + ', firmware ' + arcadeEsc(s.firmware) + '</div>';
+        }).join(''));
+    }).fail(function () { $('#sndSpeakers').text('Not available.'); });
+}
+
 // What each model is doing right now.
 function arcadeRefresh() {
+    arcadeRefreshSpeakers();
     var names = arcadeModelNames().filter(function (m) {
         return arcadeConfig.games.some(function (g) { return g.model === m; });
     });

@@ -8,7 +8,10 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <dirent.h>
 #include <fstream>
+#include <sstream>
+#include <sys/stat.h>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -31,6 +34,8 @@ namespace {
 constexpr int RATE = 44100;
 constexpr int BLOCK = 441;          // 10 ms
 constexpr int MAX_VOICES = 12;
+constexpr int SPEAKER_PORT = 5571;   // controller speakers say hello here
+constexpr int SPEAKER_TIMEOUT_S = 15;
 
 struct Clip {
     std::vector<int16_t> samples;   // mono, RATE
@@ -103,9 +108,48 @@ std::shared_ptr<Clip> loadWav(const std::string &path) {
     return clip;
 }
 
+std::string soundsDir() { return FPP_DIR_MEDIA("/plugindata/fpp-arcade/sounds"); }
+
+// Only letters, digits, '_', '-' and one '/': a sound path from a request
+// can't reach outside the sounds folder.
+bool safePath(const std::string &p) {
+    int slashes = 0;
+    for (char c : p) {
+        if (c == '/') {
+            ++slashes;
+        } else if (!isalnum((unsigned char)c) && c != '_' && c != '-') {
+            return false;
+        }
+    }
+    return slashes == 1 && p.front() != '/' && p.back() != '/';
+}
+
+std::string jsonEscape(const std::string &s) {
+    std::string o;
+    for (char c : s) {
+        if (c == '"' || c == '\\') {
+            o += '\\';
+        }
+        if ((unsigned char)c >= 0x20) {
+            o += c;
+        }
+    }
+    return o;
+}
+
+struct Speaker {
+    sockaddr_in addr{};
+    std::string model, name, firmware;
+    int volume = 0;
+    std::chrono::steady_clock::time_point seen;
+};
+
 class Engine {
 public:
-    ~Engine() { stop(); }
+    ~Engine() {
+        stop();
+        stopListener();
+    }
 
     void configure(const Json::Value &cfg) {
         stop();
@@ -119,6 +163,8 @@ public:
             cache.clear();   // pick up sound files added since
             voices.clear();
         }
+        startListener();
+        sendToSpeakers("SYNC", "");   // files may have changed with the settings
         if (enabled) {
             running = true;
             th = std::thread([this]() { mixLoop(); });
@@ -127,9 +173,15 @@ public:
         }
     }
 
-    void play(const std::string &game, const std::string &name, float gain) {
+    void play(const std::string &game, const std::string &name, float gain, const std::string &model) {
         if (!enabled) {
             return;
+        }
+        {
+            char msg[256];
+            snprintf(msg, sizeof(msg), "PLAY %u %s/%s %.3f", ++eventSeq, game.c_str(), name.c_str(),
+                     std::clamp(gain, 0.0f, 4.0f) * volume);
+            sendToSpeakers(msg, model);
         }
         std::lock_guard<std::mutex> l(mu);
         const std::string key = game + "/" + name;
@@ -148,7 +200,8 @@ public:
         voices.push_back({it->second, 0, gain, game});
     }
 
-    void stopAll(const std::string &game) {
+    void stopAll(const std::string &game, const std::string &model) {
+        sendToSpeakers("STOP " + (game.empty() ? std::string("*") : game), model);
         std::lock_guard<std::mutex> l(mu);
         voices.erase(std::remove_if(voices.begin(), voices.end(),
                                     [&](const Voice &v) { return game.empty() || v.game == game; }),
@@ -160,6 +213,124 @@ public:
         if (th.joinable()) {
             th.join();
         }
+    }
+
+    // ------------------------------------------------ controller speakers
+    void startListener() {
+        if (listening) {
+            return;
+        }
+        const int s = socket(AF_INET, SOCK_DGRAM, 0);
+        if (s < 0) {
+            return;
+        }
+        int yes = 1;
+        setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        timeval tv{0, 500000};
+        setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        sockaddr_in a{};
+        a.sin_family = AF_INET;
+        a.sin_port = htons(SPEAKER_PORT);
+        a.sin_addr.s_addr = htonl(INADDR_ANY);
+        if (bind(s, (sockaddr *)&a, sizeof(a)) != 0) {
+            LogWarn(VB_PLUGIN, "Arcade sound: can't listen for speakers on UDP %d\n", SPEAKER_PORT);
+            close(s);
+            return;
+        }
+        eventSock = s;
+        listening = true;
+        listener = std::thread([this]() { listenLoop(); });
+    }
+
+    void stopListener() {
+        listening = false;
+        if (listener.joinable()) {
+            listener.join();
+        }
+        if (eventSock >= 0) {
+            close(eventSock);
+            eventSock = -1;
+        }
+    }
+
+    // Hellos from speakers: who they are and which model they play for.
+    void listenLoop() {
+        char buf[512];
+        while (listening) {
+            sockaddr_in from{};
+            socklen_t len = sizeof(from);
+            const ssize_t n = recvfrom(eventSock, buf, sizeof(buf) - 1, 0, (sockaddr *)&from, &len);
+            if (n <= 0) {
+                continue;
+            }
+            buf[n] = 0;
+            if (strncmp(buf, "FAS-HELLO 1 ", 12) != 0) {
+                continue;
+            }
+            std::vector<std::string> f;
+            std::stringstream ss(buf + 12);
+            std::string part;
+            while (std::getline(ss, part, '|')) {
+                f.push_back(part);
+            }
+            Speaker sp;
+            sp.addr = from;
+            sp.model = f.size() > 0 ? f[0] : "";
+            sp.name = f.size() > 1 ? f[1] : "";
+            sp.firmware = f.size() > 2 ? f[2] : "";
+            sp.volume = f.size() > 3 ? atoi(f[3].c_str()) : 0;
+            sp.seen = std::chrono::steady_clock::now();
+            char ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &from.sin_addr, ip, sizeof(ip));
+            const std::string key = std::string(ip) + ":" + std::to_string(ntohs(from.sin_port));
+            std::lock_guard<std::mutex> l(speakerMu);
+            if (!speakers.count(key)) {
+                LogInfo(VB_PLUGIN, "Arcade sound: speaker %s (%s) at %s for %s\n", sp.name.c_str(), sp.firmware.c_str(),
+                        key.c_str(), sp.model.c_str());
+            }
+            speakers[key] = sp;
+        }
+    }
+
+    // To every speaker for `model` (or every speaker), straight away: a
+    // datagram per speaker, no waiting on the mixer.
+    void sendToSpeakers(const std::string &msg, const std::string &model) {
+        if (eventSock < 0) {
+            return;
+        }
+        const auto now = std::chrono::steady_clock::now();
+        std::lock_guard<std::mutex> l(speakerMu);
+        for (auto it = speakers.begin(); it != speakers.end();) {
+            if (now - it->second.seen > std::chrono::seconds(SPEAKER_TIMEOUT_S)) {
+                it = speakers.erase(it);   // gone quiet: switched off or out of range
+                continue;
+            }
+            if (model.empty() || it->second.model == model) {
+                sendto(eventSock, msg.data(), msg.size(), 0, (const sockaddr *)&it->second.addr, sizeof(sockaddr_in));
+            }
+            ++it;
+        }
+    }
+
+    std::string speakersJson() {
+        const auto now = std::chrono::steady_clock::now();
+        std::string o = "[";
+        std::lock_guard<std::mutex> l(speakerMu);
+        for (auto &[key, sp] : speakers) {
+            const long ago = (long)std::chrono::duration_cast<std::chrono::seconds>(now - sp.seen).count();
+            if (ago > SPEAKER_TIMEOUT_S) {
+                continue;
+            }
+            if (o.size() > 1) {
+                o += ",";
+            }
+            char ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &sp.addr.sin_addr, ip, sizeof(ip));
+            o += "{\"ip\":\"" + std::string(ip) + "\",\"model\":\"" + jsonEscape(sp.model) + "\",\"name\":\"" +
+                 jsonEscape(sp.name) + "\",\"firmware\":\"" + jsonEscape(sp.firmware) + "\",\"volume\":" +
+                 std::to_string(sp.volume) + ",\"secondsAgo\":" + std::to_string(ago) + "}";
+        }
+        return o + "]";
     }
 
 private:
@@ -318,6 +489,13 @@ private:
         sendto(sock, pkt, sizeof(pkt), 0, (const sockaddr *)&dest, sizeof(dest));
     }
 
+    std::mutex speakerMu;
+    std::map<std::string, Speaker> speakers;
+    std::atomic<bool> listening{false};
+    std::thread listener;
+    int eventSock = -1;
+    std::atomic<uint32_t> eventSeq{0};
+
     std::mutex mu;
     std::map<std::string, std::shared_ptr<const Clip>> cache;
     std::vector<Voice> voices;
@@ -343,9 +521,78 @@ Engine &engine() {
 }  // namespace
 
 void configure(const Json::Value &cfg) { engine().configure(cfg); }
-void play(const std::string &game, const std::string &name, float gain) { engine().play(game, name, gain); }
-void stopAll(const std::string &game) { engine().stopAll(game); }
-void shutdown() { engine().stop(); }
+void play(const std::string &game, const std::string &name, float gain, const std::string &model) {
+    engine().play(game, name, gain, model);
+}
+void stopAll(const std::string &game, const std::string &model) { engine().stopAll(game, model); }
+void shutdown() {
+    engine().stop();
+    engine().stopListener();
+}
+std::string speakersJson() { return engine().speakersJson(); }
+
+// Every <game>/<name>.wav, with a version (size and modification time) a
+// speaker compares to decide what to fetch again.
+std::string soundListJson() {
+    std::string o = "{\"files\":[";
+    bool first = true;
+    if (DIR *games = opendir(soundsDir().c_str())) {
+        while (dirent *g = readdir(games)) {
+            if (g->d_name[0] == '.') {
+                continue;
+            }
+            const std::string gdir = soundsDir() + "/" + g->d_name;
+            DIR *files = opendir(gdir.c_str());
+            if (!files) {
+                continue;
+            }
+            while (dirent *f = readdir(files)) {
+                std::string n = f->d_name;
+                if (n.size() < 5 || n.compare(n.size() - 4, 4, ".wav") != 0) {
+                    continue;
+                }
+                const std::string path = std::string(g->d_name) + "/" + n.substr(0, n.size() - 4);
+                struct stat st{};
+                if (!safePath(path) || stat((gdir + "/" + n).c_str(), &st) != 0) {
+                    continue;
+                }
+                o += first ? "" : ",";
+                first = false;
+                o += "{\"path\":\"" + path + "\",\"version\":\"" + std::to_string((long long)st.st_size) + "-" +
+                     std::to_string((long long)st.st_mtime) + "\"}";
+            }
+            closedir(files);
+        }
+        closedir(games);
+    }
+    return o + "]}";
+}
+
+bool soundPcm(const std::string &path, int rate, std::string &out) {
+    if (!safePath(path) || rate < 8000 || rate > RATE) {
+        return false;
+    }
+    auto clip = loadWav(soundsDir() + "/" + path + ".wav");
+    if (!clip) {
+        return false;
+    }
+    const auto &s = clip->samples;
+    const size_t frames = (size_t)((double)s.size() * rate / RATE);
+    out.resize(frames * 2);
+    for (size_t i = 0; i < frames; ++i) {
+        // Average the samples this output one covers, a simple low-pass so
+        // halving the rate doesn't alias.
+        const size_t a = (size_t)((double)i * RATE / rate), b = std::max(a + 1, (size_t)((double)(i + 1) * RATE / rate));
+        long sum = 0;
+        size_t n = 0;
+        for (size_t k = a; k < b && k < s.size(); ++k, ++n) {
+            sum += s[k];
+        }
+        const int16_t v = (int16_t)(n ? sum / (long)n : 0);
+        memcpy(&out[i * 2], &v, 2);
+    }
+    return true;
+}
 
 std::string folderFor(const std::string &gameName) {
     std::string s;

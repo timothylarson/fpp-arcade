@@ -154,7 +154,9 @@ public:
                 // time, which is why it always ended up off the left end of a
                 // log drifting right.
                 frog.gx = moverDrawX(movers[rideIdx]) + rideOffset;
-                if (frog.gx <= 0 || frog.gx >= gridCols - 1) {
+                // Riding up to the edge is fine; only a log that carries the
+                // frog past it (off the screen) costs a life.
+                if (frog.gx < 0 || frog.gx + frog.gw > gridCols) {
                     loseLife("Splash");   // carried off the end of the row
                 }
             } else {

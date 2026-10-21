@@ -1,5 +1,7 @@
 # FPP Arcade Changelog
 
+- Frogger: riding a log or turtle to the edge of the screen no longer costs a life; only being carried off it does.
+- Orb Pop: a round no longer ends early while someone is still in view. Anyone the Kinect sees keeps it going (a player standing still had dropped out of the count), and it ends early only after 15 seconds with no one there.
 - Sound effects for every game: Tetris, Pong, Snake, Frogger, Maze Chase, Asteroid Orbit, Barrel Climb, Star Defenders, Orb Pop, Shape Fit, Stacker, Flap and Light Memory, with original retro sounds bundled in sounds/ (made by tools/sfx) and listed in SOUNDS.md. A file of the same name in media/plugindata/fpp-arcade/sounds replaces a bundled one.
 - Controller speakers: ESP32-S3 firmware (speaker/) that says hello to FPP, fetches each game's sounds over HTTP and plays the events FPP sends it for its own model. The plugin sends PLAY/STOP/SYNC per model, serves the sound list and files, and lists connected speakers on the Arcade Games page.
 - Breakout: launching a ball off the paddle (by button or after its 3 seconds) plays BounceFromPaddle.

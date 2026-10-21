@@ -270,11 +270,17 @@ private:
         }
 
         // Presence, and moving between attract mode and a round.
-        int present = 0;
+        int present = 0, seen = 0;
         for (int i = 0; i < N; ++i) {
             present += person[i];
+            seen += (person[i] || depth[i] > 0) ? 1 : 0;
         }
         const bool someone = present * 100.0f >= N * set.presencePct;
+        // Once a round is going, anyone still in view keeps it going: a player
+        // standing still, or close to the wall behind, can drop below the
+        // start threshold (the Kinect learns a still body into the background
+        // after its Relearn time), and ending then left the timer bar unfinished.
+        const bool stillHere = someone || seen >= std::max(4, N / 200);
         cooldownMs = std::max(0.0, cooldownMs - dt);
         switch (mode) {
         case Mode::Mirror:
@@ -304,7 +310,7 @@ private:
             break;
         }
         case Mode::Round: {
-            awayMs = someone ? 0 : awayMs + dt;
+            awayMs = stillHere ? 0 : awayMs + dt;
             // A soft tick for each of the last three seconds; the timer bar
             // along the top is easy to miss while reaching for orbs.
             const int secsLeft = (int)std::ceil((set.roundMs - modeMs) / 1000.0);
@@ -312,7 +318,7 @@ private:
                 lastTick = secsLeft;
                 sound("Tick", 0.6f);
             }
-            if (modeMs >= set.roundMs || awayMs >= 8000) {
+            if (modeMs >= set.roundMs || awayMs >= 15000) {
                 mode = Mode::Score;
                 modeMs = 0;
                 scoreSounded = false;

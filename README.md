@@ -53,8 +53,8 @@ and the same overlay model, and reads who is standing where from it every frame.
 - **A round:** someone standing in view for *Start After* seconds (or the A button) starts a
   3-2-1 countdown. Glowing orbs drift across the wall and burst into sparks when anyone touches
   one. Gold orbs are smaller and quicker and score 5. A bar along the top shows the time left
-  and the score is in the corner. The round ends when time is up, or 8 seconds after everyone
-  leaves, and shows the score before going back to attract mode.
+  and the score is in the corner. The round ends when time is up, or 15 seconds after the Kinect
+  sees no one at all, and shows the score before going back to attract mode.
 - **Start Automatically** (off by default) switches the model to Orb Pop whenever it is showing
   the plain Kinect picture. Another game selected and started on the model takes over as usual,
   and Orb Pop comes back about a second after it ends. If the Kinect stops sending frames for

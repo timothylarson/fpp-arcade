@@ -322,9 +322,16 @@ private:
             }
         }
         // The goal: a dim line where the top row goes, once it's in view.
+        // Level with the counters in the top corners it stops short of them,
+        // so it never runs behind the numbers.
         const int gy = screenY(rowY(goal - 1)) - 1;
         if (gy >= 0 && !party) {
-            for (int xx = 0; xx < W; xx += 2) {
+            int x0 = 0, x1 = W - 1;
+            if (gy < 5 && phase != Phase::Intro) {
+                x0 = (int)std::to_string(goal - (int)stack.size()).size() * 4 + 2;
+                x1 = W - (int)std::to_string(score).size() * 4 - 2;
+            }
+            for (int xx = x0; xx <= x1; xx += 2) {
                 canvas.add(xx, gy, {1.0f, 0.85f, 0.2f}, 0.3f);
             }
         }

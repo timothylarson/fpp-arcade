@@ -64,11 +64,13 @@ public:
             scl = 1;
         }
         
-        outputString(buf, (model->getWidth()/2 - len*2) / scl, 0, 128, 128, 128, scl);
+        // Below the border, with a row clear of it.
+        outputString(buf, (model->getWidth()/2 - len*2) / scl, scl <= 1 ? 2 : 1, 128, 128, 128, scl);
         
+        // The paddles stand one in from the border, on the court.
         for (int y = 0; y < racketSize; y++) {
-            outputPixel(0, racketP1Pos + y, 255, 255, 255);
-            outputPixel(cols-1, racketP2Pos + y, 255, 255, 255);
+            outputPixel(1, racketP1Pos + y, 255, 255, 255);
+            outputPixel(cols-2, racketP2Pos + y, 255, 255, 255);
         }
         outputPixel(ballPosX, ballPosY, 255, 255, 255);
         
@@ -127,9 +129,10 @@ public:
         float deltaP2 = static_cast<float>(racketP2Speed * frameScalar);
         racketP1PosF += deltaP1;
         racketP2PosF += deltaP2;
-        float maxPos = static_cast<float>(rows - racketSize);
-        racketP1PosF = std::clamp(racketP1PosF, 0.0f, maxPos);
-        racketP2PosF = std::clamp(racketP2PosF, 0.0f, maxPos);
+        // Inside the border: rows 1 to rows - 2.
+        float maxPos = static_cast<float>(rows - 1 - racketSize);
+        racketP1PosF = std::clamp(racketP1PosF, 1.0f, maxPos);
+        racketP2PosF = std::clamp(racketP2PosF, 1.0f, maxPos);
         racketP1Pos = static_cast<int>(std::round(racketP1PosF));
         racketP2Pos = static_cast<int>(std::round(racketP2PosF));
     }
@@ -137,8 +140,11 @@ public:
         ballPosX += ballDirX * ballSpeed * frameScalar;
         ballPosY += ballDirY * ballSpeed * frameScalar;
         
+        // The court is inside the border: the paddles are in columns 1 and
+        // cols - 2, the ball bounces between rows 1 and rows - 2, and it
+        // scores when it reaches the border column behind a paddle.
         // hit by left racket?
-         if (ballPosX <= 1 &&
+         if (ballPosX <= 2 &&
              ballPosY <= (racketP1Pos + racketSize) &&
              ballPosY >= racketP1Pos) {
              // set fly direction depending on where it hit the racket
@@ -149,7 +155,7 @@ public:
          }
         
          // hit by right racket?
-         if (ballPosX >= (cols-2) &&
+         if (ballPosX >= (cols-3) &&
              ballPosY <= (racketP2Pos + racketSize) &&
              ballPosY >= racketP2Pos) {
              // set fly direction depending on where it hit the racket
@@ -159,7 +165,7 @@ public:
              ballDirY = t;
          }
 
-         if (ballPosX < 0) {
+         if (ballPosX < 1) {
              //left wall
              ++p2Score;
              ballPosX = cols / 2;
@@ -169,7 +175,7 @@ public:
          }
 
          // hit right wall?
-         if (ballPosX >= cols) {
+         if (ballPosX >= cols - 1) {
              //right wall
              ++p1Score;
              ballPosX = cols / 2;
@@ -178,15 +184,15 @@ public:
              ballDirY = 0;
          }
 
-         if (ballPosY >= rows) {
+         if (ballPosY >= rows - 1) {
              //hit bottom
              ballDirY = -std::fabs(ballDirY);
-             ballPosY = rows-1;
+             ballPosY = rows-2;
          }
-         if (ballPosY < 0) {
+         if (ballPosY < 1) {
              //hit top
              ballDirY = std::fabs(ballDirY);
-             ballPosY = 0;
+             ballPosY = 1;
          }
 
          // make sure that length of dir stays at 1

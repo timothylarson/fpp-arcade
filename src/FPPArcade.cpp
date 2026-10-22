@@ -479,14 +479,15 @@ static const std::map<uint8_t, std::vector<uint8_t>> LETTERS = {
 
 // Letters drawn twice the size or more have room for more detail than the 3x5
 // grid: these are 6x10 versions, scaled from there instead. Only the letters
-// that need it; the rest are the 3x5 ones scaled up.
+// that need it; the rest are the 3x5 ones scaled up. One may be 7 wide (W),
+// running one LED into the gap before the next letter.
 static const std::map<char, std::array<const char *, 10>> LETTERS_2X = {
     // N with its diagonal stepping down through the middle
     {'N', {"XX..XX", "XX..XX", "XXX.XX", "XXXXXX", "XXXXXX", "XXXXXX", "XXXXXX", "XX.XXX", "XX..XX", "XX..XX"}},
     // D with rounded corners
     {'D', {"XXXX..", "XXXXX.", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XXXXX.", "XXXX.."}},
-    // W with a centre stroke rising from the base, the sides thinning to meet it
-    {'W', {"XX..XX", "XX..XX", "XX..XX", "XX..XX", "X.XX.X", "X.XX.X", "X.XX.X", "X.XX.X", "XXXXXX", "XX..XX"}},
+    // W with a centre stroke, seven wide so the stroke can be one LED
+    {'W', {"XX...XX", "XX...XX", "XX...XX", "XX...XX", "XX.X.XX", "XXXXXXX", "XXXXXXX", "XXX.XXX", "XX...XX", "XX...XX"}},
 };
 
 bool arcadeGlyphScaled(char c, int px, int py, int scl) {
@@ -494,10 +495,20 @@ bool arcadeGlyphScaled(char c, int px, int py, int scl) {
         auto it = LETTERS_2X.find(c);
         if (it != LETTERS_2X.end()) {
             const int hx = px * 2 / scl, hy = py * 2 / scl;
-            return hx >= 0 && hx < 6 && hy >= 0 && hy < 10 && it->second[hy][hx] == 'X';
+            return hx >= 0 && hy >= 0 && hy < 10 && hx < (int)strlen(it->second[hy]) && it->second[hy][hx] == 'X';
         }
     }
-    return scl >= 1 && arcadeGlyph(c, px / scl, py / scl);
+    return scl >= 1 && px < 3 * scl && arcadeGlyph(c, px / scl, py / scl);
+}
+
+int arcadeGlyphWidth(char c, int scl) {
+    if (scl >= 2) {
+        auto it = LETTERS_2X.find(c);
+        if (it != LETTERS_2X.end()) {
+            return (int)strlen(it->second[0]) * scl / 2;
+        }
+    }
+    return 3 * scl;
 }
 
 bool arcadeGlyph(char c, int x, int y) {
@@ -717,8 +728,9 @@ void FPPArcadeGameEffect::outputLetter(int x, int y, char l, int r, int g, int b
     if (scl >= 2) {
         // Panel pixel by panel pixel, so the larger letters get their detail.
         const int x0 = x * scl + offsetX, y0 = y * scl + offsetY;
+        const int w = arcadeGlyphWidth(l, scl);
         for (int py = 0; py < 5 * scl; py++) {
-            for (int px = 0; px < 3 * scl; px++) {
+            for (int px = 0; px < w; px++) {
                 if (arcadeGlyphScaled(l, px, py, scl)) {
                     model->setOverlayPixelValue(x0 + px, y0 + py, r, g, b);
                 }

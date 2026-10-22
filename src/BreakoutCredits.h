@@ -173,8 +173,9 @@ private:
         }
     }
     void letter(ArcadeCanvas::Canvas &c, char ch, int x, int y, int scl, const RGB &col, float k) {
+        const int w = arcadeGlyphWidth(ch, scl);
         for (int py = 0; py < 5 * scl; ++py) {
-            for (int px = 0; px < 3 * scl; ++px) {
+            for (int px = 0; px < w; ++px) {
                 if (arcadeGlyphScaled(ch, px, py, scl)) {
                     c.set(x + px, y + py, col, k);
                 }

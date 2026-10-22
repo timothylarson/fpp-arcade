@@ -17,6 +17,8 @@ bool arcadeGlyph(char c, int x, int y);
 // The same letter drawn scl times the size: pixel (px, py) of its 3scl x 5scl
 // box. At twice the size or more some letters have extra detail.
 bool arcadeGlyphScaled(char c, int px, int py, int scl);
+// How many LEDs wide that letter is drawn: 3scl, or a little more for a wide one.
+int arcadeGlyphWidth(char c, int scl);
 
 class FPPArcadeGame {
 public:

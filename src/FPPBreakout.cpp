@@ -666,23 +666,28 @@ public:
         }
     }
 
+    // The top and side walls.
+    void bounceOffWalls(Ball &ball) {
+        if (ball.y < 0) {
+            ball.directionY = std::fabs(ball.directionY);
+            ball.y = 0;
+        }
+        if (ball.x < fieldX) {
+            ball.directionX = std::fabs(ball.directionX);
+            ball.x = fieldX;
+        }
+        if (ball.x >= fieldRight()) {
+            ball.directionX = -std::fabs(ball.directionX);
+            ball.x = fieldRight() - 1;
+        }
+    }
+
     // Walls, bricks and the seams between bricks, after the ball has moved.
     void collideBall(Ball &ball) {
         // Use tighter collision when spacing is disabled so ball can pass cleanly
         float gapPadding = spacingEnabled ? 1.0f : 0.0f;
         {
-            if (ball.y < 0) {
-                ball.directionY = std::fabs(ball.directionY);
-                ball.y = 0;
-            }
-            if (ball.x < fieldX) {
-                ball.directionX = std::fabs(ball.directionX);
-                ball.x = fieldX;
-            }
-            if (ball.x >= fieldRight()) {
-                ball.directionX = -std::fabs(ball.directionX);
-                ball.x = fieldRight() - 1;
-            }
+            bounceOffWalls(ball);
 
             bool brickHit = false;
             auto it = blocks.begin();
@@ -712,7 +717,13 @@ public:
 
                     float minHoriz = std::min(overlapLeft, overlapRight);
                     float minVert = std::min(overlapTop, overlapBottom);
-                    if (minHoriz < minVert) {
+                    // A sideways bounce that would put the ball outside the
+                    // field (in the gap between a wall and the first bricks)
+                    // bounces it up or down instead; pushing it sideways is
+                    // what showed it an LED off the edge for a frame.
+                    const float sideX = overlapLeft < overlapRight ? bLeft - ball.width : bRight;
+                    const bool sideFits = sideX >= fieldX && sideX + ball.width <= fieldRight();
+                    if (minHoriz < minVert && sideFits) {
                         if (overlapLeft < overlapRight) {
                             ball.directionX = -std::fabs(ball.directionX);
                             ball.x = bLeft - ball.width;
@@ -801,6 +812,7 @@ public:
             if (!brickHit) {
                 handleGapCollision(ball);
             }
+            bounceOffWalls(ball);   // nothing above may leave it outside the field
         }
     }
 

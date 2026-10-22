@@ -26,6 +26,7 @@ extern "C" {
 #include <array>
 #include <vector>
 #include <algorithm>
+#include <sys/stat.h>
 #include <cctype>
 #include <cmath>
 #include <fcntl.h>
@@ -565,6 +566,30 @@ int FPPArcadeGame::findIntOption(const std::string &s, int def) {
     } catch (...) {
         return def;   // blank or junk in the config must not throw out of a button press
     }
+}
+
+static std::mutex bestLock;
+
+bool arcadeRecordBest(const std::string &model, const std::string &game, int score, int *previousBest) {
+    std::lock_guard<std::mutex> l(bestLock);
+    const std::string dir = FPP_DIR_MEDIA("/plugindata/fpp-arcade");
+    const std::string file = dir + "/best.json";
+    Json::Value root;
+    if (!FileExists(file) || !LoadJsonFromFile(file, root) || !root.isObject()) {
+        root = Json::Value(Json::objectValue);
+    }
+    const std::string key = model + "/" + game;
+    const int best = root.isMember(key) ? root[key].asInt() : 0;
+    if (previousBest) {
+        *previousBest = best;
+    }
+    if (score <= best) {
+        return false;
+    }
+    root[key] = score;
+    mkdir(dir.c_str(), 0775);
+    SaveJsonToFile(root, file);
+    return true;
 }
 
 FPPArcadeGameEffect::PanelTransform::PanelTransform(FPPArcadeGameEffect *eff)

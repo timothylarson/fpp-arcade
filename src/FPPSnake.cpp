@@ -1,6 +1,7 @@
 #include <fpp-pch.h>
 
 #include "FPPSnake.h"
+#include "SnakeShow.h"
 #include <algorithm>
 #include <array>
 #include <random>
@@ -18,7 +19,8 @@ FPPSnake::~FPPSnake() {
 
 class SnakeEffect : public FPPArcadeGameEffect {
 public:
-    SnakeEffect(int sc, int pfw, int pfh, PixelOverlayModel *m) : FPPArcadeGameEffect(m) {
+    SnakeEffect(int sc, int pfw, int pfh, PixelOverlayModel *m, int showMode = 1, int goodLength = 20)
+        : FPPArcadeGameEffect(m), endShow(showMode), goodGame(goodLength) {
         // 0/0 keeps the historical behaviour of playing across the whole panel;
         // a configured size is centred on it. The wall Snake draws at cols-1 /
         // rows-1 is therefore the playfield edge, not the panel edge.
@@ -143,6 +145,12 @@ public:
     }
     
     virtual int32_t update() override {
+        if (show.on()) {
+            if (show.step(model, consumeElapsedMs(50.0))) {
+                return 50;
+            }
+            resetFrameTimer();   // over: the game ends below, as it would have
+        }
         if (isPaused()) {
             drawPauseMenu();
             model->flushOverlayBuffer();
@@ -174,6 +182,16 @@ public:
         if (!GameOn) {
             moveAccumulatorMs = 0.0;
             sfxStop("snake");
+            // A good game (or a new best) gets the end show instead of GAME OVER.
+            const int length = (int)snake.size();
+            int best = 0;
+            const bool newBest = arcadeRecordBest(model->getName(), "Snake", length, &best);
+            if (arcadeWantShow(endShow, length >= goodGame, newBest)) {
+                sfx("snake", "EndShow");
+                show.start(model, SnakeShow::config(length, newBest, best), std::make_unique<SnakeShow::Story>());
+                resetFrameTimer();
+                return 50;
+            }
             sfx("snake", "GameOver");
             char buf[25];
             snprintf(buf, sizeof(buf), "%u", (uint32_t)snake.size());
@@ -210,6 +228,12 @@ public:
     
     
     void button(const std::string &button) {
+        if (show.on()) {
+            if (button.find("Pressed") != std::string::npos) {
+                show.skip();
+            }
+            return;
+        }
         // allow base to handle pause/start behavior first (only while game is active)
         if (GameOn) {
             FPPArcadeGameEffect::button(button);
@@ -233,6 +257,9 @@ public:
     }
     
     
+    int endShow = 1, goodGame = 20;   // the End Show and Good Game settings
+    ArcadeShowPlayer show;
+
     std::list<std::pair<int, int>> food;
     std::list<std::pair<int, int>> snake;
     int direction = 0;
@@ -287,7 +314,8 @@ void FPPSnake::button(const std::string &button) {
             }
             int pixelScaling = std::stoi(findOption("Pixel Scaling", "1"));
             effect = new SnakeEffect(pixelScaling,
-                                     playfieldWidthOption(), playfieldHeightOption(), m);
+                                     playfieldWidthOption(), playfieldHeightOption(), m,
+                                     endShowOption(), goodGameOption(20));
             m->setRunningEffect(effect, 50);
         } else {
             effect->button(button);

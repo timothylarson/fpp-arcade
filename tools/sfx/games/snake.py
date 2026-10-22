@@ -19,6 +19,13 @@ SOUNDS = {
     "Eat": lambda: tone("C5", 0.08, wave="square", duty=0.5, freq_end="C6", curve=0.6, decay=0.08),
     "Milestone": lambda: melody([("D6", 1), ("F#6", 1), ("A6", 1), ("D7", 3)], 0.055,
                                 wave="pulse", duty=0.25),
+    # The end show for a good game: the charmer's tune again, triumphant, over
+    # the drone, climbing to a long high D.
+    "EndShow": lambda: mix(
+        seq(reed([("D5", 1), ("F#5", 1), ("G5", 1), ("A5", 2), ("G5", 1), ("A5", 1), ("C6", 1),
+                  ("A5", 1), ("G5", 1), ("F#5", 2), ("D5", 2)], 0.14),
+            reed([("D5", 1), ("F#5", 1), ("A5", 1), ("D6", 1), ("F#6", 1), ("A6", 2), ("D7", 5)], 0.11)),
+        tone("D3", 5.0, wave="triangle", vol=0.3, release=0.6)),
     # The crunch of hitting something, then the tune sinking away.
     "GameOver": lambda: seq(
         mix(noise(0.18, smooth=0.5, decay=0.06),

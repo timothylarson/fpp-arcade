@@ -192,10 +192,30 @@ var ARCADE_GAMES = {
         controls: ['Left/Right move (hold)', 'A fire', 'B laser'],
         options: [LIVES, { name: 'Start Wave', label: 'Start at wave', type: 'number', def: 1, min: 1, max: 99,
                            hint: 'Higher starts harder: later formations, armour and divers.' }] },
-    'Stacker': { about: 'Drop the sliding row onto the stack; the overhang falls off.', controls: ['Any button drop'], options: [] },
+    'Stacker': { about: 'Drop the sliding row onto the stack; the overhang falls off.', controls: ['A, B or Fire drop'], options: [] },
     'Flap': { about: 'Flap through the gaps in the pipes.', controls: ['A or Up flap'], options: [] },
     'Light Memory': { about: 'Repeat the growing sequence of lit triangles.', controls: ['Directions, one per triangle'], options: [] }
 };
+
+// The end show (fireworks, the score, a little story and credits) every game
+// but Breakout has; Breakout has its credits. Each game's Good Game mark: its
+// default and what it measures.
+var ENDSHOW_GOOD = {
+    'Tetris': [5, 'Level reached'], 'Pong': [3, 'Points the winner wins by'], 'Snake': [20, 'Length reached'],
+    'Frogger': [4, 'Level reached'], 'Maze Chase': [3, 'Level reached'], 'Asteroid Orbit': [4, 'Sector reached'],
+    'Barrel Climb': [3, 'Level reached'], 'Star Defenders': [5, 'Wave reached'], 'Stacker': [3, 'Level reached'],
+    'Flap': [15, 'Pipes passed'], 'Light Memory': [10, 'Rounds repeated'], 'Orb Pop': [40, 'Score in a round'],
+    'Shape Fit': [300, 'Total score']
+};
+Object.keys(ENDSHOW_GOOD).forEach(function (g) {
+    var d = ENDSHOW_GOOD[g];
+    ARCADE_GAMES[g].options = ARCADE_GAMES[g].options.concat([
+        { name: 'End Show', label: 'End show', type: 'select', def: '1',
+          choices: [['1', 'After a good game'], ['2', 'After every game'], ['0', 'Never']],
+          hint: 'About 20 seconds of fireworks, the score, a little story and credits. A new best score always counts as good. Any button skips it.' },
+        { name: 'Good Game', label: 'Good game', type: 'number', def: d[0], min: 0, max: 99999,
+          hint: d[1] + ' that counts as a good game.' }]);
+});
 
 // The running effect's name, as FPP reports it, in words.
 var ARCADE_EFFECTS = {

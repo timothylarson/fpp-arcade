@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <set>
@@ -19,6 +20,18 @@ bool arcadeGlyph(char c, int x, int y);
 bool arcadeGlyphScaled(char c, int px, int py, int scl);
 // How many LEDs wide that letter is drawn: 3scl, or a little more for a wide one.
 int arcadeGlyphWidth(char c, int scl);
+
+// Best scores, kept by model and game in media/plugindata/fpp-arcade/best.json.
+// Records score; true if it beats the best so far (any score above 0 beats
+// none). previousBest, if given, gets the best before this one.
+bool arcadeRecordBest(const std::string &model, const std::string &game, int score, int *previousBest = nullptr);
+
+// Whether a finished game gets its end show (ArcadeShow.h): mode is the End
+// Show setting (0 never, 1 after a good game, 2 after every game), good that
+// it reached the game's Good Game mark, newBest from arcadeRecordBest().
+inline bool arcadeWantShow(int mode, bool good, bool newBest) {
+    return mode == 2 || (mode == 1 && (good || newBest));
+}
 
 class FPPArcadeGame {
 public:
@@ -49,6 +62,11 @@ protected:
     // findOption() as an int, tolerating a blank or non-numeric value in the
     // config rather than throwing std::invalid_argument out of a button press.
     int findIntOption(const std::string &s, int def);
+    // The end show settings every game with one has: End Show (0 never, 1
+    // after a good game, the default, 2 after every game) and Good Game, the
+    // level or score that makes a game a good one (def is the game's own).
+    int endShowOption() { return std::clamp(findIntOption("End Show", 1), 0, 2); }
+    int goodGameOption(int def) { return std::max(0, findIntOption("Good Game", def)); }
     // The two universal sizing options. 0 means "fill the panel"; see
     // FPPArcadeGameEffect::setPlayfield().
     int playfieldWidthOption()  { return findIntOption("Playfield Width", 0); }

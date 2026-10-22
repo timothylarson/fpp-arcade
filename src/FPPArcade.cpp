@@ -485,6 +485,8 @@ static const std::map<char, std::array<const char *, 10>> LETTERS_2X = {
     {'N', {"XX..XX", "XX..XX", "XXX.XX", "XXXXXX", "XXXXXX", "XXXXXX", "XXXXXX", "XX.XXX", "XX..XX", "XX..XX"}},
     // D with rounded corners
     {'D', {"XXXX..", "XXXXX.", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XXXXX.", "XXXX.."}},
+    // W with a centre stroke rising from the base, the sides thinning to meet it
+    {'W', {"XX..XX", "XX..XX", "XX..XX", "XX..XX", "X.XX.X", "X.XX.X", "X.XX.X", "X.XX.X", "XXXXXX", "XX..XX"}},
 };
 
 bool arcadeGlyphScaled(char c, int px, int py, int scl) {

@@ -1,5 +1,7 @@
 # FPP Arcade Changelog
 
+- Breakout: going through the portal no longer costs lives (often all of them, ending the game): its animation removes the ball on purpose, and that was being counted as a lost ball every few frames.
+- The letter N is an arch (it read as a thick H), and letters drawn twice the size or larger can have their own detail: N gets a stepped diagonal and D rounded corners.
 - Breakout: the ball moves in steps of at most half an LED, checking for bricks after each, so a fast ball or a late frame can no longer carry it past a brick's corner or through the seam between two bricks.
 - Breakout: the laser fires two slower beams, one from each end of the paddle, which shows red cannons while it's armed (blinking as it runs out); before, a beam hit the nearest brick above it on its first frame, however far away, so it was never seen. Triple ball is cyan, expand is blue and extra life is a red-and-white candy cane, so they no longer look alike. The power-ups are listed in README.md.
 - A second cheat code, Up Up Down Down Left Right Left Right A B Start, skips to the next level in every game that has levels (in Breakout as if the level were cleared, with its two extra lives).

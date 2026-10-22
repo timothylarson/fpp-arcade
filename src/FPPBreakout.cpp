@@ -1469,10 +1469,13 @@ public:
         }
 
         // The paddle speeds up with the level as the ball does, so it can
-        // still get under the ball on the last levels.
-        paddle.x += direction * paddle.height * levelFactor() * frameScalar;
-        if (paddle.x < fieldX) paddle.x = fieldX;
-        else if ((paddle.x + paddle.width) >= fieldRight()) paddle.x = fieldRight() - paddle.width;
+        // still get under the ball on the last levels. Not while the portal
+        // is taking it, which would pull it back inside the field.
+        if (!portalTouched) {
+            paddle.x += direction * paddle.height * levelFactor() * frameScalar;
+            if (paddle.x < fieldX) paddle.x = fieldX;
+            else if ((paddle.x + paddle.width) >= fieldRight()) paddle.x = fieldRight() - paddle.width;
+        }
 
         // Auto-release any ball that has been stuck to the paddle for >= 3000 ms,
         // and not while the level's start jingle (or the wait for it after a
@@ -1560,8 +1563,10 @@ public:
         // Draw the frame only if we’re staying on this level
         CopyToModel();
 
-        // ❌ Loss condition (no balls left)
-        if (balls.empty()) {
+        // ❌ Loss condition (no balls left). Not while the portal is taking the
+        // paddle: it removes the balls on purpose, and counting that as a lost
+        // ball took a life every few frames of the animation - Game Over.
+        if (balls.empty() && !portalTouched) {
             if (lives > 0) {
                 --lives;
                 sound("LoseLife");

@@ -23,6 +23,7 @@ extern "C" {
 #include <arpa/inet.h>
 #include <cstring>
 #include <list>
+#include <array>
 #include <vector>
 #include <algorithm>
 #include <cctype>
@@ -454,7 +455,7 @@ static const std::map<uint8_t, std::vector<uint8_t>> LETTERS = {
     {'U', {1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1}},
     {'W', {1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1}},
     {'I', {0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0}},
-    {'N', {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1}},
+    {'N', {1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1}},   // an arch: solid, it read as a thick H
 
     
     {'0', {1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1}},
@@ -475,6 +476,27 @@ static const std::map<uint8_t, std::vector<uint8_t>> LETTERS = {
     {'-', {0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0}},
     {'\'', {0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}
 };
+
+// Letters drawn twice the size or more have room for more detail than the 3x5
+// grid: these are 6x10 versions, scaled from there instead. Only the letters
+// that need it; the rest are the 3x5 ones scaled up.
+static const std::map<char, std::array<const char *, 10>> LETTERS_2X = {
+    // N with its diagonal stepping down through the middle
+    {'N', {"XX..XX", "XX..XX", "XXX.XX", "XXXXXX", "XXXXXX", "XXXXXX", "XXXXXX", "XX.XXX", "XX..XX", "XX..XX"}},
+    // D with rounded corners
+    {'D', {"XXXX..", "XXXXX.", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XXXXX.", "XXXX.."}},
+};
+
+bool arcadeGlyphScaled(char c, int px, int py, int scl) {
+    if (scl >= 2) {
+        auto it = LETTERS_2X.find(c);
+        if (it != LETTERS_2X.end()) {
+            const int hx = px * 2 / scl, hy = py * 2 / scl;
+            return hx >= 0 && hx < 6 && hy >= 0 && hy < 10 && it->second[hy][hx] == 'X';
+        }
+    }
+    return scl >= 1 && arcadeGlyph(c, px / scl, py / scl);
+}
 
 bool arcadeGlyph(char c, int x, int y) {
     if (x < 0 || x > 2 || y < 0 || y > 4) {
@@ -687,6 +709,21 @@ void FPPArcadeGameEffect::handlePauseInput(const std::string &button) {
     }
 }
 void FPPArcadeGameEffect::outputLetter(int x, int y, char l, int r, int g, int b, int scl) {
+    if (scl == -1) {
+        scl = scale;
+    }
+    if (scl >= 2) {
+        // Panel pixel by panel pixel, so the larger letters get their detail.
+        const int x0 = x * scl + offsetX, y0 = y * scl + offsetY;
+        for (int py = 0; py < 5 * scl; py++) {
+            for (int px = 0; px < 3 * scl; px++) {
+                if (arcadeGlyphScaled(l, px, py, scl)) {
+                    model->setOverlayPixelValue(x0 + px, y0 + py, r, g, b);
+                }
+            }
+        }
+        return;
+    }
     Letter letter(l);
     for (int nx = 0; nx < 3; nx++) {
         for (int ny = 0; ny < 5; ny++) {

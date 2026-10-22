@@ -14,6 +14,9 @@
 // One pixel of the 3x5 letter for c (A-Z, 0-9 and : ! . , - '): true if lit.
 // Anything else is blank.
 bool arcadeGlyph(char c, int x, int y);
+// The same letter drawn scl times the size: pixel (px, py) of its 3scl x 5scl
+// box. At twice the size or more some letters have extra detail.
+bool arcadeGlyphScaled(char c, int px, int py, int scl);
 
 class FPPArcadeGame {
 public:

@@ -635,8 +635,6 @@ public:
 
 
     void moveBalls(float frameScalar) {
-        // Use tighter collision when spacing is disabled so ball can pass cleanly
-        float gapPadding = spacingEnabled ? 1.0f : 0.0f;
         auto ballIt = balls.begin();
         while (ballIt != balls.end()) {
             Ball &ball = *ballIt;
@@ -647,9 +645,32 @@ public:
                 ball.y = paddle.y - ball.height;
                 ++ballIt;
                 continue;
-            } else {
-                ball.move(frameScalar);
             }
+            // Move in steps of at most half an LED, checking for bricks after
+            // each. In one jump a fast ball (or any ball on a late frame, up to
+            // five frames' worth) could land past a brick's corner or past the
+            // seam between two bricks, and slip through the wall.
+            const float dist = ball.speed * frameScalar;
+            const int steps = std::clamp((int)std::ceil(dist / 0.5f), 1, 40);
+            for (int s = 0; s < steps && ball.y < model->getHeight(); ++s) {
+                ball.move(frameScalar / steps);
+                collideBall(ball);
+            }
+
+            if (ball.y >= model->getHeight()) {
+                ballIt = balls.erase(ballIt);
+                continue;
+            }
+
+            ++ballIt;
+        }
+    }
+
+    // Walls, bricks and the seams between bricks, after the ball has moved.
+    void collideBall(Ball &ball) {
+        // Use tighter collision when spacing is disabled so ball can pass cleanly
+        float gapPadding = spacingEnabled ? 1.0f : 0.0f;
+        {
             if (ball.y < 0) {
                 ball.directionY = std::fabs(ball.directionY);
                 ball.y = 0;
@@ -780,13 +801,6 @@ public:
             if (!brickHit) {
                 handleGapCollision(ball);
             }
-
-            if (ball.y >= model->getHeight()) {
-                ballIt = balls.erase(ballIt);
-                continue;
-            }
-
-            ++ballIt;
         }
     }
 

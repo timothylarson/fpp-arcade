@@ -147,3 +147,13 @@ See the table under Sound in [README.md](README.md).
 | Wrong, RoundClear, GameOver | A wrong press or timeout; a round repeated; GAME OVER |
 
 | EndShow | The end show after a good game |
+
+## Breakout Versus
+| Sound | When |
+|---|---|
+| Start | A new game |
+| Launch *(quiet)* | A ball leaves its paddle |
+| Paddle *(quiet)*, Wall *(quiet)*, Brick *(quiet)* | A ball hits a paddle, a side, a brick |
+| Laser *(quiet)*, PowerUp | A laser shot; a capsule caught |
+| Goal, NewWall | A ball past a paddle; a new wall going up |
+| GameOver, EndShow | The match won; the end show after a clear win |

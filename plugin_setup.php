@@ -154,6 +154,10 @@ var ARCADE_GAMES = {
                     hint: 'Names under SPECIAL THANKS in the credits, separated by |. Blank leaves it out.' },
                   { name: 'Credits', label: 'Credits lines', type: 'text', def: 'THANKS FOR PLAYING|MERRY CHRISTMAS',
                     hint: 'Your lines at the end of the rolling credits, separated by |. Letters, numbers and : ! . , - \' only.' }] },
+    'Breakout Versus': { about: 'Two players, one controller: a paddle at the bottom and one at the top, a wall of bricks between, and a ball each. Get yours past the other paddle; first to Goals wins.',
+        controls: ['Left/Right: bottom paddle', 'Up: launch, or fire its laser', 'B/A: top paddle (its ball and laser go by themselves)'],
+        options: [{ name: 'Goals', label: 'Goals to win', type: 'number', def: 5, min: 1, max: 15 },
+                  { name: 'Ball Speed', label: 'Ball speed', type: 'number', def: 1.0, min: 0.3, max: 3, step: 0.1, hint: '1 is normal; it quickens a little with every goal.' }] },
     'Frogger': { about: 'Hop across the road and the river.', controls: ['Directions hop', 'A traffic faster', 'B traffic slower'],
         options: [PS, { name: 'Lanes', label: 'Lanes', type: 'number', def: 5, min: 1, max: 20 },
                   { name: 'River Speed', label: 'River speed', type: 'number', def: 1, min: 1, max: 10 },
@@ -207,7 +211,7 @@ var ENDSHOW_GOOD = {
     'Frogger': [4, 'Level reached'], 'Maze Chase': [3, 'Level reached'], 'Asteroid Orbit': [4, 'Sector reached'],
     'Barrel Climb': [3, 'Level reached'], 'Star Defenders': [5, 'Wave reached'], 'Stacker': [3, 'Level reached'],
     'Flap': [15, 'Pipes passed'], 'Light Memory': [10, 'Rounds repeated'], 'Orb Pop': [50, 'Score in a round'],
-    'Shape Fit': [300, 'Total score']
+    'Shape Fit': [300, 'Total score'], 'Breakout Versus': [3, 'Goals the winner wins by']
 };
 Object.keys(ENDSHOW_GOOD).forEach(function (g) {
     var d = ENDSHOW_GOOD[g];

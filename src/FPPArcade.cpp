@@ -49,6 +49,7 @@ extern "C" {
 #include "FPPPong.h"
 #include "FPPSnake.h"
 #include "FPPBreakout.h"
+#include "FPPBreakoutVersus.h"
 #include "FPPFrogger.h"
 #include "FPPOrbPop.h"
 #include "FPPAsteroidOrbit.h"
@@ -1071,6 +1072,9 @@ public:
         }
         if (game == "Light Memory") {
             return new FPPLightMemory(config);
+        }
+        if (game == "Breakout Versus") {
+            return new FPPBreakoutVersus(config);
         }
         return nullptr;
     }

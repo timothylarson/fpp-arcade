@@ -24,17 +24,29 @@ the games.
 | **Stacker** | The directions, or A, B or Fire, drop the sliding row; the other control at the start of a level makes it a race. |
 | **Flap** | Up flaps the yellow bird; A or B a second, blue one, for two players. |
 | **Light Memory** | The four directional "Pressed" events. |
+| **Breakout Versus** | Two players: Left/Right and Up for the bottom paddle; B and A (held) for the top one. |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
 
 ### Two players
 
-Pong, Flap, the Snake duel and the Stacker race take a second player on the same controller,
+Pong, Flap, the Snake duel, the Stacker race and Breakout Versus take a second player on the same controller,
 one on the directions and one on A and B, without choosing anything first: the second player
 just presses their control. In the **Snake duel** a blue snake joins in a clear corner; B turns
 it left and A right (two buttons can't give four directions, but they can steer, like light
 cycles). Both eat and grow, and the first to hit a wall, itself or the other snake loses - head
 on is a tie. Their end shows name the winner and show both scores; the better one counts as a
 best.
+
+**Breakout Versus** is its own game, as in one-player Breakout A and B already launch and fire,
+so they can't also mean "join". A wall of bricks runs across the middle, with a paddle on the
+bottom row (Left/Right, and Up to launch or fire) and one on the top row (B left, A right; its
+ball launches by itself and its laser fires by itself, as it has no button left over). Each
+player has a ball in their colour, yellow and blue. A ball that gets past a paddle scores for the
+other player, whoever's ball it was; bricks are in the way and break when hit, and sometimes
+drop a capsule toward whoever broke them: blue for a wider paddle, red for a laser. A new wall
+goes up when one is gone, the balls quicken a little with every goal, and the first to *Goals
+to win* (5) wins. Its end show (after a win by Good Game goals, 3) has the winner's paddle smash
+a rainbow ball through the wall.
 
 ### Cheat codes
 

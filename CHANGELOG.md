@@ -1,5 +1,7 @@
 # FPP Arcade Changelog
 
+- Breakout Versus, a new two-player game: paddles top and bottom, a wall of bricks between, a ball each; get yours past the other paddle, first to Goals (5). The top player's ball launches and laser fires by themselves. With sounds and an end show.
+- The build links the library beside the old one and renames it over it, so rebuilding on a running player no longer crashes fppd with a bus error.
 - Frogger's traffic, logs and turtles are drawn LED by LED, facing the way they go, instead of as solid bars: cars (a cab over the body), vans, buses (a row of windows) and trucks (cab, gap, trailer), each with a headlight and a tail light; shaded brown logs with pale cut ends; green turtles with a head at the front. At Pixel Scaling 1 they're shaded along their length instead. The background stays dark.
 - Snake's end show: the snake no longer reverses up its own column through its body (and, after a duel, through the blue snake following it); it steps aside first, so its route never crosses itself.
 - Snake duel: A or B brings in a blue snake, steered by B (left) and A (right). Both move at once; the first to hit a wall, itself or the other loses, head on is a tie. GAME OVER and the end show name the winner and show both lengths.

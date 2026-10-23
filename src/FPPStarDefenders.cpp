@@ -2,6 +2,7 @@
 
 #include "FPPStarDefenders.h"
 #include "ArcadeCanvas.h"
+#include "StarDefendersShow.h"
 
 #include <algorithm>
 #include <atomic>
@@ -78,7 +79,8 @@ enum : uint32_t { LEFT = 1, RIGHT = 2, FIRE = 4 };
 
 class StarDefendersEffect : public FPPArcadeGameEffect {
 public:
-    StarDefendersEffect(PixelOverlayModel *m, int lives, int firstWave) : FPPArcadeGameEffect(m), rng(std::random_device{}()) {
+    StarDefendersEffect(PixelOverlayModel *m, int lives, int firstWave, int showMode = 1, int goodWave = 5)
+        : FPPArcadeGameEffect(m), endShow(showMode), goodGame(goodWave), rng(std::random_device{}()) {
         startWaveNumber = std::clamp(firstWave, 1, 99);
         model->getSize(W, H);
         W = std::max(20, W);
@@ -96,6 +98,12 @@ public:
     }
 
     void button(const std::string &b) override {
+        if (show.on()) {
+            if (b.find("Pressed") != std::string::npos) {
+                show.skip();
+            }
+            return;
+        }
         const bool pressed = b.size() > 8 && b.compare(b.size() - 8, 8, " Pressed") == 0;
         const bool released = b.size() > 9 && b.compare(b.size() - 9, 9, " Released") == 0;
         if (pressed || released) {
@@ -132,6 +140,16 @@ public:
             model->setState(PixelOverlayState(PixelOverlayState::PixelState::Disabled));
             return EFFECT_DONE;
         }
+        if (show.on()) {
+            if (show.step(model, consumeElapsedMs(50.0))) {
+                return 50;
+            }
+            // Over: the game ends as it would have after GAME OVER.
+            model->clearOverlayBuffer();
+            model->flushOverlayBuffer();
+            finished = true;
+            return EFFECT_AFTER_NEXT_OUTPUT;
+        }
         if (isPaused()) {
             drawPauseMenu();
             model->flushOverlayBuffer();
@@ -157,6 +175,10 @@ public:
             powerT = POWER_TIME;
         }
         step(dt);
+        if (show.on()) {
+            resetFrameTimer();   // the game ended well: the show starts next frame
+            return 50;
+        }
         if (state == State::Over && stateT > 5.0f) {
             model->clearOverlayBuffer();
             model->flushOverlayBuffer();
@@ -305,6 +327,15 @@ private:
                     state = State::Over;
                     stateT = 0;
                     sfxStop("stardefenders");
+                    // A good game (or a new best) gets the end show instead of GAME OVER.
+                    int best = 0;
+                    const bool newBest = arcadeRecordBest(model->getName(), "Star Defenders", score, &best);
+                    if (arcadeWantShow(endShow, wave >= goodGame, newBest)) {
+                        sfx("stardefenders", "EndShow");
+                        show.start(model, StarDefendersShow::config(score, wave, newBest, W),
+                                   std::make_unique<StarDefendersShow::Story>());
+                        return;
+                    }
                     sfx("stardefenders", "GameOver");
                 }
             }
@@ -843,6 +874,9 @@ private:
 
     static RGB armourColour(int kind) { return ArcadeCanvas::mix(KIND_COLOUR[kind], ARMOUR, 0.65f); }
 
+    int endShow = 1, goodGame = 5;   // the End Show and Good Game (wave reached) settings
+    ArcadeShowPlayer show;
+
     std::mt19937 rng;
     ArcadeCanvas::Canvas canvas;
     int W = 0, H = 0, cols = 8, rows = 4;
@@ -901,7 +935,8 @@ void FPPStarDefenders::button(const std::string &button) {
         } else {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
         }
-        effect = new StarDefendersEffect(m, findIntOption("Lives", 3), findIntOption("Start Wave", 1));
+        effect = new StarDefendersEffect(m, findIntOption("Lives", 3), findIntOption("Start Wave", 1), endShowOption(),
+                                         goodGameOption(5));
         m->setRunningEffect(effect, 25);
     }
     if (!starting || button.compare(0, 5, "Start") != 0) {

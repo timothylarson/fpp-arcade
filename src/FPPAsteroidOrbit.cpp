@@ -1,6 +1,7 @@
 #include <fpp-pch.h>
 
 #include "FPPAsteroidOrbit.h"
+#include "AsteroidOrbitShow.h"
 
 #include <algorithm>
 #include <array>
@@ -63,8 +64,9 @@ enum : uint32_t { UP = 1, DOWN = 2, LEFT = 4, RIGHT = 8, FIRE = 16 };
 
 class AsteroidOrbitEffect : public FPPArcadeGameEffect {
 public:
-    AsteroidOrbitEffect(PixelOverlayModel *m, int startRocks, int gravityPct, int lives)
-        : FPPArcadeGameEffect(m), rng(std::random_device{}()) {
+    AsteroidOrbitEffect(PixelOverlayModel *m, int startRocks, int gravityPct, int lives, int showMode = 1,
+                        int goodSector = 4)
+        : FPPArcadeGameEffect(m), rng(std::random_device{}()), endShow(showMode), goodGame(goodSector) {
         model->getSize(W, H);
         W = std::max(8, W);
         H = std::max(8, H);
@@ -88,6 +90,13 @@ public:
     }
 
     void button(const std::string &b) override {
+        if (show.on()) {
+            // The game is over; a press only skips the end show.
+            if (b.find("Pressed") != std::string::npos) {
+                show.skip();
+            }
+            return;
+        }
         // Held state first and always, so a release during the pause menu is
         // not lost and the ship doesn't come back thrusting by itself.
         const bool pressed = b.size() > 8 && b.compare(b.size() - 8, 8, " Pressed") == 0;
@@ -132,6 +141,16 @@ public:
             model->setState(PixelOverlayState(PixelOverlayState::PixelState::Disabled));
             return EFFECT_DONE;
         }
+        if (show.on()) {
+            if (show.step(model, consumeElapsedMs(FRAME_MS, 100.0))) {
+                return FRAME_MS;
+            }
+            // Over: the game ends as it would have after GAME OVER.
+            model->clearOverlayBuffer();
+            model->flushOverlayBuffer();
+            finished = true;
+            return EFFECT_AFTER_NEXT_OUTPUT;
+        }
         if (isPaused()) {
             drawPauseMenu();
             model->flushOverlayBuffer();
@@ -160,6 +179,10 @@ public:
         }
 
         step(dt);
+        if (show.on()) {
+            resetFrameTimer();   // the end show takes over from the next frame
+            return FRAME_MS;
+        }
         if (state == State::Over && stateT > 5.0f) {
             model->clearOverlayBuffer();
             model->flushOverlayBuffer();
@@ -403,6 +426,16 @@ private:
         case State::Over:
             if (stateT >= 1.0f && stateT - dt < 1.0f) {   // with the words
                 sfxStop("asteroidorbit");
+                // A good game (or a new best) gets the end show instead of
+                // GAME OVER, once the crash has had its second.
+                int best = 0;
+                const bool newBest = arcadeRecordBest(model->getName(), "Asteroid Orbit", score, &best);
+                if (arcadeWantShow(endShow, sector >= goodGame, newBest)) {
+                    sfx("asteroidorbit", "EndShow");
+                    show.start(model, AsteroidOrbitShow::config(W, score, sector, newBest),
+                               std::make_unique<AsteroidOrbitShow::Story>(sector));
+                    return;
+                }
                 sfx("asteroidorbit", "GameOver");
             }
             return;
@@ -882,6 +915,9 @@ private:
     std::atomic<uint32_t> held{0};
     std::atomic<bool> fireNow{false}, pulseNow{false};
     bool finished = false;
+
+    int endShow = 1, goodGame = 4;   // the End Show and Good Game (sector reached) settings
+    ArcadeShowPlayer show;
 };
 
 
@@ -904,7 +940,7 @@ void FPPAsteroidOrbit::button(const std::string &button) {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
         }
         effect = new AsteroidOrbitEffect(m, findIntOption("Asteroids", 0), findIntOption("Gravity", 100),
-                                         findIntOption("Lives", 3));
+                                         findIntOption("Lives", 3), endShowOption(), goodGameOption(4));
         m->setRunningEffect(effect, 25);
     }
     // The button that starts the game counts too, so a direction held from

@@ -204,7 +204,7 @@ var ENDSHOW_GOOD = {
     'Tetris': [5, 'Level reached'], 'Pong': [3, 'Points the winner wins by'], 'Snake': [20, 'Length reached'],
     'Frogger': [4, 'Level reached'], 'Maze Chase': [3, 'Level reached'], 'Asteroid Orbit': [4, 'Sector reached'],
     'Barrel Climb': [3, 'Level reached'], 'Star Defenders': [5, 'Wave reached'], 'Stacker': [3, 'Level reached'],
-    'Flap': [15, 'Pipes passed'], 'Light Memory': [10, 'Rounds repeated'], 'Orb Pop': [40, 'Score in a round'],
+    'Flap': [15, 'Pipes passed'], 'Light Memory': [10, 'Rounds repeated'], 'Orb Pop': [50, 'Score in a round'],
     'Shape Fit': [300, 'Total score']
 };
 Object.keys(ENDSHOW_GOOD).forEach(function (g) {

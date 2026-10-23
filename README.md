@@ -66,6 +66,52 @@ Two pages are added to the FPP UI:
   the arcade button/axis commands. Detected controllers are listed automatically; "Set Defaults"
   fills in a standard mapping for a game pad or a dance mat.
 
+## End shows
+
+A good game ends with a show of about 20 seconds instead of a plain GAME OVER: a headline
+(NEW BEST! or GREAT GAME!) bouncing in over fireworks, the score and the like counting up, a
+little story of that game's own, rolling credits and GAME OVER. Any button skips it after two
+seconds. Breakout has its longer win show instead (below).
+
+Every game has two settings for it. *End show*: after a good game (the default), after every
+game, or never. *Good game*: the level, wave, length or score that makes a game a good one; a
+new best score always counts too. Best scores are kept per model and game in
+`media/plugindata/fpp-arcade/best.json` (delete it to start afresh). Each show plays its game's
+`EndShow` sound as it starts (see SOUNDS.md).
+
+What counts as good, and each game's story:
+
+- **Tetris** (level 5): falling tetrominoes build a Christmas tree; a star lands on top and
+  lights up the ornaments under fireworks.
+- **Pong** (a win by 3 or more; Pong keeps no best score): one last rally that speeds up until
+  the ball bursts into fireworks, then the paddles shake hands and the winner gets a Santa hat.
+- **Snake** (a length of 20): the snake takes a victory lap, eating a line of apples in straight
+  runs, then a golden apple that turns it rainbow, and slithers off the edge.
+- **Frogger** (level 4): the frog, in a Santa hat, makes one last crossing over a snowy road and
+  an icy river to its home bay, where its family pops up and they hop for joy.
+- **Maze Chase** (level 3): the arcade intermission - the ghost, in a Santa hat, chases the
+  hero; a giant hero chases the scared ghost back and takes its hat. The cast parades under the
+  credits.
+- **Asteroid Orbit** (sector 4): the ship flies a victory loop, blasts rocks, collects their
+  crystals and warps through a black hole into a Christmas star.
+- **Barrel Climb** (level 3): the rescue - the climber reaches the top, the rivets pop, the ape
+  tumbles to the floor and a heart appears between the climber and the friend.
+- **Star Defenders** (wave 5): the aliens wave a white flag and fly off, the saucer drops a
+  present the cannon catches, and the cannon's fireworks light a Christmas star while the aliens
+  dance.
+- **Stacker** (level 3): the tower builds itself into a lit Christmas tree with a star on top.
+- **Flap** (15 pipes): the bird, in a Santa hat, flies a victory lap, turning every pipe it gets
+  through into a candy cane, then zooms off in a trail of sparkles.
+- **Light Memory** (10 rounds): the four triangles play Jingle Bells, spin through every colour,
+  flash red and green and finish in a golden starburst.
+- **Orb Pop** (a round of 50; the show replaces the score screen, and attract mode follows as
+  before): the orbs gather into one giant orb that bursts and floats away as lanterns. No round
+  starts while it plays.
+- **Shape Fit** (a total of 300): the five poses just played dance across the wall in a conga
+  line, then a big STAR outline fills up and turns gold.
+
+`tools/shows/preview.sh` renders any game's show to a contact sheet, without the player.
+
 ## Breakout
 
 Fifteen levels of bricks, with power-ups that fall from broken bricks: **laser** (red: the

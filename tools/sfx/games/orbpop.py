@@ -81,4 +81,16 @@ SOUNDS = {
         seq(silence(0.45), bell("E6", 1.1, 0.25, decay=0.35)),
         seq(silence(0.4), sparkle(1.1, count=18, vol=0.18, seed=11)),
     ),
+    # The end show after a good round: a music-box tune of bells climbing the
+    # pentatonic scale the pops use, a swell of glitter as the giant orb
+    # bursts, and a long shimmering chord as the lanterns float away.
+    "EndShow": lambda: mix(
+        arp(["C5", "E5", "G5", "C6", "D6", "E6", "G6", "E6", "D6", "C6", "D6", "E6", "G6", "A6"], 0.16, 0.6, 0.45),
+        seq(silence(2.3), arp(["C6", "G6", "C7", "E7", "G7"], 0.04, 0.4, 0.4)),
+        seq(silence(2.3), sparkle(0.9, lo=3000, hi=7000, count=22, vol=0.3, seed=13)),
+        seq(silence(2.6), bell("C6", 2.6, 0.4, decay=0.9)),
+        seq(silence(2.6), bell("E6", 2.6, 0.3, decay=0.9)),
+        seq(silence(2.6), bell("G6", 2.6, 0.25, decay=0.9)),
+        seq(silence(2.8), sparkle(2.2, count=26, vol=0.16, seed=17)),
+    ),
 }

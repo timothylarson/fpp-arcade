@@ -3,8 +3,10 @@
 #include "FPPShapeFit.h"
 #include "ArcadeCanvas.h"
 #include "KinectPeople.h"
+#include "ShapeFitShow.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <random>
 #include <vector>
@@ -15,64 +17,25 @@
 
 using ArcadeCanvas::RGB;
 
-// Poses are drawn from circles and thick line segments in "person units": a
-// standing person is 1 tall, x = 0 is their middle and y = 0 the top of their
-// head. On the wall they are stretched sideways to match how the Kinect's
-// picture is stretched onto the matrix: the Kinect sees 57 x 43 degrees, and
-// the model is 60 x 25 LEDs, so a person comes out about 1.8 times wider than
-// their own proportions.
+// The poses, their drawing and the game's colours are in ShapeFitShow.h, so
+// the end show can dance the same outlines.
+using ShapeFitShow::CLOCK;
+using ShapeFitShow::INSIDE;
+using ShapeFitShow::KINECT_STRETCH;
+using ShapeFitShow::OUTLINE;
+using ShapeFitShow::OUTSIDE;
+using ShapeFitShow::POSES;
+using ShapeFitShow::Pose;
+using ShapeFitShow::segDist;
 
 namespace {
-
-struct Prim {
-    float x1, y1, x2, y2, r;   // a segment of radius r; a circle when the ends match
-};
-struct Pose {
-    const char *name;
-    std::vector<Prim> parts;
-};
-
-const std::vector<Pose> POSES = {
-    {"STAR", {{0, .09f, 0, .09f, .08f}, {0, .18f, 0, .55f, .09f}, {0, .26f, -.38f, .08f, .05f}, {0, .26f, .38f, .08f, .05f},
-              {0, .55f, -.26f, 1, .06f}, {0, .55f, .26f, 1, .06f}}},
-    {"ARMS UP", {{0, .2f, 0, .2f, .08f}, {0, .29f, 0, .62f, .09f}, {-.06f, .32f, -.22f, 0, .05f}, {.06f, .32f, .22f, 0, .05f},
-                 {-.05f, .62f, -.07f, 1, .06f}, {.05f, .62f, .07f, 1, .06f}}},
-    {"T", {{0, .09f, 0, .09f, .08f}, {0, .18f, 0, .55f, .09f}, {-.46f, .27f, .46f, .27f, .05f},
-           {-.05f, .55f, -.07f, 1, .06f}, {.05f, .55f, .07f, 1, .06f}}},
-    {"CROUCH", {{0, .42f, 0, .42f, .08f}, {0, .7f, 0, .7f, .22f}, {-.18f, .6f, -.3f, .8f, .05f}, {.18f, .6f, .3f, .8f, .05f},
-                {-.12f, .85f, -.18f, 1, .07f}, {.12f, .85f, .18f, 1, .07f}}},
-    {"LEAN", {{.24f, .12f, .24f, .12f, .08f}, {.18f, .2f, 0, .55f, .09f}, {.16f, .28f, .5f, .2f, .05f}, {.1f, .3f, -.18f, .5f, .05f},
-              {0, .55f, -.12f, 1, .06f}, {0, .55f, .14f, 1, .06f}}},
-    {"FLAMINGO", {{0, .09f, 0, .09f, .08f}, {0, .18f, 0, .55f, .09f}, {0, .26f, -.3f, .4f, .05f}, {0, .26f, .3f, .4f, .05f},
-                  {0, .55f, 0, 1, .06f}, {0, .58f, .2f, .72f, .06f}, {.2f, .72f, .05f, .8f, .05f}}},
-    // Two people side by side, holding hands: one for groups.
-    {"PAIR", {{-.34f, .12f, -.34f, .12f, .07f}, {-.34f, .2f, -.34f, .58f, .08f}, {-.34f, .3f, 0, .42f, .045f},
-              {-.34f, .3f, -.6f, .48f, .045f}, {-.37f, .58f, -.42f, 1, .055f}, {-.31f, .58f, -.26f, 1, .055f},
-              {.34f, .12f, .34f, .12f, .07f}, {.34f, .2f, .34f, .58f, .08f}, {.34f, .3f, 0, .42f, .045f},
-              {.34f, .3f, .6f, .48f, .045f}, {.37f, .58f, .42f, 1, .055f}, {.31f, .58f, .26f, 1, .055f}}},
-};
-
-constexpr float KINECT_STRETCH = 1.8f;
 constexpr int ROUNDS = 5;
-
-const RGB OUTLINE = {0.1f, 0.9f, 1.0f};
-const RGB INSIDE = {0.2f, 1.0f, 0.3f};
-const RGB OUTSIDE = {1.0f, 0.25f, 0.1f};
-const RGB CLOCK = {1.0f, 0.8f, 0.2f};
-
-float segDist(float px, float py, const Prim &p) {
-    const float dx = p.x2 - p.x1, dy = p.y2 - p.y1, l2 = dx * dx + dy * dy;
-    float t = l2 > 0 ? ((px - p.x1) * dx + (py - p.y1) * dy) / l2 : 0.0f;
-    t = std::clamp(t, 0.0f, 1.0f);
-    const float ex = p.x1 + t * dx - px, ey = p.y1 + t * dy - py;
-    return std::sqrt(ex * ex + ey * ey);
-}
-
 }  // namespace
 
 class ShapeFitEffect : public FPPArcadeGameEffect {
 public:
-    ShapeFitEffect(PixelOverlayModel *m, int sizePct, int seconds) : FPPArcadeGameEffect(m), rng(std::random_device{}()) {
+    ShapeFitEffect(PixelOverlayModel *m, int sizePct, int seconds, int showMode = 1, int goodTotal = 300)
+        : FPPArcadeGameEffect(m), rng(std::random_device{}()), endShow(showMode), goodGame(goodTotal) {
         model->getSize(W, H);
         W = std::max(10, W);
         H = std::max(10, H);
@@ -96,6 +59,18 @@ public:
         return NAME;
     }
 
+    void button(const std::string &b) override {
+        // Any press skips the end show (once it's had two seconds); nothing
+        // else happens until it's over.
+        if (showing) {
+            if (b.find("Pressed") != std::string::npos) {
+                skipShow.store(true);
+            }
+            return;
+        }
+        FPPArcadeGameEffect::button(b);
+    }
+
     void restart() override {
         round = 0;
         total = 0;
@@ -114,7 +89,24 @@ public:
             model->flushOverlayBuffer();
             return FRAME_MS;
         }
-        const float dt = (float)(consumeElapsedMs(FRAME_MS, 100.0) / 1000.0);
+        const double dtMs = consumeElapsedMs(FRAME_MS, 100.0);
+        const float dt = (float)(dtMs / 1000.0);
+        // The end show plays instead of the total; the Kinect isn't needed for
+        // it, so losing it doesn't cut the show short. Drawn as the game's own
+        // frames are, flushed on FPP's schedule.
+        if (showing) {
+            if (skipShow.exchange(false) && show.elapsedMs() > 2000.0) {
+                show.finish();
+            }
+            show.step(dtMs, canvas);
+            canvas.writeTo(model);
+            model->setOverlayBufferDirty(true);
+            if (show.over()) {
+                finish();   // as the total screen ends
+                return EFFECT_AFTER_NEXT_OUTPUT;
+            }
+            return FRAME_MS;
+        }
         clock += dt;
         stateT += dt;
         const bool haveKinect = readKinect();
@@ -145,9 +137,17 @@ public:
             }
             if (stateT >= 3.0f) {
                 if (++round >= ROUNDS) {
+                    sfxStop("shapefit");
+                    // A good total (or a new best) gets the end show instead
+                    // of the TOTAL screen.
+                    int best = 0;
+                    const bool newBest = arcadeRecordBest(model->getName(), "Shape Fit", total, &best);
+                    if (arcadeWantShow(endShow, total >= goodGame, newBest)) {
+                        startShow(newBest, best);
+                        return FRAME_MS;
+                    }
                     state = State::Total;
                     stateT = 0;
-                    sfxStop("shapefit");
                     sfx("shapefit", "Total");
                 } else {
                     startRound();
@@ -178,6 +178,17 @@ private:
         model->clearOverlayBuffer();
         model->flushOverlayBuffer();
         finished = true;
+    }
+
+    void startShow(bool newBest, int best) {
+        std::vector<int> played;
+        for (int k = 0; k < ROUNDS; ++k) {
+            played.push_back(order[k % order.size()]);
+        }
+        sfx("shapefit", "EndShow");
+        skipShow.store(false);
+        showing = true;
+        show.start(W, H, ShapeFitShow::config(total, newBest, best), std::make_unique<ShapeFitShow::Story>(played));
     }
 
     bool readKinect() {
@@ -317,6 +328,11 @@ private:
     bool finished = false;
     int lastTick = 0;
     bool verdictSounded = false;
+
+    int endShow = 1, goodGame = 300;   // the End Show and Good Game settings
+    ArcadeShow show;
+    bool showing = false;
+    std::atomic<bool> skipShow{false};
 };
 
 
@@ -340,5 +356,7 @@ void FPPShapeFit::button(const std::string &button) {
     } else {
         m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
     }
-    m->setRunningEffect(new ShapeFitEffect(m, findIntOption("Shape Size", 85), findIntOption("Seconds", 6)), 33);
+    m->setRunningEffect(new ShapeFitEffect(m, findIntOption("Shape Size", 85), findIntOption("Seconds", 6),
+                                           endShowOption(), goodGameOption(300)),
+                        33);
 }

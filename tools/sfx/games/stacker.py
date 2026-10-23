@@ -32,5 +32,14 @@ SOUNDS = {
         melody([("C5", 1), ("G4", 1), ("E4", 1), ("A4", 1.5), ("B4", 1.5), ("A4", 1), ("G#4", 1), ("Bb4", 1), ("G#4", 1), ("G4", 3)],
                0.11, duty=0.25),
         melody([("C3", 3), ("F3", 4), ("E3", 3), ("C3", 3)], 0.11, wave="triangle", vol=0.4)),
+    # The end show, as the tower becomes a Christmas tree: a quick run up all
+    # the drop notes, then O Christmas Tree.
+    "EndShow": lambda: seq(
+        seq(*[tone(n, 0.045, duty=0.25, vol=0.5, decay=0.03, release=0.01) for n in SCALE]),
+        silence(0.08),
+        mix(melody([("D5", 1), ("G5", 1.5), ("G5", 0.5), ("G5", 3), ("A5", 1), ("B5", 1.5), ("B5", 0.5), ("B5", 3),
+                    ("B5", 1), ("A5", 1), ("B5", 1), ("C6", 2), ("F#5", 1), ("A5", 2), ("G5", 4)], 0.17, duty=0.25),
+            seq(silence(0.17), melody([("G3", 6), ("D3", 5), ("G3", 3), ("C3", 2), ("D3", 3), ("G2", 4)], 0.17,
+                                      wave="triangle", vol=0.4, legato=0.7)))),
 }
 SOUNDS.update({f"Drop{i + 1}": (lambda n=n: drop(n)) for i, n in enumerate(SCALE)})

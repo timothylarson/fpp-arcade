@@ -21,6 +21,20 @@ SOUNDS = {
     "Paddle": lambda: blip(PADDLE, 0.035),
     "Wall": lambda: blip(WALL, 0.03),
     "Point": lambda: tone(PADDLE, 0.26, wave="square", freq_end=PADDLE * 0.9, release=0.04),
+    # The end show for a clear win: a rally of paddle and wall blips getting
+    # faster and faster, then the game-over fanfare climbing higher, over a
+    # walking bass, to a long top note.
+    "EndShow": lambda: seq(
+        seq(*[seq(blip(PADDLE if i % 2 else WALL, 0.035), silence(max(0.04, 0.3 * 0.82 ** i)))
+              for i in range(16)]),
+        silence(0.12),
+        mix(
+            melody([(PADDLE, 1), (PADDLE * 1.25, 1), (PADDLE * 1.5, 1), (PADDLE * 2, 2),
+                    (PADDLE * 1.5, 1), (PADDLE * 2, 2), ("-", 1),
+                    (PADDLE * 1.25, 1), (PADDLE * 1.5, 1), (PADDLE * 2, 1), (PADDLE * 2.5, 2),
+                    (PADDLE * 2, 1), (PADDLE * 3, 8)], 0.12, wave="square", vol=0.45),
+            melody([(WALL / 2, 4), (WALL * 0.75, 4), (WALL * 0.625, 4), (WALL, 12)], 0.12,
+                   wave="triangle", vol=0.5, legato=0.95))),
     "GameOver": lambda: mix(
         melody([(PADDLE, 1), (PADDLE * 1.25, 1), (PADDLE * 1.5, 1), (PADDLE * 2, 2),
                 (PADDLE * 1.5, 1), (PADDLE * 2, 4)], 0.1, wave="square", vol=0.45),

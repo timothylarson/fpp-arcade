@@ -2,6 +2,10 @@
 
 #include "FPPSimpleGames.h"
 #include "ArcadeCanvas.h"
+#include "ArcadeShow.h"
+#include "FlapShow.h"
+#include "LightMemoryShow.h"
+#include "StackerShow.h"
 
 #include <algorithm>
 #include <cctype>
@@ -35,10 +39,13 @@ RGB hue(float h) {
 
 // What the three games share: presses are queued from the command thread and
 // handled on the effect's own thread, so game state is only ever touched in
-// one place; the pause menu, the GAME OVER screen, and handing the model back.
+// one place; the pause menu, the GAME OVER screen or the end show, and handing
+// the model back.
 class SimpleGameEffect : public FPPArcadeGameEffect {
 public:
-    SimpleGameEffect(PixelOverlayModel *m) : FPPArcadeGameEffect(m), rng(std::random_device{}()) {
+    // showMode and good: the End Show and Good Game settings.
+    SimpleGameEffect(PixelOverlayModel *m, int showMode, int good)
+        : FPPArcadeGameEffect(m), rng(std::random_device{}()), endShow(showMode), goodGame(good) {
         model->getSize(W, H);
         W = std::max(8, W);
         H = std::max(8, H);
@@ -46,6 +53,13 @@ public:
     }
 
     void button(const std::string &b) override {
+        // During the end show a press skips it, and does nothing else.
+        if (show.on()) {
+            if (b.find("Pressed") != std::string::npos) {
+                show.skip();
+            }
+            return;
+        }
         const bool wasPaused = paused;
         FPPArcadeGameEffect::button(b);
         if (wasPaused || paused || b == "Start - Pressed") {
@@ -61,6 +75,8 @@ public:
     void restart() override {
         over = false;
         overT = 0;
+        showDue = false;
+        showStory.reset();
         {
             std::lock_guard<std::mutex> l(pressLock);
             presses.clear();
@@ -73,6 +89,12 @@ public:
         if (finished) {
             model->setState(PixelOverlayState(PixelOverlayState::PixelState::Disabled));
             return EFFECT_DONE;
+        }
+        if (show.on()) {
+            if (show.step(model, consumeElapsedMs(FRAME_MS, 100.0))) {
+                return FRAME_MS;
+            }
+            return finish();   // over: the game ends as it does after GAME OVER
         }
         if (isPaused()) {
             drawPauseMenu();
@@ -101,14 +123,20 @@ public:
             overT += dt;
             if (overT > 1.0f && overT - dt <= 1.0f) {
                 sfxStop(folder());
+                // A good game (or a new best) gets the end show where the
+                // GAME OVER box would be, once the miss has had its second.
+                if (showDue) {
+                    showDue = false;
+                    sound("EndShow");
+                    show.start(model, std::move(showConfig), std::move(showStory));
+                    resetFrameTimer();
+                    return FRAME_MS;
+                }
                 sound("GameOver");   // with the GAME OVER box
             }
             stepOver(dt);
             if (overT > 5.0f) {
-                model->clearOverlayBuffer();
-                model->flushOverlayBuffer();
-                finished = true;
-                return EFFECT_AFTER_NEXT_OUTPUT;
+                return finish();
             }
         }
         canvas.clear();
@@ -135,13 +163,30 @@ protected:
     virtual void stepOver(float dt) {}
     virtual void draw() = 0;
     virtual void drawText() {}
+    // The end show, asked once as the game ends while its numbers are still
+    // as they finished: record the best (with earnsShow()) and, if it earns
+    // the show, fill in cfg and story and return true.
+    virtual bool endShowFor(ShowConfig &/*cfg*/, std::unique_ptr<ShowStory> &/*story*/) { return false; }
 
     void gameOver(int score, const char *line1 = "GAME", const char *line2 = "OVER") {
+        // Only the first time: two presses in one frame can both miss, and
+        // recording the best twice would make the second look like no new best.
+        if (!over) {
+            showConfig = ShowConfig();
+            showStory.reset();
+            showDue = endShowFor(showConfig, showStory);
+        }
         over = true;
         overT = 0;
         overScore = score;
         overTitle[0] = line1;
         overTitle[1] = line2;
+    }
+    // Records best under key in the best scores, and whether the game gets
+    // the end show: good is whether it reached the Good Game mark (goodGame).
+    bool earnsShow(const char *key, int best, bool good, bool *newBest, int *previousBest) {
+        *newBest = arcadeRecordBest(model->getName(), key, best, previousBest);
+        return arcadeWantShow(endShow, good, *newBest);
     }
     float rnd() { return std::uniform_real_distribution<float>(0.0f, 1.0f)(rng); }
     // sounds/<game>/<n>.wav, the folder being the effect's name in lower case.
@@ -158,8 +203,21 @@ protected:
     float clock = 0;
     bool over = false;
     float overT = 0;
+    int endShow = 1, goodGame = 0;   // the End Show and Good Game settings
 
 private:
+    // Handing the model back, after GAME OVER or the end show.
+    int32_t finish() {
+        model->clearOverlayBuffer();
+        model->flushOverlayBuffer();
+        finished = true;
+        return EFFECT_AFTER_NEXT_OUTPUT;
+    }
+
+    ArcadeShowPlayer show;
+    ShowConfig showConfig;
+    std::unique_ptr<ShowStory> showStory;
+    bool showDue = false;   // the game earned the show; it starts after the miss
     std::mutex pressLock;
     std::vector<std::string> presses;
     int overScore = 0;
@@ -169,8 +227,10 @@ private:
 
 // Starting any of them: the first press only starts it (so it can't, say, drop
 // the first Stacker row before you've seen it move); after that presses play.
+// showMode and good are the End Show and Good Game settings.
 template <typename EFFECT>
-static void startOrForward(const std::string &modelName, const std::string &overlay, const std::string &button) {
+static void startOrForward(const std::string &modelName, const std::string &overlay, const std::string &button,
+                           int showMode, int good) {
     PixelOverlayModel *m = PixelOverlayManager::INSTANCE.getModel(modelName);
     if (m == nullptr) {
         return;
@@ -185,14 +245,14 @@ static void startOrForward(const std::string &modelName, const std::string &over
     } else {
         m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
     }
-    m->setRunningEffect(new EFFECT(m), 25);
+    m->setRunningEffect(new EFFECT(m, showMode, good), 25);
 }
 
 // ======================================================================== Stacker
 
 class StackerEffect : public SimpleGameEffect {
 public:
-    StackerEffect(PixelOverlayModel *m) : SimpleGameEffect(m) {
+    StackerEffect(PixelOverlayModel *m, int showMode, int good) : SimpleGameEffect(m, showMode, good) {
         layerH = H >= 20 ? 2 : 1;
         reset();
     }
@@ -356,6 +416,18 @@ private:
     }
     void stepOver(float dt) override { stepChunks(dt); }
 
+    // A good game reaches level goodGame; the best kept is the score.
+    bool endShowFor(ShowConfig &cfg, std::unique_ptr<ShowStory> &story) override {
+        bool newBest = false;
+        int best = 0;
+        if (!earnsShow("Stacker", score, level >= goodGame, &newBest, &best)) {
+            return false;
+        }
+        cfg = StackerShow::config(score, level, newBest);
+        story = std::make_unique<StackerShow::Story>();
+        return true;
+    }
+
     void draw() override {
         const bool party = phase == Phase::Clear;
         for (int k = 0; k < (int)stack.size(); ++k) {
@@ -424,14 +496,14 @@ const std::string &FPPStacker::getName() {
     return name;
 }
 void FPPStacker::button(const std::string &button) {
-    startOrForward<StackerEffect>(modelName, findOption("overlay", "Overwrite"), button);
+    startOrForward<StackerEffect>(modelName, findOption("overlay", "Overwrite"), button, endShowOption(), goodGameOption(3));
 }
 
 // ======================================================================== Flap
 
 class FlapEffect : public SimpleGameEffect {
 public:
-    FlapEffect(PixelOverlayModel *m) : SimpleGameEffect(m) { reset(); }
+    FlapEffect(PixelOverlayModel *m, int showMode, int good) : SimpleGameEffect(m, showMode, good) { reset(); }
     const std::string &name() const override {
         static std::string NAME = "Flap";
         return NAME;
@@ -510,6 +582,18 @@ private:
         }
     }
 
+    // A good game passes goodGame pipes, and the best kept is the pipes.
+    bool endShowFor(ShowConfig &cfg, std::unique_ptr<ShowStory> &story) override {
+        bool newBest = false;
+        int best = 0;
+        if (!earnsShow("Flap", score, score >= goodGame, &newBest, &best)) {
+            return false;
+        }
+        cfg = FlapShow::config(score, newBest, best);
+        story = std::make_unique<FlapShow::Story>();
+        return true;
+    }
+
     void draw() override {
         for (int yy = 0; yy < H; ++yy) {
             for (int xx = 0; xx < W; ++xx) {
@@ -556,14 +640,14 @@ const std::string &FPPFlap::getName() {
     return name;
 }
 void FPPFlap::button(const std::string &button) {
-    startOrForward<FlapEffect>(modelName, findOption("overlay", "Overwrite"), button);
+    startOrForward<FlapEffect>(modelName, findOption("overlay", "Overwrite"), button, endShowOption(), goodGameOption(15));
 }
 
 // ======================================================================== Light Memory
 
 class LightMemoryEffect : public SimpleGameEffect {
 public:
-    LightMemoryEffect(PixelOverlayModel *m) : SimpleGameEffect(m) {
+    LightMemoryEffect(PixelOverlayModel *m, int showMode, int good) : SimpleGameEffect(m, showMode, good) {
         // Which triangle each LED belongs to: up, right, down, left - or none,
         // on the dark lines between them.
         region.assign(W * H, -1);
@@ -686,6 +770,19 @@ private:
         }
     }
 
+    // A good game repeats goodGame rounds, and the best kept is the rounds.
+    bool endShowFor(ShowConfig &cfg, std::unique_ptr<ShowStory> &story) override {
+        const int rounds = (int)seq.size() - 1;
+        bool newBest = false;
+        int best = 0;
+        if (!earnsShow("Light Memory", rounds, rounds >= goodGame, &newBest, &best)) {
+            return false;
+        }
+        cfg = LightMemoryShow::config(rounds, newBest, best);
+        story = std::make_unique<LightMemoryShow::Story>();
+        return true;
+    }
+
     void draw() override {
         static const RGB COLOURS[4] = {{0.1f, 1.0f, 0.2f}, {1.0f, 0.1f, 0.1f}, {1.0f, 0.85f, 0.0f}, {0.1f, 0.3f, 1.0f}};
         for (int i = 0; i < W * H; ++i) {
@@ -717,5 +814,6 @@ const std::string &FPPLightMemory::getName() {
     return name;
 }
 void FPPLightMemory::button(const std::string &button) {
-    startOrForward<LightMemoryEffect>(modelName, findOption("overlay", "Overwrite"), button);
+    startOrForward<LightMemoryEffect>(modelName, findOption("overlay", "Overwrite"), button, endShowOption(),
+                                      goodGameOption(10));
 }

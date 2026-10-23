@@ -2,6 +2,7 @@
 
 #include "FPPBarrelClimb.h"
 #include "ArcadeCanvas.h"
+#include "BarrelClimbShow.h"
 
 #include <algorithm>
 #include <atomic>
@@ -46,8 +47,10 @@ class BarrelClimbEffect : public FPPArcadeGameEffect {
 public:
     // startEvery: seconds between barrels on level 1. Each level throws them
     // perLevel seconds sooner, down to fastestEvery.
-    BarrelClimbEffect(PixelOverlayModel *m, int lives, float startEvery, float fastestEvery, float perLevel)
-        : FPPArcadeGameEffect(m), rng(std::random_device{}()) {
+    // showMode and goodLevel: the End Show and Good Game settings.
+    BarrelClimbEffect(PixelOverlayModel *m, int lives, float startEvery, float fastestEvery, float perLevel,
+                      int showMode = 1, int goodLevel = 3)
+        : FPPArcadeGameEffect(m), rng(std::random_device{}()), endShow(showMode), goodGame(goodLevel) {
         sooner = std::clamp(perLevel, 0.0f, 10.0f);
         fastest = std::clamp(fastestEvery, 0.8f, 20.0f);
         slowest = std::clamp(startEvery, fastest, 30.0f);
@@ -69,6 +72,12 @@ public:
     }
 
     void button(const std::string &b) override {
+        if (show.on()) {
+            if (b.find("Pressed") != std::string::npos) {
+                show.skip();
+            }
+            return;
+        }
         const bool pressed = b.size() > 8 && b.compare(b.size() - 8, 8, " Pressed") == 0;
         const bool released = b.size() > 9 && b.compare(b.size() - 9, 9, " Released") == 0;
         if (pressed || released) {
@@ -108,6 +117,16 @@ public:
             model->setState(PixelOverlayState(PixelOverlayState::PixelState::Disabled));
             return EFFECT_DONE;
         }
+        if (show.on()) {
+            if (show.step(model, consumeElapsedMs(50.0))) {
+                return 50;
+            }
+            // Over: the game ends as it would have after GAME OVER.
+            model->clearOverlayBuffer();
+            model->flushOverlayBuffer();
+            finished = true;
+            return EFFECT_AFTER_NEXT_OUTPUT;
+        }
         if (isPaused()) {
             drawPauseMenu();
             model->flushOverlayBuffer();
@@ -131,6 +150,10 @@ public:
             startLevel();
         }
         step(dt);
+        if (show.on()) {
+            resetFrameTimer();
+            return 50;
+        }
         if (state == State::Over && stateT > 5.0f) {
             model->clearOverlayBuffer();
             model->flushOverlayBuffer();
@@ -283,7 +306,17 @@ private:
                 } else {
                     state = State::Over;
                     stateT = 0;
-                    sound("GameOver");
+                    // A good game (reaching the Good Game level) or a new
+                    // best score gets the end show instead of GAME OVER.
+                    int best = 0;
+                    const bool newBest = arcadeRecordBest(model->getName(), "Barrel Climb", score, &best);
+                    if (arcadeWantShow(endShow, level >= goodGame, newBest)) {
+                        sound("EndShow");
+                        show.start(model, BarrelClimbShow::config(score, level, newBest),
+                                   std::make_unique<BarrelClimbShow::Story>());
+                    } else {
+                        sound("GameOver");
+                    }
                 }
             }
             return;
@@ -643,6 +676,9 @@ private:
     float pacc = 0, jumpT = 0;
     std::vector<Barrel> barrels;
 
+    int endShow = 1, goodGame = 3;   // the End Show and Good Game settings
+    ArcadeShowPlayer show;
+
     std::atomic<uint32_t> held{0};
     std::atomic<bool> jumpNow{false};
     bool finished = false;
@@ -671,7 +707,8 @@ void FPPBarrelClimb::button(const std::string &button) {
         try { every = std::stof(findOption("Barrels Every", "6")); } catch (...) {}
         try { fastestEvery = std::stof(findOption("Fastest Barrels", "3.2")); } catch (...) {}
         try { perLevel = std::stof(findOption("Barrels Sooner", "0.6")); } catch (...) {}
-        effect = new BarrelClimbEffect(m, findIntOption("Lives", 3), every, fastestEvery, perLevel);
+        effect = new BarrelClimbEffect(m, findIntOption("Lives", 3), every, fastestEvery, perLevel,
+                                       endShowOption(), goodGameOption(3));
         m->setRunningEffect(effect, 25);
     }
     // The starting press counts (a held direction walks straight away) -

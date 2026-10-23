@@ -1,6 +1,7 @@
 #include <fpp-pch.h>
 
 #include "FPPTetris.h"
+#include "TetrisShow.h"
 #include <algorithm>
 #include <array>
 #include <random>
@@ -136,7 +137,8 @@ private:
 
 class TetrisEffect : public FPPArcadeGameEffect {
 public:
-    TetrisEffect(int r, int c, int sc, PixelOverlayModel *m) : FPPArcadeGameEffect(m) {
+    TetrisEffect(int r, int c, int sc, PixelOverlayModel *m, int showMode = 1, int goodLevel = 5)
+        : FPPArcadeGameEffect(m), endShow(showMode), goodGame(goodLevel) {
         // Rows/Colums ARE Tetris' playfield, so they feed setPlayfield() rather
         // than the game getting a second pair of sizing options. Either at 0 now
         // means "as tall/wide as the panel allows", and the centring that used
@@ -293,9 +295,10 @@ public:
         currentShape->col = cols / 2 - 1;
         currentShape->row = 0;
         if (!CheckPosition(currentShape)) {
+            // The GAME OVER sound (or the end show's) comes from update(), which
+            // decides between them; this can run on the button thread.
             GameOn = false;
             sfxStop("tetris");
-            sfx("tetris", "GameOver");
         }
     }
     bool CheckPosition(Shape *shape) {
@@ -448,7 +451,32 @@ public:
         model->flushOverlayBuffer();
     }
 
+    // Once, as the game ends: a good game (or a new best) gets the end show in
+    // place of the GAME OVER screen. Dropping the piece first means that when
+    // the show is over, showGameOver() goes straight to handing the model back,
+    // as it would have after the GAME OVER screen.
+    bool startEndShow() {
+        int best = 0;
+        const bool newBest = arcadeRecordBest(model->getName(), "Tetris", score, &best);
+        if (!arcadeWantShow(endShow, level >= goodGame, newBest)) {
+            return false;
+        }
+        delete currentShape;
+        currentShape = nullptr;
+        sfx("tetris", "EndShow");
+        show.start(model, TetrisShow::config(score, lines, newBest, best), std::make_unique<TetrisShow::Story>());
+        resetFrameTimer();
+        return true;
+    }
+
     int32_t showGameOver() {
+        if (!endDecided) {
+            endDecided = true;
+            if (startEndShow()) {
+                return 50;
+            }
+            sfx("tetris", "GameOver");
+        }
         resetFrameTimer();
         if (currentShape) {
             delete currentShape;
@@ -497,6 +525,12 @@ public:
     }
 
     virtual int32_t update() override {
+        if (show.on()) {
+            if (show.step(model, consumeElapsedMs(50.0))) {
+                return 50;
+            }
+            resetFrameTimer();   // over: the game ends below, as it would have
+        }
         if (isPaused()) {
             drawPauseMenu();
             model->flushOverlayBuffer();
@@ -556,6 +590,12 @@ public:
     }
     
     void button(const std::string &button) {
+        if (show.on()) {
+            if (button.find("Pressed") != std::string::npos) {
+                show.skip();
+            }
+            return;
+        }
         if (!GameOn || !currentShape) {
             return;
         }
@@ -706,6 +746,9 @@ public:
     static constexpr double bannerMs = 1800.0;
     bool GameOn = true;
     bool WaitingUntilOutput = false;
+    bool endDecided = false;          // show or GAME OVER, chosen once per game
+    int endShow = 1, goodGame = 5;    // the End Show and Good Game settings
+    ArcadeShowPlayer show;
     
     Shape *currentShape = nullptr;
     double timer = 500.0; // half second
@@ -751,6 +794,7 @@ public:
         fallAccumulatorMs = 0.0;
         GameOn = true;
         WaitingUntilOutput = false;
+        endDecided = false;
         if (currentShape) {
             delete currentShape;
             currentShape = nullptr;
@@ -785,7 +829,7 @@ void FPPTetris::button(const std::string &button) {
             int pixelScaling = findIntOption("Pixel Scaling", 1);
             int rows = findIntOption("Rows", 20);
             int cols = findIntOption("Colums", 11);
-            effect = new TetrisEffect(rows, cols, pixelScaling, m);
+            effect = new TetrisEffect(rows, cols, pixelScaling, m, endShowOption(), goodGameOption(5));
             // Creating the effect IS the response to Start. Forwarding that same
             // press into the fresh effect reaches the base class pause handler,
             // which pauses the game on its first frame - it took two Start

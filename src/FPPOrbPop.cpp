@@ -2,9 +2,11 @@
 
 #include "FPPOrbPop.h"
 #include "KinectPeople.h"
+#include "OrbPopShow.h"
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <map>
@@ -73,6 +75,7 @@ struct OrbPopSettings {
     double roundMs = 45000;
     double startHoldMs = 2000;    // someone in view this long starts a round
     float presencePct = 3.0f;     // % of LEDs a person must cover to count
+    int endShow = 1, goodGame = 50;   // the End Show and Good Game settings
 };
 
 double steadyMs() {
@@ -112,6 +115,14 @@ public:
     }
 
     void button(const std::string &b) override {
+        // Any press skips the end show (once it's had two seconds); nothing
+        // else happens until it's over.
+        if (mode == Mode::Show) {
+            if (b.find("Pressed") != std::string::npos) {
+                skipShow.store(true);
+            }
+            return;
+        }
         const bool wasPaused = paused;
         FPPArcadeGameEffect::button(b);
         if (wasPaused || paused) {
@@ -142,6 +153,22 @@ public:
         }
         const double dt = consumeElapsedMs(FRAME_MS);
         const double now = steadyMs();
+
+        // The end show plays instead of the score, and the Kinect is left
+        // unread, so nobody starts a round over it. Drawn the same way as the
+        // game's own frames: at its Brightness, flushed on FPP's schedule.
+        if (mode == Mode::Show) {
+            if (skipShow.exchange(false) && show.elapsedMs() > 2000.0) {
+                show.finish();
+            }
+            show.step(dt, showCanvas);
+            showCanvas.writeTo(model, set.brightness / 100.0f);
+            model->setOverlayBufferDirty(true);
+            if (show.over()) {
+                toMirror();   // as the score screen ends
+            }
+            return FRAME_MS;
+        }
 
         if (readKinect()) {
             kinectGoneMs = 0;
@@ -182,7 +209,7 @@ public:
 
 private:
     static constexpr int FRAME_MS = 33;   // 30 fps, the Kinect's own rate
-    enum class Mode { Mirror, Countdown, Round, Score };
+    enum class Mode { Mirror, Countdown, Round, Score, Show };
 
     struct Orb {
         float x, y, vx, vy, rad;
@@ -211,6 +238,29 @@ private:
     }
 
     void sound(const char *name, float gain = 1.0f) { sfx("orbpop", name, gain); }
+
+    // Back to attract mode after a round, with a few seconds before anyone
+    // in view can start the next.
+    void toMirror() {
+        mode = Mode::Mirror;
+        modeMs = 0;
+        cooldownMs = 3000;
+    }
+
+    void startShow(bool newBest, int best, const Palette &pal) {
+        auto rgb = [](const RGB &c) { return ArcadeCanvas::RGB{c.r, c.g, c.b}; };
+        const OrbPopShow::Look look = {rgb(pal.field), rgb(pal.energy),
+                                       {{rgb(pal.orbs[0]), rgb(pal.orbs[1]), rgb(pal.orbs[2]), rgb(pal.orbs[3])}}};
+        mode = Mode::Show;
+        modeMs = 0;
+        orbs.clear();
+        sparks.clear();
+        sfxStop("orbpop");
+        sound("EndShow");
+        skipShow.store(false);
+        showCanvas.resize(W, H);
+        show.start(W, H, OrbPopShow::config(score, newBest, best, look), std::make_unique<OrbPopShow::Story>(look));
+    }
 
     // The Kinect's view, scaled to this model if the two differ in size.
     bool readKinect() {
@@ -319,6 +369,15 @@ private:
                 sound("Tick", 0.6f);
             }
             if (modeMs >= set.roundMs || awayMs >= 15000) {
+                // A good round (or a new best) gets the end show instead of
+                // the score. Never for a round nobody played, even when
+                // End Show is set to every game.
+                int best = 0;
+                const bool newBest = arcadeRecordBest(model->getName(), "Orb Pop", score, &best);
+                if (score > 0 && arcadeWantShow(set.endShow, score >= set.goodGame, newBest)) {
+                    startShow(newBest, best, pal);
+                    return;
+                }
                 mode = Mode::Score;
                 modeMs = 0;
                 scoreSounded = false;
@@ -340,11 +399,11 @@ private:
                 }
             }
             if (modeMs >= 6000) {
-                mode = Mode::Mirror;
-                modeMs = 0;
-                cooldownMs = 3000;
+                toMirror();
             }
             break;
+        case Mode::Show:
+            break;   // update() runs it
         }
         const float wantAmbient = mode == Mode::Mirror ? 1.0f : 0.0f;
         const float stepA = (float)(dt / 600.0);
@@ -650,6 +709,9 @@ private:
     int countBeat = -1, lastTick = -1, popNote = 0;
     double lastPopMs = -1e9;
     bool scoreSounded = false;
+    ArcadeShow show;
+    ArcadeCanvas::Canvas showCanvas;
+    std::atomic<bool> skipShow{false};
 };
 
 
@@ -721,6 +783,8 @@ void FPPOrbPop::startEffect() {
     s.roundMs = std::clamp(findIntOption("Round Length", 45), 10, 600) * 1000.0;
     s.startHoldMs = std::clamp(findIntOption("Start After", 2), 0, 60) * 1000.0;
     s.presencePct = (float)std::clamp(findIntOption("Sensitivity", 3), 1, 100);
+    s.endShow = endShowOption();
+    s.goodGame = goodGameOption(50);
     m->setRunningEffect(new OrbPopEffect(m, s), 1);
 }
 

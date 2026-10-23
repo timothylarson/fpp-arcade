@@ -82,6 +82,24 @@ SOUNDS = {
         melody([("C5", 1), ("E5", 1), ("G5", 1), ("C6", 2), ("G5", 1), ("C6", 4)], 0.09, wave="square", duty=0.25, vol=0.4),
         melody([("C4", 1), ("G4", 1), ("E4", 1), ("A4", 2), ("F4", 1), ("G4", 4)], 0.09, wave="triangle", vol=0.4),
     ),
+    # The end show (about 5 s): the march's four thumps turned round to climb
+    # instead of fall - the invaders giving up - then a square-wave fanfare
+    # over a bouncing bass, and a run up to a long high C as the star lights.
+    "EndShow": lambda: mix(
+        seq(thump("G2"), silence(0.13), thump("A2"), silence(0.13), thump("B2"), silence(0.13), thump("C3"),
+            silence(0.13),
+            melody([("C5", 1), ("E5", 1), ("G5", 1), ("C6", 3), ("A5", 1), ("C6", 1), ("F6", 3),
+                    ("E6", 1), ("D6", 1), ("C6", 1), ("D6", 1), ("E6", 1), ("G6", 3)], 0.13,
+                   wave="square", duty=0.25, vol=0.4),
+            melody([("G6", 1), ("A6", 1), ("B6", 1), ("C7", 10)], 0.09, wave="square", duty=0.25, vol=0.35,
+                   vibrato=0.15, vib_rate=7, release=0.4)),
+        seq(silence(0.88),
+            melody([("C3", 2), ("G2", 2), ("C3", 2), ("A2", 2), ("F2", 2), ("A2", 2), ("G2", 2), ("B2", 2),
+                    ("G2", 2), ("C3", 2)], 0.13, wave="triangle", vol=0.5),
+            tone("C3", 1.2, wave="triangle", vol=0.5, release=0.5)),
+        seq(silence(3.5), *[tone(f, 0.05, wave="pulse", duty=0.125, vol=0.15, decay=0.03)
+                             for f in ["C7", "G7", "E7", "C8", "G7", "E7", "C8", "G7"]]),
+    ),
     "GameOver": lambda: mix(
         melody([("G4", 2), ("F#4", 2), ("F4", 2), ("E4", 6)], 0.13, wave="square", duty=0.5, vol=0.4, vibrato=0.3),
         melody([("C3", 2), ("Bb2", 2), ("Ab2", 2), ("G2", 6)], 0.13, wave="triangle", vol=0.5),

@@ -2,6 +2,7 @@
 
 #include "FPPMazeChase.h"
 #include "ArcadeCanvas.h"
+#include "MazeChaseShow.h"
 
 #include <algorithm>
 #include <array>
@@ -41,9 +42,11 @@ int reverseOf(int d) { return (d + 2) & 3; }
 class MazeChaseEffect : public FPPArcadeGameEffect {
 public:
     // narrowFrom: the first level drawn with one-LED paths; before it they
-    // are two LEDs wide. 0 keeps them wide.
-    MazeChaseEffect(PixelOverlayModel *m, int lives, int narrowFrom)
-        : FPPArcadeGameEffect(m), rng(std::random_device{}()), narrowLevel(std::max(0, narrowFrom)) {
+    // are two LEDs wide. 0 keeps them wide. showMode and goodLevel are the End
+    // Show and Good Game settings.
+    MazeChaseEffect(PixelOverlayModel *m, int lives, int narrowFrom, int showMode = 1, int goodLevel = 3)
+        : FPPArcadeGameEffect(m), rng(std::random_device{}()), narrowLevel(std::max(0, narrowFrom)),
+          endShow(showMode), goodGame(goodLevel) {
         int w = 0, h = 0;
         model->getSize(w, h);
         canvas.resize(w, h);
@@ -57,6 +60,12 @@ public:
     }
 
     void button(const std::string &b) override {
+        if (show.on()) {
+            if (b.find("Pressed") != std::string::npos) {
+                show.skip();
+            }
+            return;
+        }
         const bool wasPaused = paused;
         FPPArcadeGameEffect::button(b);
         if (wasPaused || paused) {
@@ -76,6 +85,16 @@ public:
     }
 
     int32_t update() override {
+        if (show.on()) {
+            if (show.step(model, consumeElapsedMs(50.0))) {
+                return 50;
+            }
+            // Over: the game ends as it would have after GAME OVER.
+            model->clearOverlayBuffer();
+            model->flushOverlayBuffer();
+            finished = true;
+            return EFFECT_AFTER_NEXT_OUTPUT;
+        }
         if (finished) {
             model->setState(PixelOverlayState(PixelOverlayState::PixelState::Disabled));
             return EFFECT_DONE;
@@ -106,6 +125,10 @@ public:
             sfx("mazechase", "Start");
         }
         step(dt);
+        if (show.on()) {
+            resetFrameTimer();
+            return 50;   // the game just ended well; the show takes over next frame
+        }
         if (state == State::Over && stateT > 5.0f) {
             model->clearOverlayBuffer();
             model->flushOverlayBuffer();
@@ -430,7 +453,16 @@ private:
                     state = State::Over;
                     stateT = 0;
                     sfxStop("mazechase");
-                    sfx("mazechase", "GameOver");
+                    // A good game (or a new best) gets the end show instead
+                    // of GAME OVER.
+                    const bool newBest = arcadeRecordBest(model->getName(), "Maze Chase", score);
+                    if (arcadeWantShow(endShow, level >= goodGame, newBest)) {
+                        sfx("mazechase", "EndShow");
+                        show.start(model, MazeChaseShow::config(score, level, newBest),
+                                   std::make_unique<MazeChaseShow::Story>());
+                    } else {
+                        sfx("mazechase", "GameOver");
+                    }
                 }
             }
             return;
@@ -803,6 +835,8 @@ private:
     ArcadeCanvas::Canvas canvas;
     int mw = 0, mh = 0, ox = 0, oy = 0, c = 0, r = 0, tunnelY = 0;
     int narrowLevel = 4;
+    int endShow = 1, goodGame = 3;   // the End Show and Good Game settings
+    ArcadeShowPlayer show;
     bool wide = true;
     std::vector<uint8_t> grid, dots;
     int dotsLeft = 0;
@@ -839,7 +873,8 @@ void FPPMazeChase::button(const std::string &button) {
         } else {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
         }
-        effect = new MazeChaseEffect(m, findIntOption("Lives", 3), findIntOption("Narrow From", 4));
+        effect = new MazeChaseEffect(m, findIntOption("Lives", 3), findIntOption("Narrow From", 4), endShowOption(),
+                                     goodGameOption(3));
         m->setRunningEffect(effect, 25);
     }
     // The starting press also sets the first direction - but not Start, which

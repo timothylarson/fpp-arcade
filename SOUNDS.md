@@ -7,7 +7,7 @@ made with the little synthesizer in `tools/sfx/` (the recipes are `tools/sfx/gam
 `media/plugindata/fpp-arcade/sounds/<game>/` on the player is played instead, so any sound can
 be replaced, and Breakout's come from there. A name with no file is silent.
 
-All of them play `GameSelected` when the game's title is shown. Sounds marked *(quiet)* are
+All of them play `GameSelected` when the game's title is shown, and `EndShow` when an end show starts (README.md, End shows). Sounds marked *(quiet)* are
 played below full level by the game.
 
 ## Tetris
@@ -20,6 +20,7 @@ played below full level by the game.
 | Single, Double, Triple, Tetris | 1-4 lines cleared |
 | LevelUp | A clear that raises the level (instead of the line sound) |
 | GameOver | No room for the next piece |
+| EndShow | The end show after a good game |
 
 ## Pong
 | Sound | When |
@@ -28,6 +29,7 @@ played below full level by the game.
 | Paddle, Wall | The ball bounces off a paddle, or the top or bottom wall |
 | Point | Either player scores |
 | GameOver | Someone reaches 5 |
+| EndShow | The end show after a clear win |
 
 ## Snake
 | Sound | When |
@@ -36,6 +38,7 @@ played below full level by the game.
 | Turn *(quiet)* | The direction changes |
 | Eat, Milestone | Food eaten; every 10th bite plays Milestone instead |
 | GameOver | Hitting a wall or itself |
+| EndShow | The end show after a good game |
 
 ## Breakout
 See the table under Sound in [README.md](README.md).
@@ -49,6 +52,7 @@ See the table under Sound in [README.md](README.md).
 | Home, LevelClear | Reaching a home; the fifth home |
 | Splash, Squash | A life lost in the water; under a car |
 | GameOver | The last life lost |
+| EndShow | The end show after a good game |
 
 ## Maze Chase
 | Sound | When |
@@ -58,6 +62,7 @@ See the table under Sound in [README.md](README.md).
 | PowerPellet, Scared | A power pellet; the ghosts turn blue |
 | EatGhost | A scared ghost caught |
 | Death, LevelClear, GameOver | Caught; the last dot; the last life |
+| EndShow | The end show after a good game |
 
 ## Asteroid Orbit
 | Sound | When |
@@ -73,6 +78,7 @@ See the table under Sound in [README.md](README.md).
 | Crash | The ship crashes |
 | HoleOpen, Warp | The black hole opens; going through it |
 | GameOver | The last life lost |
+| EndShow | The end show after a good game |
 
 ## Barrel Climb
 | Sound | When |
@@ -83,6 +89,7 @@ See the table under Sound in [README.md](README.md).
 | Throw, BarrelLand | The ape throws; a barrel lands on the girder below |
 | Fall, Die | Walking or jumping off an edge; death |
 | Rescue, GameOver | Reaching the top; the last life lost |
+| EndShow | The end show after a good game |
 
 ## Star Defenders
 | Sound | When |
@@ -95,6 +102,7 @@ See the table under Sound in [README.md](README.md).
 | PowerDouble, PowerRapid, PowerPierce, PowerShields, PowerLaser, ExtraLife | Catching each capsule |
 | ShieldHit *(quiet)*, BombShot | A bomb hits a shield; a shot hits a bomb |
 | Death, WaveClear, GameOver | The cannon destroyed; the last alien; the last life |
+| EndShow | The end show after a good game |
 
 ## Orb Pop
 | Sound | When |
@@ -104,6 +112,7 @@ See the table under Sound in [README.md](README.md).
 | GoldPop | The gold orb |
 | Tick *(quiet)* | Each of a round's last 3 seconds |
 | RoundEnd, Score | The round ends; the score appears (not for 0) |
+| EndShow | The end show after a good round |
 
 ## Shape Fit
 | Sound | When |
@@ -113,6 +122,7 @@ See the table under Sound in [README.md](README.md).
 | Snap | Time's up |
 | Perfect, Great, Good, Ok, Miss | The verdict, with the same cut-offs as on screen |
 | Total | The final total |
+| EndShow | The end show after a good game |
 
 ## Stacker
 | Sound | When |
@@ -121,15 +131,19 @@ See the table under Sound in [README.md](README.md).
 | Drop1-Drop16 | Each drop, higher up a pentatonic scale as the tower nears its goal |
 | Perfect, Chop, Miss | An exact drop; an overhang falls off; a row misses |
 | LevelClear, GameOver | The tower complete; GAME OVER |
+| EndShow | The end show after a good game |
 
 ## Flap
 | Sound | When |
 |---|---|
 | Start, Flap *(quiet)* | The first flap; each later one |
 | Score, Crash, GameOver | Passing a pipe; hitting a pipe or the ground; GAME OVER |
+| EndShow | The end show after a good game |
 
 ## Light Memory
 | Sound | When |
 |---|---|
 | Up, Right, Down, Left | Each triangle's note (A4, C#5, E5, A5), shown and pressed |
 | Wrong, RoundClear, GameOver | A wrong press or timeout; a round repeated; GAME OVER |
+
+| EndShow | The end show after a good game |

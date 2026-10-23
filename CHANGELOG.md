@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- End shows: a good game (a new best score, or reaching the game's Good Game setting) ends with a 20-second show - headline, stats, the game's own story, credits and GAME OVER - instead of GAME OVER. End show sets after a good game / every game / never. Best scores are kept in media/plugindata/fpp-arcade/best.json. Every game but Breakout has one, with a story of its own (README.md lists them) and an EndShow jingle. tools/shows/preview.sh renders a show to images; Breakout's credits now run on the same engine.
 - Breakout: the ball no longer shows an LED past the left or right edge for a frame. A brick's sideways bounce could push it outside the field when it ran between a wall and the first bricks; that bounce now sends it up or down instead, and the walls are checked again after the bricks.
 - Breakout: going through the portal no longer costs lives (often all of them, ending the game): its animation removes the ball on purpose, and that was being counted as a lost ball every few frames.
 - The letter N is an arch (it read as a thick H), and letters drawn twice the size or larger can have their own detail: N gets a stepped diagonal, D rounded corners and W (seven wide) a centre stroke.

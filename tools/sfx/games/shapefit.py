@@ -59,4 +59,22 @@ SOUNDS = {
             tone("C3", 0.9, "triangle", vol=0.5, decay=0.45),
         ),
     ),
+    # The end show after a good game: the game-show band's big finish. A
+    # bouncy conga riff (step, step, step, kick) over a walking bass, then a
+    # drum-roll of woodblocks into a held major chord with the camera's flash.
+    "EndShow": lambda: seq(
+        mix(
+            melody([("C5", 1), ("E5", 1), ("G5", 1), ("C6", 2), ("-", 1),
+                    ("D5", 1), ("F5", 1), ("A5", 1), ("D6", 2), ("-", 1),
+                    ("E5", 1), ("G5", 1), ("B5", 1), ("E6", 2), ("-", 1)], 0.12, "pulse", duty=0.25, vol=0.4),
+            melody([("C3", 2), ("G3", 2), ("C3", 2), ("D3", 2), ("A3", 2), ("D3", 2),
+                    ("E3", 2), ("B3", 2), ("E3", 2)], 0.12, "triangle", vol=0.5),
+        ),
+        seq(*[click("G5" if k % 2 else "D6", 0.3 + 0.03 * k) for k in range(10)]),
+        mix(
+            chord(["C5", "E5", "G5", "C6", "E6"], 1.8, "pulse", duty=0.25, vol=0.22, decay=0.9, vibrato=0.15),
+            tone("C3", 1.8, "triangle", vol=0.5, decay=0.9),
+            tone(1800, 0.2, "sine", vol=0.1, freq_end=3200, decay=0.08),
+        ),
+    ),
 }

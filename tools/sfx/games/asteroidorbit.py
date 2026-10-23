@@ -58,6 +58,25 @@ SOUNDS = {
         melody([("G5", 1), ("C6", 1), ("D6", 1), ("G6", 3)], 0.1, wave="square", duty=0.25, vol=0.4),
         melody([("C4", 3), ("G4", 3)], 0.1, wave="triangle", vol=0.5),
     ),
+    # The end show: the warp's rising sweep, then a bright triangle fanfare over
+    # a square bass, with a sine shimmer high above, landing on a long C.
+    "EndShow": lambda: mix(
+        seq(
+            tone("C3", 0.45, wave="triangle", vol=0.45, freq_end="C6", curve=1.6, release=0.05),
+            melody([("C6", 1), ("G5", 1), ("C6", 1), ("E6", 1), ("G6", 2), ("E6", 1), ("G6", 1),
+                    ("A6", 2), ("G6", 1), ("E6", 1), ("F6", 2), ("D6", 2),
+                    ("E6", 1), ("G6", 1), ("C7", 1), ("B6", 1), ("C7", 6)], 0.14, wave="triangle", vol=0.6),
+        ),
+        seq(
+            silence(0.45),
+            melody([("C3", 4), ("G3", 4), ("F3", 4), ("G3", 4), ("C3", 8)], 0.14, wave="square", duty=0.25,
+                   vol=0.2),
+        ),
+        seq(
+            silence(0.45 + 0.14 * 16),
+            tone("G7", 1.4, wave="sine", vol=0.15, vibrato=0.5, vib_rate=9, attack=0.2, release=0.6),
+        ),
+    ),
     "GameOver": lambda: mix(
         melody([("G5", 2), ("Eb5", 2), ("C5", 2), ("G4", 2), ("Ab4", 3), ("G4", 5)], 0.11, wave="triangle", vol=0.6),
         melody([("C3", 4), ("Ab2", 4), ("G2", 8)], 0.11, wave="square", duty=0.25, vol=0.2),

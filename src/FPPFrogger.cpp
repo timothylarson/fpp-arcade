@@ -1,5 +1,6 @@
 #include <fpp-pch.h>
 #include "FPPFrogger.h"
+#include "FroggerShow.h"
 
 #include <algorithm>
 #include <array>
@@ -67,6 +68,8 @@ public:
         float riverMult    = 1.0f; // river (logs/turtles)
         float roadMult     = 1.0f; // road (cars)
         float variability  = 0.20f; // 0..1 lane-to-lane speed spread
+        int   endShow      = 1;    // the End Show setting
+        int   goodGame     = 4;    // the Good Game setting: the level reached
     };
 
     explicit FroggerEffect(PixelOverlayModel *m, const Options &opts)
@@ -90,6 +93,12 @@ public:
 
     // Main loop
     int32_t update() override {
+        if (show.on()) {
+            if (show.step(model, consumeElapsedMs(50.0))) {
+                return 50;
+            }
+            resetFrameTimer();   // over: the game ends below, as after GAME OVER
+        }
         constexpr double baseFrameMs = 50.0;
         double elapsedMs = consumeElapsedMs(baseFrameMs);
         if (elapsedMs <= 0.0) elapsedMs = baseFrameMs;
@@ -102,6 +111,16 @@ public:
             }
 
         if (!gameOn) {
+            // A good game (or a new best) gets the end show instead of the
+            // GAME OVER screen; when it's over this carries on below as if
+            // that screen had been held.
+            if (showDue) {
+                showDue = false;
+                gameOverShown = true;
+                show.start(model, FroggerShow::config(score, level, newBest), std::make_unique<FroggerShow::Story>());
+                resetFrameTimer();
+                return 50;
+            }
             // Draw the game-over screen once and HOLD it. This used to draw and
             // then fall straight through to the teardown below on the very next
             // update, so the screen was gone before it could be read - Tetris
@@ -212,6 +231,12 @@ public:
 
     // Button handling
     void button(const std::string &button) {
+        if (show.on()) {
+            if (button.find("Pressed") != std::string::npos) {
+                show.skip();
+            }
+            return;
+        }
         const bool isPress = (button.find("Pressed") != std::string::npos) || (button=="Fire");
         if (!isPress) return;
 
@@ -330,6 +355,7 @@ private:
         gameOn = true;
         waitingUntilOutput = false;
         gameOverShown = false;
+        showDue = false;
         initLevel();
         sfxStop("frogger");   // cuts off the title's GameSelected, or the last game's sounds
         sfx("frogger", "Start");
@@ -360,13 +386,21 @@ private:
 
     // sound: "Splash" in the water, "Squash" under a car.
     void loseLife(const char *sound) {
+        // Already over: a second hazard in the same frame mustn't end the game
+        // (and record the best score) twice.
+        if (!gameOn) return;
         if (invulnTimerMs > 0.0) return; // grace
         lives--;
         LogInfo(VB_PLUGIN, "[Frogger] Life lost. Lives left=%d", lives);
         if (lives < 0) {
             gameOn = false;
             sfxStop("frogger");
-            sfx("frogger", "GameOver");
+            // Decided here so the show's music starts the moment the last
+            // frog is lost, just as GAME OVER's does; update() starts the show.
+            int best = 0;
+            newBest = arcadeRecordBest(model->getName(), "Frogger", score, &best);
+            showDue = arcadeWantShow(opt.endShow, level >= opt.goodGame, newBest);
+            sfx("frogger", showDue ? "EndShow" : "GameOver");
             return;
         }
         sfx("frogger", sound);
@@ -704,6 +738,9 @@ private:
     bool   waitingUntilOutput=false;
     bool   gameOverShown=false;
     static constexpr int32_t gameOverHoldMs = 3000;
+    bool   showDue=false;    // the game just ended well: update() starts the end show
+    bool   newBest=false;
+    ArcadeShowPlayer show;
     double invulnTimerMs=0.0;
 
     // per-lane variability multiplier (baseline)
@@ -748,6 +785,9 @@ void FPPFrogger::button(const std::string &button) {
             int vpc = std::max(0, std::min(100, std::stoi(findOption("Speed Variability", "20"))));
             opts.variability = vpc / 100.0f;
         } catch (...) {}
+
+        opts.endShow = endShowOption();
+        opts.goodGame = goodGameOption(4);
 
         if (findOption("overlay", "Overwrite") == "Transparent") {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::TransparentRGB));

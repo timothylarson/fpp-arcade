@@ -1,6 +1,7 @@
 #include <fpp-pch.h>
 
 #include "FPPPong.h"
+#include "PongShow.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -17,7 +18,8 @@ FPPPong::~FPPPong() {
 
 class PongEffect : public FPPArcadeGameEffect {
 public:
-    PongEffect(int sc, int c, int pfw, int pfh, PixelOverlayModel *m) : FPPArcadeGameEffect(m), controls(c) {
+    PongEffect(int sc, int c, int pfw, int pfh, PixelOverlayModel *m, int showMode = 1, int goodMargin = 3)
+        : FPPArcadeGameEffect(m), controls(c), endShow(showMode), goodGame(goodMargin) {
         // 0/0 keeps the historical behaviour of playing across the whole panel;
         // a configured size is centred on it.
         setPlayfield(pfw, pfh, sc);
@@ -82,6 +84,12 @@ public:
     }
 
     virtual int32_t update() override {
+        if (show.on()) {
+            if (show.step(model, consumeElapsedMs(50.0))) {
+                return 50;
+            }
+            resetFrameTimer();   // over: the game ends below, as it would have
+        }
         if (isPaused()) {
             drawPauseMenu();
             model->flushOverlayBuffer();
@@ -116,6 +124,18 @@ public:
         }
         if (p1Score >= 5 || p2Score >= 5) {
             GameOn = false;
+            // Someone always wins Pong, so a good game is a clear win: by the
+            // Good Game margin or more. There's no one player's best score to
+            // keep, so no best is recorded and newBest is never set.
+            const int margin = std::abs(p1Score - p2Score);
+            if (arcadeWantShow(endShow, margin >= goodGame, false)) {
+                sfxStop("pong");
+                sfx("pong", "EndShow");
+                show.start(model, PongShow::config(p1Score, p2Score, model->getWidth()),
+                           std::make_unique<PongShow::Story>(p1Score > p2Score, p1Score, p2Score));
+                resetFrameTimer();
+                return 50;
+            }
             // Centred across the court, and below the score (rows 2 to 6)
             // rather than on top of it. The old x of (cols - 8) / 2 assumed
             // two-letter words and sat four columns right of centre.
@@ -230,6 +250,12 @@ public:
     }
     
     void button(const std::string &button) {
+        if (show.on()) {
+            if (button.find("Pressed") != std::string::npos) {
+                show.skip();
+            }
+            return;
+        }
         // allow base to handle pause/start behavior first (only while game is active)
         if (GameOn) {
             FPPArcadeGameEffect::button(button);
@@ -300,6 +326,8 @@ public:
     }
     
     int controls;
+    int endShow = 1, goodGame = 3;   // the End Show and Good Game settings
+    ArcadeShowPlayer show;
 
     int rows = 20;
     int cols = 20;
@@ -372,7 +400,8 @@ void FPPPong::button(const std::string &button) {
             int pixelScaling = std::stoi(findOption("Pixel Scaling", "1"));
             int controls = std::stoi(findOption("Controls", "1"));
             effect = new PongEffect(pixelScaling, controls,
-                                    playfieldWidthOption(), playfieldHeightOption(), m);
+                                    playfieldWidthOption(), playfieldHeightOption(), m,
+                                    endShowOption(), goodGameOption(3));
             // Creating the effect IS the response to Start. Forwarding that same
             // press into the fresh effect reaches the base class pause handler,
             // which pauses the game on its first frame - it took two Start

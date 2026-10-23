@@ -24,4 +24,13 @@ SOUNDS = {
     "GameOver": lambda: seq(
         chime("A5", 0.2), chime("E5", 0.2), chime("C#5", 0.2), chime("A4", 0.2), silence(0.08),
         mix(chime("A3", 0.7), chime("E4", 0.7) * 0.6)),
+    # The end show's light show: Jingle Bells on the chimes, ending on the
+    # four triangles' chord.
+    "EndShow": lambda: seq(
+        *[chime(n, b * 0.14) if n != "-" else silence(b * 0.14) for n, b in [
+            ("C#5", 1), ("C#5", 1), ("C#5", 2), ("C#5", 1), ("C#5", 1), ("C#5", 2),
+            ("C#5", 1), ("E5", 1), ("A4", 1.5), ("B4", 0.5), ("C#5", 4),
+            ("D5", 1), ("D5", 1), ("D5", 1.5), ("D5", 0.5), ("D5", 1), ("C#5", 1), ("C#5", 1), ("C#5", 0.5), ("C#5", 0.5),
+            ("E5", 1), ("E5", 1), ("D5", 1), ("B4", 1)]],
+        mix(chime("A4", 1.2), chime("C#5", 1.2) * 0.8, chime("E5", 1.2) * 0.7, chime("A5", 1.2) * 0.6)),
 }

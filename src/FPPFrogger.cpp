@@ -621,6 +621,138 @@ private:
                 fillCell(gx + xx, gy + yy, rr, gg, bb);
     }
 
+    // A mover drawn LED by LED within its cells, facing the way it goes:
+    // shaped, shaded vehicles, wooden logs and turtles, where they used to be
+    // solid bars. Where a cell is one LED tall (Pixel Scaling 1) there's no
+    // room for a shape, so it's shading along the length instead.
+    void drawMover(const FGLaneMover &m, float bright) {
+        const int mx = (int)std::floor(m.gx + 0.5f);
+        const int W = m.gw * cellW, H = cellH;
+        const int x0 = mx * cellW + offsetX, y0 = m.gy * cellH + offsetY;
+        const int clipL = offsetX, clipR = offsetX + gridCols * cellW;   // only on the playfield
+        struct C {
+            float r, g, b;
+        };
+        auto scaled = [](const C &c, float k) { return C{c.r * k, c.g * k, c.b * k}; };
+        auto blend = [](const C &a, const C &b, float t) { return C{a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t}; };
+        // i counts from the back of the mover to its front; row 0 is its top.
+        auto put = [&](int i, int row, const C &c) {
+            const int x = m.dir > 0 ? x0 + i : x0 + W - 1 - i;
+            if (x < clipL || x >= clipR || i < 0 || i >= W) {
+                return;
+            }
+            pxRaw(x, y0 + row, std::clamp((int)(c.r * bright), 0, 255), std::clamp((int)(c.g * bright), 0, 255),
+                  std::clamp((int)(c.b * bright), 0, 255));
+        };
+        const int topRows = H >= 2 ? H / 2 : 0;   // rows above the body line; none at one LED tall
+
+        if (m.isLog && m.isTurtle) {
+            // Turtles, one to a cell: a green shell, lighter along its back,
+            // and a head at the front.
+            const C SHELL = {40, 150, 55}, BACK = {100, 205, 90}, EDGE = {20, 85, 30}, HEAD = {170, 210, 90};
+            for (int k = 0; k < m.gw; ++k) {
+                for (int j = 0; j < cellW; ++j) {
+                    const int i = k * cellW + j;
+                    const bool front = j == cellW - 1 && cellW > 1;
+                    for (int row = 0; row < H; ++row) {
+                        if (H == 1) {
+                            put(i, row, front ? HEAD : (k & 1 ? EDGE : SHELL));
+                        } else if (row < topRows) {
+                            put(i, row, front ? EDGE : (j == (cellW - 1) / 2 ? BACK : SHELL));
+                        } else {
+                            put(i, row, front ? HEAD : EDGE);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        if (m.isLog) {
+            // A log: brown wood, paler cut ends, lit along the top and in
+            // shadow underneath, with a fleck of grain here and there.
+            const C WOOD = {140, 72, 22}, TOP = {175, 100, 42}, UNDER = {95, 45, 12}, END = {215, 155, 95}, GRAIN = {110, 55, 16};
+            for (int i = 0; i < W; ++i) {
+                const bool end = i == 0 || i == W - 1;
+                for (int row = 0; row < H; ++row) {
+                    if (end) {
+                        put(i, row, END);
+                    } else if (H == 1) {
+                        put(i, row, (i * 5) % 7 == 0 ? GRAIN : WOOD);
+                    } else if (row < topRows) {
+                        put(i, row, (i * 5) % 7 == 0 ? GRAIN : TOP);
+                    } else {
+                        put(i, row, row == H - 1 && H > 2 ? UNDER : WOOD);
+                    }
+                }
+            }
+            return;
+        }
+
+        // Vehicles, by length: a car, a van, a bus, a truck. Body along the
+        // bottom with a headlight at the front and a tail light behind; the
+        // cab, windows or trailer above.
+        const C body = {(float)m.r, (float)m.g, (float)m.b};
+        const C dark = scaled(body, 0.55f), light = blend(body, {255, 255, 255}, 0.3f);
+        const C GLASS = {110, 150, 200}, HEADLIGHT = {255, 240, 190}, TAIL = {170, 20, 10};
+        const int kind = m.gw <= 2 ? 0 : (m.gw == 3 ? 1 : (m.gw == 4 ? 2 : 3));
+        const int cabLen = std::max(2, W / 4);   // a truck's cab, at the front
+        for (int i = 0; i < W; ++i) {
+            const bool front = i == W - 1, back = i == 0;
+            for (int row = 0; row < H; ++row) {
+                const bool top = row < topRows;
+                if (H == 1) {
+                    // One LED tall: the outline as shading along the length.
+                    if (front) {
+                        put(i, row, HEADLIGHT);
+                    } else if (back) {
+                        put(i, row, TAIL);
+                    } else if (kind == 3) {
+                        put(i, row, i >= W - cabLen ? body : (i == W - cabLen - 1 ? dark : light));
+                    } else if (kind == 2) {
+                        put(i, row, i % 2 ? light : body);
+                    } else {
+                        put(i, row, body);
+                    }
+                    continue;
+                }
+                if (!top) {
+                    // The body line: tail light, body, headlight; a truck's
+                    // trailer runs dark along its chassis.
+                    if (front) {
+                        put(i, row, HEADLIGHT);
+                    } else if (back) {
+                        put(i, row, TAIL);
+                    } else if (kind == 3 && i < W - cabLen) {
+                        put(i, row, i == W - cabLen - 1 ? dark : blend(light, dark, 0.4f));
+                    } else {
+                        put(i, row, body);
+                    }
+                    continue;
+                }
+                switch (kind) {
+                case 0:   // car: a cab over the middle half, windscreen at its front
+                case 1: { // van: the same, longer
+                    const int c0 = kind == 0 ? W / 4 : 1, c1 = W - 1 - (kind == 0 ? W / 4 : 1);
+                    if (i >= c0 && i <= c1) {
+                        put(i, row, i == c1 ? GLASS : light);
+                    }
+                    break;
+                }
+                case 2:   // bus: full height, a row of windows
+                    put(i, row, front ? GLASS : (back ? dark : (i % 2 ? GLASS : body)));
+                    break;
+                default:  // truck: a cab at the front, a gap, then the trailer
+                    if (i >= W - cabLen) {
+                        put(i, row, front ? GLASS : body);
+                    } else if (i < W - cabLen - 1) {
+                        put(i, row, light);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
     void drawFrame(float brightness, bool drawPaused=false) {
         model->clearOverlayBuffer();
 
@@ -652,8 +784,7 @@ private:
 
         // movers
         for (auto &m : movers) {
-            int mx = (int)std::floor(m.gx + 0.5f);
-            drawRectGrid(mx, m.gy, m.gw, 1, m.r, m.g, m.b, brightness);
+            drawMover(m, brightness);
         }
 
         // frog (blink during invulnerability)

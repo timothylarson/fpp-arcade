@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Frogger's traffic, logs and turtles are drawn LED by LED, facing the way they go, instead of as solid bars: cars (a cab over the body), vans, buses (a row of windows) and trucks (cab, gap, trailer), each with a headlight and a tail light; shaded brown logs with pale cut ends; green turtles with a head at the front. At Pixel Scaling 1 they're shaded along their length instead. The background stays dark.
 - Snake's end show: the snake no longer reverses up its own column through its body (and, after a duel, through the blue snake following it); it steps aside first, so its route never crosses itself.
 - Snake duel: A or B brings in a blue snake, steered by B (left) and A (right). Both move at once; the first to hit a wall, itself or the other loses, head on is a tie. GAME OVER and the end show name the winner and show both lengths.
 - Stacker race: the other control at the start of a level splits the wall into two towers (directions left, A/B right); first to the top takes the level; a miss stops that tower and its height is the one to beat (if the other side misses first, the taller tower wins); first to two levels wins. Stacker can also be played alone with the directions now, whichever control starts it.

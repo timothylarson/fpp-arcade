@@ -96,8 +96,14 @@ Sounds added on FPP are picked up when the Arcade Games page is saved, or within
 
 ## Notes
 
-- Sounds are fetched at 22.05 kHz mono, which is plenty for a small speaker and fits about
-  three and a half minutes of sound in the 9.9 MB of flash.
+- Sounds are fetched at 22.05 kHz mono as 8-bit mu-law, which is plenty for a small speaker
+  (about 38 dB signal to noise) and half the size of 16-bit. Every sound is kept in the 8 MB of
+  PSRAM so it plays instantly, which is room for about six minutes; all the games' sounds
+  together come to about four and a half (6.1 MB). The speaker's page shows how much flash is in
+  use, and a sound that doesn't fit is reported on the serial log as "No room for ...".
+- Firmware 1.0 kept 16-bit sounds, and they no longer all fit. Firmware 1.1 clears them out the
+  first time it starts and fetches them again as mu-law; it needs a plugin version that offers
+  mu-law (with an older one it still works, fetching 16-bit).
 - If it can't reach the Wi-Fi it keeps trying and offers its set-up network meanwhile.
 - Messages are plain UDP (see `src/ArcadeSound.h` in the plugin), so a sound-effects speaker can
   be built from anything that can play a clip when told to.

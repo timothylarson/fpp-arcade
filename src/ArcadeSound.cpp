@@ -628,6 +628,35 @@ bool soundPcm(const std::string &path, int rate, std::string &out) {
     return true;
 }
 
+// G.711 mu-law: 8 bits a sample, about 38 dB of signal to noise at any level.
+// (4-bit ADPCM would be half the size again, but the games' square waves and
+// noise come out of it at 10-13 dB - an audible buzz.)
+static uint8_t ulawByte(int s) {
+    const int BIAS = 0x84, CLIP = 32635;
+    const int sign = s < 0 ? 0x80 : 0;
+    s = std::min(sign ? -s : s, CLIP) + BIAS;
+    int exp = 7;
+    for (int mask = 0x4000; !(s & mask) && exp > 0; --exp, mask >>= 1) {
+    }
+    return (uint8_t)~(sign | (exp << 4) | ((s >> (exp + 3)) & 0x0F));
+}
+
+bool soundUlaw(const std::string &path, int rate, std::string &out) {
+    std::string pcm;
+    if (!soundPcm(path, rate, pcm)) {
+        return false;
+    }
+    const size_t frames = pcm.size() / 2;
+    out.assign("ULW1");
+    out.resize(4 + frames);
+    for (size_t i = 0; i < frames; ++i) {
+        int16_t v;
+        memcpy(&v, &pcm[i * 2], 2);
+        out[4 + i] = (char)ulawByte(v);
+    }
+    return true;
+}
+
 std::string folderFor(const std::string &gameName) {
     std::string s;
     for (char ch : gameName) {

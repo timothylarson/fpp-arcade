@@ -7,7 +7,8 @@
 //
 //   - Says hello to FPP (UDP 5571) every 3 s: which model it plays for.
 //   - Gets "PLAY <seq> <game>/<name> <gain>", "STOP <game>" and "SYNC" back.
-//   - Fetches the sound files over HTTP from the arcade plugin, at 22.05 kHz,
+//   - Fetches the sound files over HTTP from the arcade plugin, at 22.05 kHz
+//     as 8-bit mu-law (half the size of 16-bit, so every game's sounds fit),
 //     when it starts, when told to, and when the list changes (checked every
 //     minute), and keeps them in PSRAM to play.
 //   - Serves a settings page on port 80. With no Wi-Fi set up, or none it can
@@ -28,7 +29,7 @@
 #include <map>
 #include <vector>
 
-#define FIRMWARE "1.0"
+#define FIRMWARE "1.1"
 
 // Pins for an ESP32-S3-DevKitC-1; any free GPIOs will do.
 constexpr int PIN_BCLK = 5;    // MAX98357A BCLK
@@ -74,15 +75,29 @@ void saveSettings() {
 
 // ------------------------------------------------------------------ sounds
 
+// A clip is 16-bit samples, or one mu-law byte a sample (what FPP sends from
+// plugin versions that have it: the file starts "ULW1").
 struct Clip {
-    int16_t *data = nullptr;
+    uint8_t *mem = nullptr;        // what to free
+    const uint8_t *data = nullptr;
     size_t frames = 0;
+    bool ulaw = false;
 };
 std::map<String, Clip> clips;   // "breakout/BounceFromPaddle" -> samples in PSRAM
+int16_t ULAW[256];              // mu-law byte -> sample
+
+void makeUlawTable() {
+    for (int i = 0; i < 256; ++i) {
+        const int u = ~i & 0xff, exp = (u >> 4) & 7;
+        const int t = (((u & 0x0f) << 3) + 0x84) << exp;
+        ULAW[i] = (int16_t)((u & 0x80) ? 0x84 - t : t - 0x84);
+    }
+}
 SemaphoreHandle_t clipLock;     // held while clips are swapped out
 
 struct Voice {
-    const int16_t *data = nullptr;
+    const uint8_t *data = nullptr;
+    bool ulaw = false;
     size_t frames = 0, pos = 0;
     int gainQ8 = 256;     // gain in 1/256ths
     char game[24] = "";
@@ -129,6 +144,7 @@ void playClip(const String &path, float gain) {
     }
     Voice &v = voices[pick];
     v.data = c.data;
+    v.ulaw = c.ulaw;
     v.frames = c.frames;
     v.pos = 0;
     v.gainQ8 = q;
@@ -158,8 +174,16 @@ void audioTask(void *) {
                 continue;
             }
             const size_t n = min((size_t)BLOCK, v.frames - v.pos);
-            for (size_t i = 0; i < n; ++i) {
-                mix[i] += (v.data[v.pos + i] * v.gainQ8) >> 8;
+            if (v.ulaw) {
+                const uint8_t *d = v.data + v.pos;
+                for (size_t i = 0; i < n; ++i) {
+                    mix[i] += (ULAW[d[i]] * v.gainQ8) >> 8;
+                }
+            } else {
+                const int16_t *d = (const int16_t *)v.data + v.pos;
+                for (size_t i = 0; i < n; ++i) {
+                    mix[i] += (d[i] * v.gainQ8) >> 8;
+                }
             }
             v.pos += n;
             if (v.pos >= v.frames) {
@@ -197,7 +221,7 @@ void makeTestBeep() {
         const float env = min(1.0f, min(i / 200.0f, (n - i) / 2000.0f));
         d[i] = (int16_t)(12000 * env * sinf(2 * PI * 880 * i / RATE));
     }
-    clips["test/beep"] = {d, n};
+    clips["test/beep"] = {(uint8_t *)d, (const uint8_t *)d, n, false};
 }
 
 String clipFile(const String &path) { return "/s/" + path + ".pcm"; }
@@ -208,7 +232,7 @@ void loadClips() {
     xSemaphoreTake(clipLock, portMAX_DELAY);
     for (auto &[k, c] : clips) {
         if (k != "test/beep") {
-            free(c.data);
+            free(c.mem);
         }
     }
     Clip beep = clips["test/beep"];
@@ -223,9 +247,13 @@ void loadClips() {
             continue;
         }
         const size_t bytes = f.size();
-        int16_t *d = (int16_t *)ps_malloc(bytes);
-        if (d && f.read((uint8_t *)d, bytes) == bytes) {
-            clips[path] = {d, bytes / 2};
+        uint8_t *d = (uint8_t *)ps_malloc(bytes);
+        if (d && f.read(d, bytes) == bytes) {
+            if (bytes >= 4 && !memcmp(d, "ULW1", 4)) {
+                clips[path] = {d, d + 4, bytes - 4, true};
+            } else {
+                clips[path] = {d, d, bytes / 2, false};
+            }
         } else {
             free(d);
             Serial.printf("No room for %s\n", path.c_str());
@@ -255,6 +283,21 @@ std::map<String, String> readIndex() {
         }
     }
     return m;
+}
+
+// Firmware 1.0 kept 16-bit sounds, which no longer all fit: drop them once so
+// they're fetched again as mu-law.
+void dropOldSounds() {
+    if (FFat.exists("/ulaw")) {
+        return;
+    }
+    for (auto &[path, version] : readIndex()) {
+        FFat.remove(clipFile(path));
+    }
+    FFat.remove("/index.txt");
+    File mark = FFat.open("/ulaw", FILE_WRITE);
+    mark.print("Sounds are fetched as mu-law\n");
+    mark.close();
 }
 
 // Fetch FPP's list and download whatever is new or changed; drop what's gone.
@@ -294,7 +337,7 @@ bool syncSounds() {
         FFat.mkdir("/s/" + path.substring(0, path.indexOf('/')));
         HTTPClient get;
         get.setTimeout(10000);
-        get.begin(fppUrl("sound?f=" + path + "&rate=" + String(RATE)));
+        get.begin(fppUrl("sound?f=" + path + "&rate=" + String(RATE) + "&fmt=ulaw"));
         bool ok = false;
         if (get.GET() == 200) {
             File f = FFat.open(clipFile(path), FILE_WRITE);
@@ -464,7 +507,9 @@ void setup() {
     if (!FFat.begin(true)) {
         Serial.println("No FAT partition: build with the 3MB APP / 9.9MB FATFS partition scheme");
     }
+    makeUlawTable();
     makeTestBeep();
+    dropOldSounds();
     loadClips();
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 5, nullptr, 1);
 

@@ -26,7 +26,8 @@
 // It fetches the files over HTTP: api/plugin-apis/arcade/sounds lists them
 // (with a version that changes when a file does) and
 // api/plugin-apis/arcade/sound?f=<game>/<name>&rate=<hz> returns one as raw
-// 16-bit mono little-endian PCM at that rate.
+// 16-bit mono little-endian PCM at that rate, or with &fmt=ulaw as "ULW1"
+// followed by one G.711 mu-law byte a sample (speaker firmware 1.1 and later).
 
 #include <string>
 
@@ -58,6 +59,9 @@ std::string speakersJson();
 std::string soundListJson();
 // A sound as raw 16-bit mono PCM at `rate`; false if there's no such file.
 bool soundPcm(const std::string &path, int rate, std::string &out);
+// The same as "ULW1" and then one G.711 mu-law byte a sample: half the size,
+// so every game's sounds fit in a speaker's memory.
+bool soundUlaw(const std::string &path, int rate, std::string &out);
 
 // Stop the mixer and close the sound card. Called before FPP unloads the plugin.
 void shutdown();

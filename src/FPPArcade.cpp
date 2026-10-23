@@ -1247,8 +1247,10 @@ public:
             } else if (path == "sound") {
                 // One sound as raw PCM for a controller speaker; see ArcadeSound.h.
                 std::string pcm;
-                const int rate = atoi(req->getParameter("rate").c_str());
-                if (ArcadeSound::soundPcm(req->getParameter("f"), rate > 0 ? rate : 22050, pcm)) {
+                const int asked = atoi(req->getParameter("rate").c_str()), rate = asked > 0 ? asked : 22050;
+                const bool ulaw = req->getParameter("fmt") == "ulaw";
+                if (ulaw ? ArcadeSound::soundUlaw(req->getParameter("f"), rate, pcm)
+                         : ArcadeSound::soundPcm(req->getParameter("f"), rate, pcm)) {
                     callback(makeStringResponse(pcm, 200, "application/octet-stream"));
                 } else {
                     callback(makeStringResponse("No such sound", 404));

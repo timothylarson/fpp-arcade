@@ -568,6 +568,13 @@ int FPPArcadeGame::findIntOption(const std::string &s, int def) {
     }
 }
 
+void FPPArcadeGameEffect::beginFrame() {
+    model->setOverlayBufferDirty(false);
+}
+void FPPArcadeGameEffect::endFrame() {
+    model->setOverlayBufferDirty(true);
+}
+
 static std::mutex bestLock;
 
 bool arcadeRecordBest(const std::string &model, const std::string &game, int score, int *previousBest) {

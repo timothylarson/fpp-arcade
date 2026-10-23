@@ -111,6 +111,17 @@ public:
     void outputPixel(int x, int y, int r, int g, int b, int scl = -1);
     double consumeElapsedMs(double fallbackMs, double maxClampMs = 250.0);
     void resetFrameTimer();
+
+    // For games that leave the copy to the lights to FPP's output loop
+    // (setOverlayBufferDirty) and draw a frame in more than one pass - the
+    // picture, then the score over it. That loop copies whenever it runs, so
+    // it could take a frame the game was still drawing: the picture without
+    // the score, which showed as the score flickering. beginFrame() withdraws
+    // a finished frame FPP hasn't taken yet before drawing over it (the one
+    // already on the lights stays up), and endFrame() offers the next once
+    // it's complete.
+    void beginFrame();
+    void endFrame();
     
     // Pause menu methods
     virtual void pause();

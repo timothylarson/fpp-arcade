@@ -141,13 +141,14 @@ public:
         }
         canvas.clear();
         draw();
+        beginFrame();   // the picture, then the score over it: see beginFrame()
         canvas.writeTo(model);
         if (over && overT > 1.0f) {
             textBox({overTitle[0], overTitle[1], std::to_string(overScore)}, 255, 255, 255);
         } else {
             drawText();
         }
-        model->setOverlayBufferDirty(true);
+        endFrame();
         return FRAME_MS;
     }
 

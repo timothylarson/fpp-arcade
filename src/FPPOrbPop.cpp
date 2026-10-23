@@ -162,8 +162,9 @@ public:
                 show.finish();
             }
             show.step(dt, showCanvas);
+            beginFrame();
             showCanvas.writeTo(model, set.brightness / 100.0f);
-            model->setOverlayBufferDirty(true);
+            endFrame();
             if (show.over()) {
                 toMirror();   // as the score screen ends
             }
@@ -191,6 +192,7 @@ public:
         step(dt, now);
 
         const float k = set.brightness / 100.0f * 255.0f;
+        beginFrame();   // see beginFrame(): FPP mustn't copy a half-written frame
         for (int y = 0; y < H; ++y) {
             for (int x = 0; x < W; ++x) {
                 const int i = y * W + x;
@@ -203,7 +205,7 @@ public:
         // Let FPP flush it on its own schedule, as the Kinect picture does: a
         // flush from this thread can land between FPP flushing the models and
         // laying the Left/Right halves over this one.
-        model->setOverlayBufferDirty(true);
+        endFrame();
         return FRAME_MS;
     }
 

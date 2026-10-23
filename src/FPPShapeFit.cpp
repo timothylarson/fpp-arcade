@@ -99,8 +99,9 @@ public:
                 show.finish();
             }
             show.step(dtMs, canvas);
+            beginFrame();
             canvas.writeTo(model);
-            model->setOverlayBufferDirty(true);
+            endFrame();
             if (show.over()) {
                 finish();   // as the total screen ends
                 return EFFECT_AFTER_NEXT_OUTPUT;
@@ -165,8 +166,9 @@ public:
             finish();
             return EFFECT_AFTER_NEXT_OUTPUT;
         }
+        beginFrame();   // drawn in passes, the text last: see beginFrame()
         render(haveKinect);
-        model->setOverlayBufferDirty(true);
+        endFrame();
         return FRAME_MS;
     }
 

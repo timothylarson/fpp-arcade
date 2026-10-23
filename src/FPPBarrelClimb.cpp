@@ -160,8 +160,9 @@ public:
             finished = true;
             return EFFECT_AFTER_NEXT_OUTPUT;
         }
+        beginFrame();   // drawn in passes, the text last: see beginFrame()
         render();
-        model->setOverlayBufferDirty(true);
+        endFrame();
         return FRAME_MS;
     }
 

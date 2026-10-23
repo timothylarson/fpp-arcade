@@ -544,6 +544,7 @@ private:
         birds[1].body = {0.3f, 0.75f, 1.0f};
         birds[1].wing = {0.1f, 0.35f, 1.0f};
         passed = 0;
+        lastOut = 0;
         pipes.clear();
         nextPipe = (float)W;
     }
@@ -587,6 +588,7 @@ private:
     void crash(Bird &b) {
         b.alive = false;
         b.deadT = 0;
+        lastOut = &b == &birds[0] ? 0 : 1;
         sound("Crash");
         if (!birds[0].alive && !birds[1].alive) {
             const int top = std::max(birds[0].score, birds[1].score);
@@ -705,8 +707,11 @@ private:
             } else if (b.safeT > 0) {
                 show = std::fmod(b.safeT, 0.24f) < 0.14f;
             }
-            if (over && b.joined) {
-                show = std::fmod(overT, 0.3f) < 0.15f;
+            // GAME OVER blinks the bird that just crashed, where it went down.
+            // One that crashed earlier stays gone: the pipes have moved on
+            // since, so where it hit isn't anywhere any more.
+            if (over) {
+                show = i == lastOut && std::fmod(overT, 0.3f) < 0.15f;
             }
             if (!show) {
                 continue;
@@ -735,6 +740,7 @@ private:
     }
 
     Bird birds[2];
+    int lastOut = 0;  // the bird that crashed last
     int passed = 0;   // pipes gone by, for how fast and tight they get
     float nextPipe = 0, flapSoundT = -1;
     std::vector<Pipe> pipes;

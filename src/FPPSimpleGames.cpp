@@ -582,6 +582,12 @@ private:
         b.flapT = 0.15f;
     }
 
+    // Where a bird bobs before it flies: the blue one a few rows lower and out
+    // of step, so the two on the title screen never overlap.
+    float bobY(int i) const {
+        return i == 0 ? H / 2.0f + std::sin(clock * 4.0f) : H / 2.0f + 3.0f + std::sin(clock * 4.0f + 1.6f);
+    }
+
     // Harder as the pipes go by, whoever passes them.
     float speed() const { return std::min(16.0f, 9.0f + 0.2f * passed); }
 
@@ -607,8 +613,8 @@ private:
             b.deadT += dt;
         }
         if (!flying()) {
-            for (auto &b : birds) {
-                b.y = H / 2.0f + std::sin(clock * 4.0f);   // bob until the first flap
+            for (int i = 0; i < 2; ++i) {
+                birds[i].y = bobY(i);   // both bob until the first flap
             }
             return;
         }
@@ -617,7 +623,7 @@ private:
                 b.vy = std::min(18.0f, b.vy + 42.0f * dt);
                 b.y = std::max(0.0f, b.y + b.vy * dt);
             } else if (!b.joined) {
-                b.y = H / 2.0f + std::sin(clock * 4.0f);   // waiting to join
+                b.y = bobY(&b == &birds[0] ? 0 : 1);   // waiting to join
             }
         }
         nextPipe -= speed() * dt;
@@ -703,10 +709,10 @@ private:
         }
         for (int i = 0; i < 2; ++i) {
             const Bird &b = birds[i];
-            // Before the game: the yellow bird alone, as it always was. During
-            // it: the birds in play, a joining one blinking while it's safe,
-            // and a crashed one blinking out.
-            bool show = flying() ? b.joined : i == 0;
+            // Before the game: both birds, one per control, so each player
+            // can see theirs. During it: the birds in play, a joining one
+            // blinking while it's safe, and a crashed one blinking out.
+            bool show = flying() ? b.joined : true;
             if (b.joined && !b.alive) {
                 show = b.deadT < 0.9f && std::fmod(b.deadT, 0.3f) < 0.15f;
             } else if (b.safeT > 0) {

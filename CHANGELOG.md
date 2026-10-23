@@ -1,7 +1,7 @@
 # FPP Arcade Changelog
 
 - Snake duel: A or B brings in a blue snake, steered by B (left) and A (right). Both move at once; the first to hit a wall, itself or the other loses, head on is a tie. GAME OVER and the end show name the winner and show both lengths.
-- Stacker race: the other control at the start of a level splits the wall into two towers (directions left, A/B right); first to the top takes the level, a miss hands it over, first to two levels wins. Stacker can also be played alone with the directions now, whichever control starts it.
+- Stacker race: the other control at the start of a level splits the wall into two towers (directions left, A/B right); first to the top takes the level; a miss stops that tower and its height is the one to beat (if the other side misses first, the taller tower wins); first to two levels wins. Stacker can also be played alone with the directions now, whichever control starts it.
 - Flap's title screen shows both birds, yellow and blue, bobbing, so each player sees which is theirs before the first flap.
 - Flap's end show after a two-player game names the winner (YELLOW WINS!, BLUE WINS! or IT'S A TIE!), counts up both birds' pipes in their colours, and both birds fly the victory lap. Only the better score counts as a best.
 - Fixed a crash (fppd restarting) when buttons arrived from two places at the same moment, such as two players or a controller and the web API: they changed a game's cheat-code history and the game list on two threads at once. All input now goes through one lock.

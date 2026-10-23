@@ -268,8 +268,10 @@ Three quick games for people walking up, each playable with one or four buttons:
   corners.
 - **Stacker race:** pressing the other control at the start of a level (on its LEVEL title, or
   before the first drop) splits the wall into two towers: the directions drop on the left, A or
-  B on the right. The first to the top takes the level, a missed row hands it to the other
-  side, and the first to two levels wins the match.
+  B on the right. The first to the top takes the level. A missed row stops that tower, and
+  its height is the one to beat: the other side takes the level by building past it (the
+  counter and goal line show how far), and if they miss first the taller tower takes it. The
+  first to two levels wins the match.
 - **Flap:** fly through the gaps in the pipes, which narrow and speed up as they go by. Up
   flaps the yellow bird and A or B a blue one: whoever flaps first starts, and the other bird
   joins whenever someone presses its control, arriving in the middle and blinking while it

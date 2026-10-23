@@ -441,8 +441,10 @@ private:
         }
         t.stack.push_back({lo, hi});
         t.width = hi - lo + 1;
-        if ((int)t.stack.size() >= goal) {
-            t.score += 25 * t.width * level;
+        if ((int)t.stack.size() >= target(i)) {
+            if ((int)t.stack.size() >= goal) {
+                t.score += 25 * t.width * level;
+            }
             wonLevel(i);
             return;
         }
@@ -450,14 +452,31 @@ private:
         t.waitT = 0.25f;
     }
 
-    // Alone, a miss ends the game; in a race it hands the level to the other side.
+    // The rows a tower needs to take the level: the goal - or, once the other
+    // side has missed, one more than the height its tower stopped at.
+    int target(int i) const {
+        const Tower &other = towers[1 - i];
+        return race && other.out ? std::min(goal, (int)other.stack.size() + 1) : goal;
+    }
+
+    // Alone, a miss ends the game. In a race it stops that tower, and its
+    // height is what the other side has to beat: they take the level by
+    // building past it (or reaching the top), and if they miss first, the
+    // taller tower takes it. Losing a level outright to a miss let the side
+    // that was well behind win without placing a block.
     void missed(int i) {
         if (!race) {
             gameOver(towers[0].score);
             return;
         }
         towers[i].out = true;
-        wonLevel(1 - i);
+        const int other = 1 - i;
+        if (towers[other].out || (int)towers[other].stack.size() >= target(other)) {
+            // Both have missed (the first to miss stood at least as tall, or
+            // the other would have passed it), or the other is already past.
+            const int taller = towers[other].stack.size() >= towers[i].stack.size() ? other : i;
+            wonLevel(taller);
+        }
     }
     void wonLevel(int i) {
         phase = Phase::Clear;
@@ -578,11 +597,11 @@ private:
         // The goal: a dim line where the top row goes, once it's in view.
         // Level with the counters in the top corners it stops short of them,
         // so it never runs behind the numbers.
-        const int gy = screenY(t, rowY(goal - 1)) - 1;
-        if (gy >= 0 && !party) {
+        const int gy = screenY(t, rowY(target(i) - 1)) - 1;
+        if (gy >= 0 && !party && !t.out) {
             int x0 = t.x0, x1 = t.x0 + t.w - 1;
             if (gy < 5 && phase != Phase::Intro) {
-                x0 = t.x0 + (int)std::to_string(goal - (int)t.stack.size()).size() * 4 + 2;
+                x0 = t.x0 + (int)std::to_string(target(i) - (int)t.stack.size()).size() * 4 + 2;
                 if (!race) {
                     x1 = W - (int)std::to_string(t.score).size() * 4 - 2;
                 }
@@ -623,7 +642,9 @@ private:
             PanelTransform pt(this);
             for (int i = 0; i < towerCount(); ++i) {
                 const Tower &t = towers[i];
-                outputString(std::to_string(goal - (int)t.stack.size()), t.x0, 0, 255, 200, 60, 1);
+                if (!t.out) {
+                    outputString(std::to_string(target(i) - (int)t.stack.size()), t.x0, 0, 255, 200, 60, 1);
+                }
             }
             if (!race) {
                 const std::string s = std::to_string(towers[0].score);

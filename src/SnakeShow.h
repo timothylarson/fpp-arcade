@@ -27,6 +27,8 @@ public:
         const int W = s.W, H = s.H;
         body.clear();
         trail.clear();
+        lastStepY = 0;
+        horizontal = true;
         apples.clear();
         const int y0 = H / 2;
         for (int i = 0; i < 4; ++i) {
@@ -142,7 +144,12 @@ private:
 
     // One step toward the next apple, the golden one, or off the edge, in
     // straight runs with right-angle turns, the way the game's snake moves:
-    // carry on the way it's going until lined up, then turn.
+    // carry on the way it's going until lined up, then turn. Never straight
+    // back the way it came: arriving at an apple heading down with the next
+    // one up and to the right, it used to reverse up its own column, through
+    // its own body (and the blue snake following its trail went through it
+    // too). It steps right first instead - every target is to the right -
+    // so the route never crosses itself.
     void move(ArcadeShow &s) {
         Cell target;
         Apple *next = nullptr;
@@ -161,12 +168,15 @@ private:
         }
         Cell head = body.front();
         const int dx = target.x - head.x, dy = target.y - head.y;
-        if (dx != 0 && (horizontal || dy == 0)) {
+        const int stepY = dy > 0 ? 1 : -1;
+        if (dx != 0 && (horizontal || dy == 0 || stepY == -lastStepY)) {
             head.x += dx > 0 ? 1 : -1;
             horizontal = true;
+            lastStepY = 0;
         } else if (dy != 0) {
-            head.y += dy > 0 ? 1 : -1;
+            head.y += stepY;
             horizontal = false;
+            lastStepY = stepY;
         }
         body.push_front(head);
         trail.push_front(head);
@@ -201,6 +211,7 @@ private:
     Apple gold{0, 0, false};
     int exitY = 0, grow = 0;
     bool rainbow = false, horizontal = true;
+    int lastStepY = 0;   // the way the last vertical step went (0 after a sideways one)
     float stepAcc = 0, speed = 0;
 };
 

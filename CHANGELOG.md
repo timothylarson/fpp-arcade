@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Snake's end show: the snake no longer reverses up its own column through its body (and, after a duel, through the blue snake following it); it steps aside first, so its route never crosses itself.
 - Snake duel: A or B brings in a blue snake, steered by B (left) and A (right). Both move at once; the first to hit a wall, itself or the other loses, head on is a tie. GAME OVER and the end show name the winner and show both lengths.
 - Stacker race: the other control at the start of a level splits the wall into two towers (directions left, A/B right); first to the top takes the level; a miss stops that tower and its height is the one to beat (if the other side misses first, the taller tower wins); first to two levels wins. Stacker can also be played alone with the directions now, whichever control starts it.
 - Flap's title screen shows both birds, yellow and blue, bobbing, so each player sees which is theirs before the first flap.

@@ -136,7 +136,7 @@ private:
         auto cane = [&](int x, int yy) { return ((x + yy) / 2 & 1) ? RED : WHITE; };
         for (const auto &p : pipes) {
             const int px = (int)std::floor(p.x - scroll);
-            if (px < -4 || px > s.W) {
+            if (px < -6 || px > s.W) {
                 continue;
             }
             const float spread = p.passed ? (float)((ms - p.passMs) / 450.0) * H : -1;
@@ -156,10 +156,11 @@ private:
             }
             // The crook, once the stripes are all the way down.
             if (spread > H) {
-                static const char *CROOK[3] = {".###", "##.#", "##.#"};
+                // Two LEDs wide down both sides, like the shaft.
+                static const char *CROOK[3] = {".####.", "##..##", "##..##"};
                 const int top = p.gapTop + gap - 3;
                 for (int r = 0; r < 3; ++r) {
-                    for (int x = 0; x < 4; ++x) {
+                    for (int x = 0; x < 6; ++x) {
                         if (CROOK[r][x] == '#') {
                             c.set(px + x, top + r, cane(px + x, top + r), 0.7f * k);
                         }

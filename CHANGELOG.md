@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Flap's end show: the candy canes' crooks are two LEDs wide on both sides, like their shafts.
 - No more flickering scores in Stacker, Flap, Light Memory, Maze Chase, Star Defenders, Asteroid Orbit, Barrel Climb, Orb Pop and Shape Fit. They leave the copy to the lights to FPP's output loop, which could take a frame while the game was still drawing it - the picture before the score went on. A frame is now only offered to FPP once it's finished.
 - End shows: a good game (a new best score, or reaching the game's Good Game setting) ends with a 20-second show - headline, stats, the game's own story, credits and GAME OVER - instead of GAME OVER. End show sets after a good game / every game / never. Best scores are kept in media/plugindata/fpp-arcade/best.json. Every game but Breakout has one, with a story of its own (README.md lists them) and an EndShow jingle. tools/shows/preview.sh renders a show to images; Breakout's credits now run on the same engine.
 - Breakout: the ball no longer shows an LED past the left or right edge for a frame. A brick's sideways bounce could push it outside the field when it ran between a wall and the first bricks; that bounce now sends it up or down instead, and the walls are checked again after the bricks.

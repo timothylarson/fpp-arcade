@@ -154,6 +154,25 @@ var ARCADE_GAMES = {
                     hint: 'Names under SPECIAL THANKS in the credits, separated by |. Blank leaves it out.' },
                   { name: 'Credits', label: 'Credits lines', type: 'text', def: 'THANKS FOR PLAYING|MERRY CHRISTMAS',
                     hint: 'Your lines at the end of the rolling credits, separated by |. Letters, numbers and : ! . , - \' only.' }] },
+    'Stick Bridge': { about: 'Hold to grow a candy cane up from your gift box, let go to drop it across the gap, and walk over; land it on the red bow for a PERFECT. Two players split the wall.',
+        controls: ['Hold any direction (or A/B) to grow, let go to drop', 'The other control before the first drop: two players'], options: [] },
+    'Sky Jump': { about: 'Blast off and keep climbing on coins and blasts; a star smashes through clouds, bats and meteors. Fall off the bottom and it\'s over. Two players race side by side on the same course.',
+        controls: ['Up launch, Left/Right steer', 'A/B: launch, B left, A right', 'The other control before launch (or just after): a race'],
+        options: [{ name: 'Lives', label: 'Lives', type: 'number', def: 1, min: 1, max: 9, hint: 'Falls each climber can take; all but the last blast it back up from the bottom.' },
+                  { name: 'Speed', label: 'Speed (%)', type: 'number', def: 100, min: 50, max: 200, hint: 'The pace of the whole game. Lower is easier to follow on the wall.' }] },
+    'Reindeer Run': { about: 'An endless runner on a snowy night: jump the logs, presents, snowmen and creeks, duck the boughs, icicles and owls, and grab candy canes. A second reindeer joins in a lane of its own.',
+        controls: ['Up jump (hold: higher), Down duck', 'A/B: a second reindeer (A jump, B duck)'],
+        options: [{ name: 'Speed', label: 'Speed (%)', type: 'number', def: 100, min: 25, max: 300, hint: 'Slows or speeds up the whole game, jumps included, so it plays the same with more or less time to react.' },
+                  { name: 'Speed Up', label: 'Seconds to top speed', type: 'number', def: 80, min: 10, max: 900, hint: 'How long the run takes to reach top speed, in six steps.' }] },
+    'Road Race': { about: 'Drive down a snowy road past the traffic as it speeds up: presents for points, turbo stars, a snowplough and oncoming cars. A second player joins with the other control and the wall splits into two roads.',
+        controls: ['Up/Down: change lane (alone, Right faster, Left brake)', 'B/A: the blue car (B up, A down)', 'The other control any time: a second car joins'],
+        options: [LIVES] },
+    'Snowball Fight': { about: 'Two elves on snowy hills take turns throwing snowballs against the wind; every snowball blows a crater in the snow. First to knock the other out wins. Alone, the computer plays the green elf.',
+        controls: ['Red (D-pad): Left/Right aim, hold Up to charge, let go to throw', 'Green (A/B): hold B to swing the aim, hold A to charge, let go', 'A or B any time: take over the green elf'],
+        options: [{ name: 'Hits', label: 'Hits to knock out', type: 'number', def: 3, min: 1, max: 9, hint: 'Health pips each elf starts with.' },
+                  { name: 'Turn Time', label: 'Turn time (seconds)', type: 'number', def: 15, min: 5, max: 60, hint: 'Seconds to aim and throw before the turn passes.' },
+                  { name: 'Wind', label: 'Strongest wind', type: 'number', def: 5, min: 0, max: 10, hint: '0 for no wind; 5 drifts a throw across the wall about 9 LEDs.' },
+                  { name: 'Computer Skill', label: 'Computer skill', type: 'number', def: 3, min: 1, max: 5, hint: 'How well the computer aims when it plays the green elf.' }] },
     'Breakout Versus': { about: 'Two players, one controller: a paddle at the bottom and one at the top, a wall of bricks between, and a ball each. Get yours past the other paddle; first to Goals wins.',
         controls: ['Left/Right: bottom paddle', 'Up: launch, or fire its laser', 'B/A: top paddle (its ball and laser go by themselves)'],
         options: [{ name: 'Goals', label: 'Goals to win', type: 'number', def: 5, min: 1, max: 15 },
@@ -211,7 +230,10 @@ var ENDSHOW_GOOD = {
     'Frogger': [4, 'Level reached'], 'Maze Chase': [3, 'Level reached'], 'Asteroid Orbit': [4, 'Sector reached'],
     'Barrel Climb': [3, 'Level reached'], 'Star Defenders': [5, 'Wave reached'], 'Stacker': [3, 'Level reached'],
     'Flap': [15, 'Pipes passed'], 'Light Memory': [10, 'Rounds repeated'], 'Orb Pop': [50, 'Score in a round'],
-    'Shape Fit': [300, 'Total score'], 'Breakout Versus': [3, 'Goals the winner wins by']
+    'Shape Fit': [300, 'Total score'], 'Breakout Versus': [3, 'Goals the winner wins by'],
+    'Stick Bridge': [10, 'Score (bridges, plus a point per perfect landing)'], 'Sky Jump': [600, 'Score'],
+    'Reindeer Run': [600, 'Score'], 'Road Race': [2000, 'Metres driven'],
+    'Snowball Fight': [2, 'Health left', 'Two players: the winner needs this much health left. Beating the computer always counts.']
 };
 Object.keys(ENDSHOW_GOOD).forEach(function (g) {
     var d = ENDSHOW_GOOD[g];
@@ -220,7 +242,7 @@ Object.keys(ENDSHOW_GOOD).forEach(function (g) {
           choices: [['1', 'After a good game'], ['2', 'After every game'], ['0', 'Never']],
           hint: 'About 20 seconds of fireworks, the score, a little story and credits. A new best score always counts as good. Any button skips it.' },
         { name: 'Good Game', label: 'Good game', type: 'number', def: d[0], min: 0, max: 99999,
-          hint: d[1] + ' that counts as a good game.' }]);
+          hint: d[2] || (d[1] + ' that counts as a good game.') }]);
 });
 
 // The running effect's name, as FPP reports it, in words.
@@ -228,7 +250,9 @@ var ARCADE_EFFECTS = {
     KinectBlit: 'showing the Kinect picture', ArcadeTitle: 'showing a game title', Clear: 'clearing',
     OrbPop: 'playing Orb Pop', ShapeFit: 'playing Shape Fit', AsteroidOrbit: 'playing Asteroid Orbit',
     MazeChase: 'playing Maze Chase', BarrelClimb: 'playing Barrel Climb', StarDefenders: 'playing Star Defenders',
-    LightMemory: 'playing Light Memory'
+    LightMemory: 'playing Light Memory', BreakoutVersus: 'playing Breakout Versus', StickBridge: 'playing Stick Bridge',
+    SkyJump: 'playing Sky Jump', ReindeerRun: 'playing Reindeer Run', RoadRace: 'playing Road Race',
+    SnowballFight: 'playing Snowball Fight'
 };
 
 function arcadeEsc(s) { return $('<div>').text(String(s)).html(); }

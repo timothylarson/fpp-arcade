@@ -1,5 +1,7 @@
 # FPP Arcade Changelog
 
+- Five new games: Stick Bridge (grow a candy cane to bridge the gap to the next gift box), Sky Jump (climb the night sky on coins and blasts, smash enemies with a star), Reindeer Run (an endless runner: jump and duck), Road Race (change lanes past traffic that speeds up) and Snowball Fight (two elves lob snowballs over snowy hills against the wind, craters and all; alone, against the computer). Each has drop-in two players, sounds and an end show.
+- Night skies (the end shows' shared one, Stick Bridge's and Flap's) and Snowball Fight's snowy hills below their surface are 2% at most: a coloured fill washes out on the real wall.
 - Breakout Versus, a new two-player game: paddles top and bottom, a wall of bricks between, a ball each; get yours past the other paddle, first to Goals (5). The top player's ball launches and laser fires by themselves. With sounds and an end show.
 - The build links the library beside the old one and renames it over it, so rebuilding on a running player no longer crashes fppd with a bus error.
 - Frogger's traffic, logs and turtles are drawn LED by LED, facing the way they go, instead of as solid bars: cars (a cab over the body), vans, buses (a row of windows) and trucks (cab, gap, trailer), each with a headlight and a tail light; shaded brown logs with pale cut ends; green turtles with a head at the front. At Pixel Scaling 1 they're shaded along their length instead. The background stays dark.

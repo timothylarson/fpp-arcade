@@ -50,6 +50,11 @@ extern "C" {
 #include "FPPSnake.h"
 #include "FPPBreakout.h"
 #include "FPPBreakoutVersus.h"
+#include "FPPStickBridge.h"
+#include "FPPSkyJump.h"
+#include "FPPReindeerRun.h"
+#include "FPPRoadRace.h"
+#include "FPPSnowballFight.h"
 #include "FPPFrogger.h"
 #include "FPPOrbPop.h"
 #include "FPPAsteroidOrbit.h"
@@ -1075,6 +1080,21 @@ public:
         }
         if (game == "Breakout Versus") {
             return new FPPBreakoutVersus(config);
+        }
+        if (game == "Stick Bridge") {
+            return new FPPStickBridge(config);
+        }
+        if (game == "Sky Jump") {
+            return new FPPSkyJump(config);
+        }
+        if (game == "Reindeer Run") {
+            return new FPPReindeerRun(config);
+        }
+        if (game == "Road Race") {
+            return new FPPRoadRace(config);
+        }
+        if (game == "Snowball Fight") {
+            return new FPPSnowballFight(config);
         }
         return nullptr;
     }

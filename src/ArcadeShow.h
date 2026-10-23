@@ -250,11 +250,13 @@ public:
         }
     }
 
-    // A winter night: a faint blue sky, twinkling stars, the moon and falling
-    // snow. For stories that want it (Breakout's does).
+    // A winter night: the faintest blue at the top of the sky, twinkling
+    // stars, the moon and falling snow. For stories that want it (Breakout's
+    // does). The sky is kept to 2% at most: a coloured fill washes out on the
+    // real wall.
     void drawNight(Canvas &c, float dt, float k) {
         for (int y = 0; y < H; ++y) {
-            const float g = 0.07f * (1.0f - (float)y / H);
+            const float g = 0.02f * (1.0f - (float)y / H);
             for (int x = 0; x < W; ++x) {
                 c.add(x, y, {0.0f, 0.02f, 1.0f}, g * k);
             }

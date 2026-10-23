@@ -157,3 +157,52 @@ See the table under Sound in [README.md](README.md).
 | Laser *(quiet)*, PowerUp | A laser shot; a capsule caught |
 | Goal, NewWall | A ball past a paddle; a new wall going up |
 | GameOver, EndShow | The match won; the end show after a clear win |
+
+## Stick Bridge
+| Sound | When |
+|---|---|
+| Start, Join | The first press starts the game; the other control joins for two players |
+| Grow1-Grow20 *(quiet)* | The stick grows one LED, a semitone higher each |
+| Drop, Land, Perfect | Let go; its end lands on the next box; right on the bow |
+| Step *(quiet)*, Cross, Fall | The elf walking; reaching the next box; stepping off a stick that missed |
+| GameOver, EndShow | GAME OVER; the end show after a good game |
+
+## Sky Jump
+| Sound | When |
+|---|---|
+| Launch, Blast, Star | Blast-off (and a bounce off the snow); touching a blast; catching a star |
+| Coin1-Coin8 *(quiet)* | Each coin; a quick run climbs the scale |
+| StarOut, Smash, Hit | The star wearing off; smashing an enemy; knocked by one |
+| Fall, Rescue, Higher | Off the bottom; a spare life blasting you back up; every 250 rows |
+| Join, Count | A second player starts a race; its 3, 2, 1 |
+| GameOver, EndShow | GAME OVER; the end show after a good game |
+
+## Reindeer Run
+| Sound | When |
+|---|---|
+| Start | The first press, and a second reindeer joining |
+| Jump, Land *(quiet)*, Duck *(quiet)* | A jump; landing; starting to duck |
+| Candy *(quiet)*, Owl *(quiet)*, Faster | A candy cane; an owl coming on; each step of speed |
+| Crash, Splash, GameOver | Hitting something; falling in a creek; GAME OVER |
+| EndShow | The end show after a good game |
+
+## Road Race
+| Sound | When |
+|---|---|
+| Start, Join | The 3-2-1-GO countdown (a car joining, or Restart); joining during the other's countdown |
+| Engine1-Engine6 *(quiet)* | The engine hum, every 0.3 s, pitched by speed |
+| Lane *(quiet)*, Bump *(quiet)*, Pass *(quiet)* | A lane change; trying to go past the kerb; overtaking |
+| Horn *(quiet)*, Faster *(quiet)* | An oncoming car on its way; into a faster stretch |
+| Pickup, Boost, Smash | A present; a turbo star; knocking a car away on turbo |
+| Crash, Out | A life lost; one of two players out of lives |
+| GameOver, EndShow | Everyone out; the end show after a good game |
+
+## Snowball Fight
+| Sound | When |
+|---|---|
+| Start, Turn, Join | A game starts; each turn; a second player takes over green |
+| Aim *(quiet)*, Charge | Turning the aim; charging a throw |
+| Throw, Splat, Hit, Miss | The throw; it blows a crater; it hits an elf; it flies off the side |
+| Wind, Tick, TimeUp | A strong wind this turn; the last five seconds; time up |
+| Land, KO, Giant | An elf dropping into a crater; knocked out; the giant-snowball cheat |
+| Win, GameOver, EndShow | A person wins; the computer wins (or the game is abandoned); the end show |

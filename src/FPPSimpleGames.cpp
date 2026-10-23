@@ -860,7 +860,7 @@ private:
     void draw() override {
         for (int yy = 0; yy < H; ++yy) {
             for (int xx = 0; xx < W; ++xx) {
-                canvas.add(xx, yy, {0.1f, 0.2f, 0.6f}, 0.03f * yy / H);   // a little night sky
+                canvas.add(xx, yy, {0.1f, 0.2f, 0.6f}, 0.02f * yy / H);   // a little night sky, 2% at most
             }
         }
         for (auto &p : pipes) {

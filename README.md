@@ -25,7 +25,50 @@ the games.
 | **Flap** | Up flaps the yellow bird; A or B a second, blue one, for two players. |
 | **Light Memory** | The four directional "Pressed" events. |
 | **Breakout Versus** | Two players: Left/Right and Up for the bottom paddle; B and A (held) for the top one. |
+| **Stick Bridge** | Hold any direction, or A/B, to grow the stick; let go to drop it. The other control before the first drop splits the wall for two. |
+| **Sky Jump** | Left/Right held and released (steer), Up (launch); or B and A held (steer left/right), either launches. The other control before launch starts a race. |
+| **Reindeer Run** | Up jumps (hold for higher), Down ducks; A and B do the same for a second reindeer in its own lane. |
+| **Road Race** | Up/Down change lane (alone, Right faster and Left brake); B/A (up/down) drive a second car on its own road. |
+| **Snowball Fight** | Left/Right aim and Up (held, then released) throws for the red elf; B swings the aim and A throws for the green one. Alone, the computer plays green. |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
+
+## New in the arcade: Stick Bridge, Sky Jump, Reindeer Run, Road Race, Snowball Fight
+
+- **Stick Bridge:** hold a direction (or A/B) to grow a candy cane up from the edge of your gift
+  box, and let go to drop it across the gap. If its end lands on the next box the elf walks over
+  and the view slides along; too short or too long and the elf walks off the end and falls. Each
+  bridge is a point, and landing right on a box's red bow is a PERFECT, worth one more. The boxes
+  get narrower and the gaps wider as the score rises. Pressing the other control before the first
+  stick drops (or in the first couple of seconds) splits the wall in two, directions on the left
+  and A/B on the right; the higher score wins. End show (score 10): candy-cane bridges to the
+  North Pole.
+- **Sky Jump:** blast off from the snow with Up (or A) and keep climbing. Coins give a hop,
+  blasts a big boost, a star five seconds of smashing through clouds, bats and meteors; without
+  one, an enemy stops your climb. Steer with Left/Right (or B/A); the elf wraps round the sides.
+  Fall off the bottom and it's over. Press the other control before launch (or just after) to
+  race: D-pad on the left half, A/B on the right, the same course on both. Settings: *Lives* (1)
+  and *Speed*. End show (score 600): past the moon and Santa's sleigh to the North Star.
+- **Reindeer Run:** an endless runner on a snowy night. Up (or A) jumps, and holding it jumps
+  higher; Down (or B) ducks under boughs, icicles and swooping owls. Jump the logs, presents,
+  snowmen, ice and creeks, and grab candy canes for 10 points. It speeds up in six steps over
+  *Seconds to top speed* (80) and one hit ends the run. The directions run Rudolph and A/B run
+  Dasher: the other control joins at any time, splitting the wall into two lanes on the same
+  course, and the longer run wins. End show (score 600): the reindeer joins Santa's team.
+- **Road Race:** the road runs across the wall. Change lane with Up and Down past traffic that
+  speeds up - cars and vans, then trucks, buses and a snowplough, and later oncoming cars in the
+  top lane, each warned of by a blinking light at the right edge. Presents score, turbo stars make
+  you fast and unstoppable for a few seconds, a crash costs one of three *Lives*. Alone on the
+  D-pad, Right goes faster and Left brakes. A second player joins at any time with the other
+  control (B up, A down) and the wall splits into two roads with the same traffic. End show
+  (2000 m): a drive home through a snowy town, dropping presents on the doorsteps.
+- **Snowball Fight:** two elves on snowy hills take turns throwing snowballs. The red elf uses the
+  D-pad (Left/Right aim, hold Up to charge, let go to throw); the green elf A and B (hold B to swing
+  the aim, each press the other way; hold A to charge, let go). The wind arrow at the top (and the
+  snow) changes every turn; every snowball blows a crater out of the hill, and an elf whose snow is
+  blown away drops into the hole. First to knock the other out (*Hits*, 3) wins; a *Turn time*
+  (15 s) keeps it moving. Alone, the computer throws for green (*Computer skill*) and gets better
+  as the fight goes on; pressing A or B takes over. End show: the winner builds a giant snowman
+  (after beating the computer, or a two-player win with *Good game* health left).
 
 ### Two players
 

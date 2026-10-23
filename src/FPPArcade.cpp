@@ -936,6 +936,7 @@ public:
     // which is also where the games are stepped and where a button event
     // reaches them, so nothing can be part way through one.
     void loadGames() {
+        std::lock_guard<std::recursive_mutex> l(gamesLock);
         for (auto &a : games) {
             for (auto &g : a.second) {
                 // Stop anything running on a model before its game goes: the
@@ -977,6 +978,7 @@ public:
     virtual std::function<bool()> shutdown() override {
         FileMonitor::INSTANCE.RemoveFile(name, FPP_DIR_CONFIG("/plugin.fpp-arcade.json"));
         ArcadeSound::shutdown();   // its mixer thread runs code in this library
+        std::lock_guard<std::recursive_mutex> l(gamesLock);
         for (auto &a : games) {
             for (auto &g : a.second) {
                 g->release();
@@ -1124,6 +1126,7 @@ public:
         }
     }
     std::unique_ptr<Command::Result>  selectGame(const std::vector<std::string> &args) {
+        std::lock_guard<std::recursive_mutex> l(gamesLock);
         int idx = std::atoi(args[0].c_str());
         const std::string model = args.size() > 1 ? args[1] : "";
         int max = games[model].size();
@@ -1148,6 +1151,7 @@ public:
         return std::make_unique<Command::ErrorResult>("FPP Arcade Could not find game matching " + args[0] + " for model " + model);
     }
     virtual std::unique_ptr<Command::Result> runAxisCommand(const std::vector<std::string> &args) {
+        std::lock_guard<std::recursive_mutex> l(gamesLock);
         const std::string axis = args[0];
         const std::string model = args.size() > 1 ? args[1] : "";
         int value = args.size() > 2 ? std::atoi(args[2].c_str()) : 0;
@@ -1166,6 +1170,7 @@ public:
         return std::make_unique<Command::Result>("FPP Arcade Axis Processed");
     }
     virtual std::unique_ptr<Command::Result> runCommand(const std::vector<std::string> &args) {
+        std::lock_guard<std::recursive_mutex> l(gamesLock);
         const std::string button = args[0];
         const std::string model = args.size() > 1 ? args[1] : "";
         if (model != "") {
@@ -1449,6 +1454,14 @@ public:
     }
     
     std::map<std::string, std::list<FPPArcadeGame*>> games;
+    // Input comes from more than one thread at once: FPP runs commands from
+    // the web API on its own threads, the controllers come in through the SDL
+    // pump, and a config change reloads the games. Two players pressing at
+    // the same moment had two threads changing the same game's cheat-code
+    // history (and Select reordering this list) together, which crashed fppd.
+    // Everything that reads or changes the games, or hands them input, holds
+    // this.
+    std::recursive_mutex gamesLock;
     
     class Joystick {
     public:

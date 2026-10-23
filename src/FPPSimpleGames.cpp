@@ -144,7 +144,7 @@ public:
         beginFrame();   // the picture, then the score over it: see beginFrame()
         canvas.writeTo(model);
         if (over && overT > 1.0f) {
-            textBox({overTitle[0], overTitle[1], std::to_string(overScore)}, 255, 255, 255);
+            textBox({overTitle[0], overTitle[1], overLine}, 255, 255, 255);
         } else {
             drawText();
         }
@@ -169,7 +169,9 @@ protected:
     // the show, fill in cfg and story and return true.
     virtual bool endShowFor(ShowConfig &/*cfg*/, std::unique_ptr<ShowStory> &/*story*/) { return false; }
 
-    void gameOver(int score, const char *line1 = "GAME", const char *line2 = "OVER") {
+    // scoreText, if given, shows in the box instead of the score (Flap's
+    // two players show both scores).
+    void gameOver(int score, const char *line1 = "GAME", const char *line2 = "OVER", const std::string &scoreText = "") {
         // Only the first time: two presses in one frame can both miss, and
         // recording the best twice would make the second look like no new best.
         if (!over) {
@@ -180,6 +182,7 @@ protected:
         over = true;
         overT = 0;
         overScore = score;
+        overLine = scoreText.empty() ? std::to_string(score) : scoreText;
         overTitle[0] = line1;
         overTitle[1] = line2;
     }
@@ -222,7 +225,7 @@ private:
     std::mutex pressLock;
     std::vector<std::string> presses;
     int overScore = 0;
-    std::string overTitle[2];
+    std::string overTitle[2], overLine;
     bool finished = false;
 };
 
@@ -515,76 +518,155 @@ private:
         float x;
         int gapTop, gap;
         bool passed;
+        bool passedBy[2];
+    };
+    // Two birds, one per control: Up flies the yellow one, A or B (or Fire)
+    // the blue one. Whoever flaps first starts the game; the other bird joins
+    // whenever its control is first pressed, in a safe spot, blinking while
+    // it can't be hit. Each has its own score, and the game is over when
+    // every bird that joined has crashed. One bird plays exactly as Flap
+    // always has.
+    struct Bird {
+        bool joined = false, alive = false;
+        float y = 0, vy = 0, flapT = 0, safeT = 0, deadT = 0;
+        int x = 0, score = 0;
+        ArcadeCanvas::RGB body, wing;
     };
 
     void reset() override {
-        birdX = W / 4;
-        y = H / 2.0f;
-        vy = 0;
-        flying = false;
-        score = 0;
+        for (int i = 0; i < 2; ++i) {
+            birds[i] = Bird();
+            birds[i].x = i == 0 ? W / 4 : std::max(2, W / 4 - 4);
+            birds[i].y = H / 2.0f;
+        }
+        birds[0].body = {1.0f, 0.85f, 0.1f};
+        birds[0].wing = {1.0f, 0.45f, 0.05f};
+        birds[1].body = {0.3f, 0.75f, 1.0f};
+        birds[1].wing = {0.1f, 0.35f, 1.0f};
+        passed = 0;
         pipes.clear();
         nextPipe = (float)W;
     }
 
+    bool flying() const { return birds[0].joined || birds[1].joined; }
+
     void onPress(const std::string &name) override {
-        if (name == "A Button" || name == "B Button" || name == "Up" || name == "Fire") {
-            if (!flying) {
-                sound("Start");
-            } else if (clock - flapSoundT > 0.08f) {   // mashing shouldn't stack up flaps
-                flapSoundT = clock;
-                sound("Flap", 0.7f);
+        int who = -1;
+        if (name == "Up") {
+            who = 0;
+        } else if (name == "A Button" || name == "B Button" || name == "Fire" || name == "Fire Button") {
+            who = 1;
+        }
+        if (who < 0) {
+            return;
+        }
+        Bird &b = birds[who];
+        if (!b.joined) {
+            // The first bird starts the game where it bobs; a later one
+            // arrives in the middle, out of harm's way for a moment.
+            const bool first = !flying();
+            b.joined = b.alive = true;
+            b.safeT = first ? 0.0f : 1.5f;
+            if (!first) {
+                b.y = H / 2.0f;
             }
-            flying = true;
-            vy = -11.0f;
-            flapT = 0.15f;
+            sound("Start");
+        } else if (!b.alive) {
+            return;   // crashed: out until the next game
+        } else if (clock - flapSoundT > 0.08f) {   // mashing shouldn't stack up flaps
+            flapSoundT = clock;
+            sound("Flap", 0.7f);
+        }
+        b.vy = -11.0f;
+        b.flapT = 0.15f;
+    }
+
+    // Harder as the pipes go by, whoever passes them.
+    float speed() const { return std::min(16.0f, 9.0f + 0.2f * passed); }
+
+    void crash(Bird &b) {
+        b.alive = false;
+        b.deadT = 0;
+        sound("Crash");
+        if (!birds[0].alive && !birds[1].alive) {
+            const int top = std::max(birds[0].score, birds[1].score);
+            if (birds[0].joined && birds[1].joined) {
+                gameOver(top, "GAME", "OVER", std::to_string(birds[0].score) + ":" + std::to_string(birds[1].score));
+            } else {
+                gameOver(top);
+            }
         }
     }
 
-    float speed() const { return std::min(16.0f, 9.0f + 0.2f * score); }
-
     void stepGame(float dt) override {
-        flapT = std::max(0.0f, flapT - dt);
-        if (!flying) {
-            y = H / 2.0f + std::sin(clock * 4.0f);   // bob until the first flap
+        for (auto &b : birds) {
+            b.flapT = std::max(0.0f, b.flapT - dt);
+            b.safeT = std::max(0.0f, b.safeT - dt);
+            b.deadT += dt;
+        }
+        if (!flying()) {
+            for (auto &b : birds) {
+                b.y = H / 2.0f + std::sin(clock * 4.0f);   // bob until the first flap
+            }
             return;
         }
-        vy = std::min(18.0f, vy + 42.0f * dt);
-        y = std::max(0.0f, y + vy * dt);
+        for (auto &b : birds) {
+            if (b.joined && b.alive) {
+                b.vy = std::min(18.0f, b.vy + 42.0f * dt);
+                b.y = std::max(0.0f, b.y + b.vy * dt);
+            } else if (!b.joined) {
+                b.y = H / 2.0f + std::sin(clock * 4.0f);   // waiting to join
+            }
+        }
         nextPipe -= speed() * dt;
         if (nextPipe <= W) {
-            const int gap = std::max(5, std::min(H / 3, 8) - score / 6);
+            const int gap = std::max(5, std::min(H / 3, 8) - passed / 6);
             const int gapTop = 1 + (int)(rnd() * (H - gap - 2));
-            pipes.push_back({nextPipe, gapTop, gap, false});
+            pipes.push_back({nextPipe, gapTop, gap, false, {false, false}});
             nextPipe += std::max(14, W / 3);
         }
         for (auto &p : pipes) {
             p.x -= speed() * dt;
-            if (!p.passed && p.x + 1 < birdX) {
+            for (int i = 0; i < 2; ++i) {
+                Bird &b = birds[i];
+                if (b.alive && !p.passedBy[i] && p.x + 1 < b.x) {
+                    p.passedBy[i] = true;
+                    ++b.score;
+                    sound("Score");
+                }
+            }
+            if (!p.passed && p.x + 1 < birds[0].x) {
                 p.passed = true;
-                ++score;
-                sound("Score");
+                ++passed;
             }
         }
         pipes.erase(std::remove_if(pipes.begin(), pipes.end(), [](const Pipe &p) { return p.x < -3; }), pipes.end());
-        const int by = (int)y;
-        if (by >= H) {
-            sound("Crash");
-            gameOver(score);
-            return;
-        }
-        for (auto &p : pipes) {
-            const int px = (int)std::floor(p.x);
-            if (birdX >= px && birdX <= px + 1 && (by < p.gapTop || by >= p.gapTop + p.gap)) {
-                sound("Crash");
-                gameOver(score);
-                return;
+        for (auto &b : birds) {
+            if (!b.alive || over) {
+                continue;
+            }
+            const int by = (int)b.y;
+            if (by >= H) {
+                crash(b);
+                continue;
+            }
+            if (b.safeT > 0) {
+                continue;
+            }
+            for (auto &p : pipes) {
+                const int px = (int)std::floor(p.x);
+                if (b.x >= px && b.x <= px + 1 && (by < p.gapTop || by >= p.gapTop + p.gap)) {
+                    crash(b);
+                    break;
+                }
             }
         }
     }
 
-    // A good game passes goodGame pipes, and the best kept is the pipes.
+    // A good game passes goodGame pipes, and the best kept is the pipes - the
+    // better bird's, with two.
     bool endShowFor(ShowConfig &cfg, std::unique_ptr<ShowStory> &story) override {
+        const int score = std::max(birds[0].score, birds[1].score);
         bool newBest = false;
         int best = 0;
         if (!earnsShow("Flap", score, score >= goodGame, &newBest, &best)) {
@@ -612,27 +694,49 @@ private:
                 canvas.add(px + 1, yy, {0.1f, 0.85f, 0.2f}, lip ? 0.8f : 0.25f);
             }
         }
-        const int by = std::min(H - 1, (int)y);
-        if (!over || std::fmod(overT, 0.3f) < 0.15f) {
-            canvas.add(birdX, by, {1.0f, 0.85f, 0.1f}, 1.0f);
-            canvas.add(birdX - 1, by + (flapT > 0 ? -1 : 0), {1.0f, 0.45f, 0.05f}, 0.8f);   // the wing
-            canvas.add(birdX + 1, by, {1.0f, 0.3f, 0.1f}, 0.5f);                               // the beak
+        for (int i = 0; i < 2; ++i) {
+            const Bird &b = birds[i];
+            // Before the game: the yellow bird alone, as it always was. During
+            // it: the birds in play, a joining one blinking while it's safe,
+            // and a crashed one blinking out.
+            bool show = flying() ? b.joined : i == 0;
+            if (b.joined && !b.alive) {
+                show = b.deadT < 0.9f && std::fmod(b.deadT, 0.3f) < 0.15f;
+            } else if (b.safeT > 0) {
+                show = std::fmod(b.safeT, 0.24f) < 0.14f;
+            }
+            if (over && b.joined) {
+                show = std::fmod(overT, 0.3f) < 0.15f;
+            }
+            if (!show) {
+                continue;
+            }
+            const int by = std::min(H - 1, (int)b.y);
+            canvas.add(b.x, by, b.body, 1.0f);
+            canvas.add(b.x - 1, by + (b.flapT > 0 ? -1 : 0), b.wing, 0.8f);   // the wing
+            canvas.add(b.x + 1, by, {1.0f, 0.3f, 0.1f}, 0.5f);                 // the beak
         }
     }
 
     void drawText() override {
         PanelTransform pt(this);
-        if (!flying) {
+        if (!flying()) {
             outputString("FLAP", centerTextX("FLAP", 1), 2, 255, 220, 60, 1);
-        } else {
-            const std::string s = std::to_string(score);
-            outputString(s, W - (int)s.size() * 4, 1, 120, 120, 160, 1);
+            return;
+        }
+        // Each bird's score in its colour: yellow top right, blue top left.
+        if (birds[0].joined) {
+            const std::string s = std::to_string(birds[0].score);
+            outputString(s, W - (int)s.size() * 4, 1, 200, 170, 40, 1);
+        }
+        if (birds[1].joined) {
+            outputString(std::to_string(birds[1].score), 1, 1, 70, 150, 220, 1);
         }
     }
 
-    int birdX = 15, score = 0;
-    float y = 0, vy = 0, nextPipe = 0, flapT = 0, flapSoundT = -1;
-    bool flying = false;
+    Bird birds[2];
+    int passed = 0;   // pipes gone by, for how fast and tight they get
+    float nextPipe = 0, flapSoundT = -1;
     std::vector<Pipe> pipes;
 };
 

@@ -22,7 +22,7 @@ the games.
 | **Star Defenders** | Left/Right held and released, A (fire, hold to repeat; Up also fires), B (laser). |
 | **Shape Fit** | People in front of a Kinect (needs the fpp-kinect plugin). Any button starts; Start pauses. |
 | **Stacker** | A, B or Fire drops the sliding row. |
-| **Flap** | A, B or Up flaps. |
+| **Flap** | Up flaps the yellow bird; A or B a second, blue one, for two players. |
 | **Light Memory** | The four directional "Pressed" events. |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
 
@@ -254,8 +254,11 @@ Three quick games for people walking up, each playable with one or four buttons:
   Scoring, all times the level: 10 a row, 10 more for a perfect drop, and on reaching the
   top 25 for every block still in the last row. Rows left and the score show in the top
   corners.
-- **Flap:** A, B or Up flaps; fly the bird through the gaps in the pipes. The gaps narrow and
-  the pipes speed up as the score climbs.
+- **Flap:** fly through the gaps in the pipes, which narrow and speed up as they go by. Up
+  flaps the yellow bird and A or B a blue one: whoever flaps first starts, and the other bird
+  joins whenever someone presses its control, arriving in the middle and blinking while it
+  can't be hit. Each keeps its own score (yellow top right, blue top left), and the game is
+  over when every bird in play has crashed; with two, GAME OVER shows both scores.
 - **Light Memory:** watch the four triangles light up in sequence, then repeat it with the
   directions (Up is the top triangle, Right the right one, and so on). The sequence grows by
   one each round and plays faster; a white dot in the middle means it's your turn. A wrong

@@ -133,7 +133,8 @@ var ARCADE_GAMES = {
                         choices: [['1', 'Up/Down and Left/Right'], ['2', 'Up-Left/Down-Left and Up-Right/Down-Right'], ['3', 'Up/Left and Right/Down'],
                                   ['4', 'Up/Down and B/A (B up, A down)']],
                         hint: 'Which buttons move each paddle. Needs the Released events too.' }, PW, PH] },
-    'Snake': { about: 'Eat, grow, and don\'t hit yourself.', controls: ['Directions steer'], options: [PS, PW, PH] },
+    'Snake': { about: 'Eat, grow, and don\'t hit yourself. A second player joins with A or B for a duel.',
+        controls: ['Directions steer', 'A/B: the second snake (B turns left, A right)'], options: [PS, PW, PH] },
     'Breakout': { about: 'Bat the ball into the bricks, with power-ups.', controls: ['Left/Right move', 'A/B release or fire'],
         options: [{ name: 'Brick Width', label: 'Brick width', type: 'number', def: 0, min: 0, max: 10, hint: 'LEDs. 0 picks one.' },
                   { name: 'Brick Spacing', label: 'Gap between bricks', type: 'select', def: '1', choices: YESNO, hint: 'Side by side.' },
@@ -192,8 +193,9 @@ var ARCADE_GAMES = {
         controls: ['Left/Right move (hold)', 'A fire', 'B laser'],
         options: [LIVES, { name: 'Start Wave', label: 'Start at wave', type: 'number', def: 1, min: 1, max: 99,
                            hint: 'Higher starts harder: later formations, armour and divers.' }] },
-    'Stacker': { about: 'Drop the sliding row onto the stack; the overhang falls off.', controls: ['A, B or Fire drop'], options: [] },
-    'Flap': { about: 'Flap through the gaps in the pipes.', controls: ['A or Up flap'], options: [] },
+    'Stacker': { about: 'Drop the sliding row onto the stack; the overhang falls off. Two players race side by side.',
+        controls: ['Directions or A/B drop', 'The other control at a level start: a race'], options: [] },
+    'Flap': { about: 'Flap through the gaps in the pipes, one bird or two.', controls: ['Up: the yellow bird', 'A/B: the blue bird'], options: [] },
     'Light Memory': { about: 'Repeat the growing sequence of lit triangles.', controls: ['Directions, one per triangle'], options: [] }
 };
 

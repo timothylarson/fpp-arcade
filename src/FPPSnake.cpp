@@ -58,6 +58,11 @@ public:
                     OK = false;
                 }
             }
+            for (auto &a : snake2) {
+                if (a.first == x && a.second == y) {
+                    OK = false;
+                }
+            }
         }
         food.push_back({x, y});
     }
@@ -86,6 +91,18 @@ public:
             }
             count++;
         }
+        // The blue snake: a bright cyan head on a blue body that fades along it.
+        count = 0;
+        size = snake2.size();
+        for (auto &a : snake2) {
+            if (count == 0) {
+                outputPixel(a.first, a.second, 120, 220, 255);
+            } else {
+                const int c = 50 + (size - count) * 200 / std::max(1, size);
+                outputPixel(a.first, a.second, 0, c / 3, c);
+            }
+            count++;
+        }
         for (int r = 0; r < rows; r++) {
             outputPixel(0, r, 128, 128, 128);
             outputPixel(cols-1, r, 128, 128, 128);
@@ -96,54 +113,87 @@ public:
         }
     }
     
-    void moveSnake() {
-        int x = snake.front().first;
-        int y = snake.front().second;
-        switch (direction) {
-            case 0:
-                --x;
-                break;
-            case 1:
-                --y;
-                break;
-            case 2:
-                ++x;
-                break;
-            case 3:
-                ++y;
-                break;
+    using Cell = std::pair<int, int>;
+    static Cell ahead(Cell c, int dir) {
+        switch (dir) {
+            case 0: --c.first; break;
+            case 1: --c.second; break;
+            case 2: ++c.first; break;
+            case 3: ++c.second; break;
         }
-
-
-        bool foundFood = false;
-        for (auto &a : food) {
-            if (a.first == x && a.second == y) {
-                foundFood = true;
-            }
-        }
-        if (!foundFood) {
-            snake.pop_back();
-            for (auto &a : snake) {
-                if (a.first == x && a.second == y) {
-                    GameOn = false;
-                }
-            }
-        } else {
-            food.remove({x, y});
-            addFood();
-            // Every tenth bite gets a fanfare, the only progress marker a
-            // game without levels has.
-            ++eaten;
-            sfx("snake", eaten % 10 == 0 ? "Milestone" : "Eat");
-        }
-        snake.push_front({x, y});
-        if (x == 0 || y == 0 || x == (cols-1) || y == (rows-1)) {
-            //hit a wall
-            GameOn = false;
-        }
-        
+        return c;
     }
-    
+    bool isWall(const Cell &c) const { return c.first <= 0 || c.second <= 0 || c.first >= cols - 1 || c.second >= rows - 1; }
+    static bool contains(const std::list<Cell> &body, const Cell &c) {
+        return std::find(body.begin(), body.end(), c) != body.end();
+    }
+    bool isFood(const Cell &c) const { return contains(food, c); }
+
+    // One step. With two snakes both move at once, so meeting head on is a
+    // tie rather than a win for whichever happened to move first; the first
+    // to hit a wall, itself or the other ends the duel.
+    void moveSnake() {
+        const Cell h1 = ahead(snake.front(), direction);
+        const Cell h2 = duel ? ahead(snake2.front(), direction2) : Cell{-1, -1};
+        const bool ate1 = isFood(h1);
+        const bool ate2 = duel && h2 != h1 && isFood(h2);
+        // Tails move first (unless eating), so following a tail is safe.
+        if (!ate1) {
+            snake.pop_back();
+        }
+        if (duel && !ate2) {
+            snake2.pop_back();
+        }
+        const bool dead1 = isWall(h1) || contains(snake, h1) || (duel && (contains(snake2, h1) || h1 == h2));
+        const bool dead2 = duel && (isWall(h2) || contains(snake2, h2) || contains(snake, h2) || h1 == h2);
+        snake.push_front(h1);
+        if (duel) {
+            snake2.push_front(h2);
+        }
+        for (const Cell &h : {h1, h2}) {
+            if ((h == h1 && ate1) || (h == h2 && ate2)) {
+                food.remove(h);
+                addFood();
+                // Every tenth bite gets a fanfare, the only progress marker a
+                // game without levels has.
+                ++eaten;
+                sfx("snake", eaten % 10 == 0 ? "Milestone" : "Eat");
+            }
+        }
+        if (dead1 || dead2) {
+            GameOn = false;
+            winner = dead1 && dead2 ? 0 : (dead2 ? 1 : 2);
+        }
+    }
+
+    // A or B mid-game: the blue snake joins, in whichever corner is clear,
+    // three long and heading away from the red one's head.
+    void joinBlue() {
+        struct Spot {
+            int x, y, dir;
+        };
+        const Spot spots[] = {{cols * 3 / 4, rows * 3 / 4, 0}, {cols / 4, rows / 4, 2},
+                              {cols * 3 / 4, rows / 4, 0}, {cols / 4, rows * 3 / 4, 2}};
+        const Cell red = snake.front();
+        for (const Spot &sp : spots) {
+            std::list<Cell> body;
+            for (int i = 0; i < 3; ++i) {
+                body.push_back({sp.x + (sp.dir == 0 ? i : -i), sp.y});   // the tail trails behind the way it's going
+            }
+            bool clear = std::abs(sp.x - red.first) + std::abs(sp.y - red.second) >= 6;
+            for (const Cell &c : body) {
+                clear = clear && !isWall(c) && !contains(snake, c) && !isFood(c) && !isWall(ahead(c, sp.dir));
+            }
+            if (clear) {
+                snake2 = body;
+                direction2 = sp.dir;
+                duel = true;
+                sfx("snake", "StartGame");
+                return;
+            }
+        }
+    }
+
     virtual int32_t update() override {
         if (show.on()) {
             if (show.step(model, consumeElapsedMs(50.0))) {
@@ -183,20 +233,33 @@ public:
             moveAccumulatorMs = 0.0;
             sfxStop("snake");
             // A good game (or a new best) gets the end show instead of GAME OVER.
-            const int length = (int)snake.size();
+            // In a duel the longer snake counts.
+            const int length = duel ? (int)std::max(snake.size(), snake2.size()) : (int)snake.size();
             int best = 0;
             const bool newBest = arcadeRecordBest(model->getName(), "Snake", length, &best);
             if (arcadeWantShow(endShow, length >= goodGame, newBest)) {
                 sfx("snake", "EndShow");
-                show.start(model, SnakeShow::config(length, newBest, best), std::make_unique<SnakeShow::Story>());
+                if (duel) {
+                    show.start(model, SnakeShow::config2((int)snake.size(), (int)snake2.size(), winner, newBest, best),
+                               std::make_unique<SnakeShow::Story>(true));
+                } else {
+                    show.start(model, SnakeShow::config(length, newBest, best), std::make_unique<SnakeShow::Story>());
+                }
                 resetFrameTimer();
                 return 50;
             }
             sfx("snake", "GameOver");
             char buf[25];
             snprintf(buf, sizeof(buf), "%u", (uint32_t)snake.size());
+            // A duel says who won, and both lengths.
+            std::string line1 = "GAME", line2 = "OVER";
+            if (duel) {
+                line1 = winner == 0 ? "TIE" : (winner == 1 ? "RED" : "BLUE");
+                line2 = winner == 0 ? "GAME" : "WINS";
+                snprintf(buf, sizeof(buf), "%u:%u", (uint32_t)snake.size(), (uint32_t)snake2.size());
+            }
             // Centred in the playfield, so fit it to the playfield's width.
-            const int scl = fitTextScale({"GAME", "OVER", buf}, scale == 0 ? 1 : scale,
+            const int scl = fitTextScale({line1, line2, buf}, scale == 0 ? 1 : scale,
                                          pfW > 0 ? pfW * std::max(1, scale) : 0);
             // Lay GAME / OVER / score out as one block and centre it, clamped
             // into the playfield. The old fixed rows/2-9 offset assumed a tall
@@ -211,9 +274,9 @@ public:
             const int lineH  = std::max(glyphH, std::min(6, (rows - glyphH) / std::max(1, lines - 1)));
             const int blockH = lineH * (lines - 1) + glyphH;
             const int y0     = std::max(0, (rows - blockH) / 2);
-            outputString("GAME", centerTextX("GAME", scl), y0, 255, 255, 255, scl);
+            outputString(line1, centerTextX(line1, scl), y0, 255, 255, 255, scl);
             if (lines >= 2) {
-                outputString("OVER", centerTextX("OVER", scl), y0 + lineH, 255, 255, 255, scl);
+                outputString(line2, centerTextX(line2, scl), y0 + lineH, 255, 255, 255, scl);
             }
             if (lines >= 3) {
                 outputString(buf, centerTextX(buf, scl), y0 + lineH * 2, 255, 255, 255, scl);
@@ -240,6 +303,18 @@ public:
             if (isPaused()) return;
         }
 
+        // A and B are the blue snake's: the first press brings it in, then B
+        // turns it left and A right - two buttons can't give four directions,
+        // but they can steer, the way light cycles do.
+        if (GameOn && (button == "A Button - Pressed" || button == "B Button - Pressed")) {
+            if (!duel) {
+                joinBlue();
+            } else {
+                direction2 = (direction2 + (button == "A Button - Pressed" ? 1 : 3)) % 4;
+                sfx("snake", "Turn", 0.5f);
+            }
+            return;
+        }
         const int was = direction;
         if (button == "Left - Pressed" && direction != 2) {
             direction = 0;
@@ -263,6 +338,11 @@ public:
     std::list<std::pair<int, int>> food;
     std::list<std::pair<int, int>> snake;
     int direction = 0;
+    // The blue snake, once A or B brings it in, and the duel's result:
+    // 0 a tie, 1 red won, 2 blue won.
+    bool duel = false;
+    std::list<std::pair<int, int>> snake2;
+    int direction2 = 0, winner = 0;
 
     int rows = 20;
     int cols = 20;
@@ -282,6 +362,9 @@ public:
     void restart() override {
         // Reinitialize snake to starting state
         snake.clear();
+        snake2.clear();
+        duel = false;
+        winner = 0;
         food.clear();
         direction = 0;
         snake.push_back(std::pair<int, int>(cols / 2, rows / 2));

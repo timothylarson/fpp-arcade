@@ -234,6 +234,28 @@ inline ShowConfig config(int score, int level, bool newBest) {
     return cfg;
 }
 
+// After a race: each side's levels won and score; winner 1 left, 2 right.
+// The better score is the one that counts as a best.
+inline ShowConfig config2(int leftWins, int rightWins, int leftScore, int rightScore, int winner, bool newBest,
+                          int previousBest) {
+    using namespace ShowColours;
+    ShowConfig cfg;
+    cfg.headline = {winner == 1 ? "LEFT" : "RIGHT", "WINS!"};
+    cfg.stats.push_back({"LEFT", leftScore, false, GOLD});
+    cfg.stats.push_back({"RIGHT", rightScore, false, GREEN});
+    if (newBest) {
+        cfg.stats.push_back({"NEW BEST", std::max(leftScore, rightScore), false, WHITE});
+    } else if (previousBest > 0) {
+        cfg.stats.push_back({"BEST", previousBest, false, WHITE});
+    }
+    cfg.roll = {{"STACKER", HEAD}, {"", WHITE}, {"THE RACE", HEAD},
+                {"LEFT " + std::to_string(leftWins) + " - " + std::to_string(rightWins) + " RIGHT", WHITE}, {"", WHITE},
+                {"CAST", HEAD}, {"TWO TOWERS", GREEN}, {"AND", HEAD}, {"THE STAR", GOLD}, {"", WHITE},
+                {"THANKS FOR PLAYING", WHITE}};
+    cfg.ending = "GAME OVER";
+    return cfg;
+}
+
 // For tools/shows/preview.sh.
 inline void preview(ShowConfig &cfg, std::unique_ptr<ShowStory> &story) {
     cfg = config(1840, 4, true);

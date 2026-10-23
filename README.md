@@ -13,7 +13,7 @@ the games.
 |------|-----------|
 | **Tetris** | The four directional "Pressed" events. "Up" rotates the block. |
 | **Pong** | "Pressed" and "Released" events. Player one uses Up/Down; player two uses Left/Right, or B (up) and A (down) with the *Up/Down and B/A* controls setting. |
-| **Snake** | The four directional "Pressed" events. |
+| **Snake** | The four directional "Pressed" events; A or B brings in a second snake for a duel (B turns it left, A right). |
 | **Breakout** | Directional "Pressed"/"Released" events. |
 | **Frogger** | The four directional "Pressed" events hop; A speeds the traffic up a step, B slows it back down to the level's own speed. |
 | **Orb Pop** | People in front of a Kinect (needs the fpp-kinect plugin). A starts a round; Start pauses. |
@@ -21,10 +21,20 @@ the games.
 | **Barrel Climb** | All four directions held and released (walk, climb), and A (jump). |
 | **Star Defenders** | Left/Right held and released, A (fire, hold to repeat; Up also fires), B (laser). |
 | **Shape Fit** | People in front of a Kinect (needs the fpp-kinect plugin). Any button starts; Start pauses. |
-| **Stacker** | A, B or Fire drops the sliding row. |
+| **Stacker** | The directions, or A, B or Fire, drop the sliding row; the other control at the start of a level makes it a race. |
 | **Flap** | Up flaps the yellow bird; A or B a second, blue one, for two players. |
 | **Light Memory** | The four directional "Pressed" events. |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
+
+### Two players
+
+Pong, Flap, the Snake duel and the Stacker race take a second player on the same controller,
+one on the directions and one on A and B, without choosing anything first: the second player
+just presses their control. In the **Snake duel** a blue snake joins in a clear corner; B turns
+it left and A right (two buttons can't give four directions, but they can steer, like light
+cycles). Both eat and grow, and the first to hit a wall, itself or the other snake loses - head
+on is a tie. Their end shows name the winner and show both scores; the better one counts as a
+best.
 
 ### Cheat codes
 
@@ -249,13 +259,17 @@ running on the same model.
 Three quick games for people walking up, each playable with one or four buttons:
 
 - **Stacker:** a row of blocks a quarter of the width slides back and forth, a little faster
-  each row. A, B or Fire drops it on the stack, and whatever hangs over the edge falls off and
+  each row. A press drops it on the stack (whichever control starts the game plays it), and whatever hangs over the edge falls off and
   the next row is that much narrower. Reach the dotted goal line to clear the level; each
   level is a new tower four rows taller (11, 15, 19... on a 25-row model) that starts faster
   and tops out faster. Once the tower passes the lower third the view follows it up.
   Scoring, all times the level: 10 a row, 10 more for a perfect drop, and on reaching the
   top 25 for every block still in the last row. Rows left and the score show in the top
   corners.
+- **Stacker race:** pressing the other control at the start of a level (on its LEVEL title, or
+  before the first drop) splits the wall into two towers: the directions drop on the left, A or
+  B on the right. The first to the top takes the level, a missed row hands it to the other
+  side, and the first to two levels wins the match.
 - **Flap:** fly through the gaps in the pipes, which narrow and speed up as they go by. Up
   flaps the yellow bird and A or B a blue one: whoever flaps first starts, and the other bird
   joins whenever someone presses its control, arriving in the middle and blinking while it

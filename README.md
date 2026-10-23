@@ -102,6 +102,8 @@ What counts as good, and each game's story:
 - **Stacker** (level 3): the tower builds itself into a lit Christmas tree with a star on top.
 - **Flap** (15 pipes): the bird, in a Santa hat, flies a victory lap, turning every pipe it gets
   through into a candy cane, then zooms off in a trail of sparkles.
+  After two players: the winner's name, both scores, and both birds on the lap (the better
+  score is the one that counts as good and as a best).
 - **Light Memory** (10 rounds): the four triangles play Jingle Bells, spin through every colour,
   flash red and green and finish in a golden starburst.
 - **Orb Pop** (a round of 50; the show replaces the score screen, and attract mode follows as

@@ -674,8 +674,13 @@ private:
         if (!earnsShow("Flap", score, score >= goodGame, &newBest, &best)) {
             return false;
         }
-        cfg = FlapShow::config(score, newBest, best);
-        story = std::make_unique<FlapShow::Story>();
+        if (birds[0].joined && birds[1].joined) {
+            cfg = FlapShow::config2(birds[0].score, birds[1].score, newBest, best);
+            story = std::make_unique<FlapShow::Story>(true);
+        } else {
+            cfg = FlapShow::config(score, newBest, best);
+            story = std::make_unique<FlapShow::Story>();
+        }
         return true;
     }
 

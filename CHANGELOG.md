@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Flap's end show after a two-player game names the winner (YELLOW WINS!, BLUE WINS! or IT'S A TIE!), counts up both birds' pipes in their colours, and both birds fly the victory lap. Only the better score counts as a best.
 - Fixed a crash (fppd restarting) when buttons arrived from two places at the same moment, such as two players or a controller and the web API: they changed a game's cheat-code history and the game list on two threads at once. All input now goes through one lock.
 - Flap is a two-player game: Up flies the yellow bird and A or B a blue one. Whoever flaps first starts it; the other bird joins whenever its control is first pressed, blinking while it's safe. Each has its own score, top right and top left, and the game is over when every bird in play has crashed; GAME OVER blinks the one that crashed last. One player plays as before.
 - Flap's end show: the candy canes' crooks are two LEDs wide on both sides, like their shafts.

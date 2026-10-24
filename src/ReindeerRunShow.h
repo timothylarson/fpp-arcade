@@ -117,10 +117,12 @@ inline void drawSleigh(ArcadeCanvas::Canvas &c, int x, int y, float k) {
     }
 }
 
-// The candy cane the game's runners collect, hook at the top.
-const char *const CANDY[3] = {".r.", "w.w", "r.."};
+// The candy cane the game's runners collect, hook at the top; y is the hook's
+// top row, and the stem reaches one LED below the hook's far end.
+constexpr int CANDY_H = 4;
+const char *const CANDY[CANDY_H] = {".r.", "w.w", "r..", "w.."};
 inline void drawCandy(ArcadeCanvas::Canvas &c, int x, int y, float k) {
-    for (int r = 0; r < 3; ++r) {
+    for (int r = 0; r < CANDY_H; ++r) {
         for (int i = 0; i < 3; ++i) {
             if (CANDY[r][i] != '.') {
                 c.set(x + i, y + r, CANDY[r][i] == 'r' ? RGB{1.0f, 0.05f, 0.05f} : RGB{1, 1, 1}, k);

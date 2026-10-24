@@ -239,7 +239,7 @@ private:
         Kind kind;
         double wx;          // the left edge, in the world
         int w, h;           // h: how tall a ground obstacle is
-        float alt;          // candy: the height of its bottom row
+        float alt;          // candy: the height of the hook's bottom row (the stem hangs one below)
         int variant;
         const char *const *rows = nullptr;   // the shape, for those that have one
         bool taken[2] = {false, false};      // candy, by each runner
@@ -575,7 +575,7 @@ private:
         }
     }
 
-    // Candy: any lit LED of the reindeer touching any of the cane's 3x3.
+    // Candy: any lit LED of the reindeer touching any of the cane's 3x4.
     void collect(int p) {
         Runner &r = runners[p];
         const int fh = feetRow(r);
@@ -594,7 +594,7 @@ private:
                 const int ht = fh + rows_n - 1 - rr;
                 for (int i = 0; rows[rr][i] && !touch; ++i) {
                     const int x = runX + i;
-                    touch = rows[rr][i] != '.' && x >= sx && x < sx + 3 && ht >= a && ht < a + 3;
+                    touch = rows[rr][i] != '.' && x >= sx && x < sx + 3 && ht >= a - 1 && ht < a + 3;
                 }
             }
             if (touch) {

@@ -37,6 +37,11 @@ problem never affects play.
    USB out 2
 ```
 
+- **Bridge the IN-OUT pads** on the ESP32 board (two small pads by the USB ports on many N16R8
+  boards) with a blob of solder. Unbridged, a diode stops USB power reaching the 5V pin, so the
+  amp gets only a trickle through its signal pins: it plays quietly, then buzzes as soon as it's
+  turned up (here, above about 22%). Bridged, the 5V pin is USB power itself, so never feed 5 V
+  into that pin while USB is plugged in from somewhere else.
 - **SD** is driven by the ESP32: high plays, low switches the amp off after two quiet seconds, which
   saves battery and stops any hiss between sounds.
 - **GAIN** left open is 9 dB. Tied to GND it's 12 dB, to VIN 6 dB. Start open and use the volume
@@ -89,10 +94,32 @@ arduino-cli compile --upload -p /dev/cu.usbmodem1101 --fqbn "esp32:esp32:esp32s3
 3. On FPP, turn on **Sound** on the Arcade Games page. The speaker appears under *Controller
    speakers* within a few seconds, and fetches the sound files by itself (a minute or so the
    first time).
-4. Its own page (click its name on the Arcade Games page) shows what it's doing and has a volume
-   slider, a Test sound button and Fetch sounds now.
+4. Its own page (click its name on the Arcade Games page, or browse to
+   **http://controller-speaker-xxxx.local**) shows what it's doing and has the volume, a Test
+   sound button and Fetch sounds now. Its name starts as *Controller Speaker xxxx*, the last four
+   characters of its MAC address, so each speaker is different. The name gives the address: rename
+   it *Left Controller* and it's at http://left-controller.local.
 
 Sounds added on FPP are picked up when the Arcade Games page is saved, or within a minute.
+
+## Status light
+
+The board's RGB LED (GPIO 48; 38 on some boards, set at the top of `ArcadeSpeaker.ino`) shows
+what the speaker is doing:
+
+| Light | Means |
+|---|---|
+| Green, steady | Ready: on the Wi-Fi, FPP answers and the sounds are loaded |
+| White blink | FPP just sent a sound to play |
+| Purple, flickering | Fetching sounds from FPP |
+| Amber | Starting up, joining the Wi-Fi, or waiting to hear from FPP |
+| Blue, blinking | Its set-up network is on: no Wi-Fi set, or it can't reach the one that is |
+| Red, steady | FPP doesn't answer: check the FPP address, and that the player is up |
+| Red, blinking | A fault in the speaker: no sounds loaded, no FAT partition (wrong partition scheme), or the amp output didn't start |
+
+"FPP answers" means its list of sounds came back the last time the speaker asked (every minute).
+FPP's Sound setting can still be off, in which case nothing plays; the Arcade Games page lists
+the speaker either way.
 
 ## Notes
 
@@ -101,7 +128,10 @@ Sounds added on FPP are picked up when the Arcade Games page is saved, or within
   PSRAM so it plays instantly, which is room for about six minutes; all the games' sounds
   together come to about four and a half (6.1 MB). The speaker's page shows how much flash is in
   use, and a sound that doesn't fit is reported on the serial log as "No room for ...".
-- Firmware 1.0 kept 16-bit sounds, and they no longer all fit. Firmware 1.1 clears them out the
+- The amp is fed at 44.1 kHz, one of the rates the MAX98357A supports (22.05 kHz isn't), with a
+  point halfway between each pair of samples; storing the sounds at 44.1 kHz would take twice the
+  room, more than the speaker has, for nothing a 3" speaker can play.
+- Firmware 1.0 kept 16-bit sounds, and they no longer all fit. Firmware 1.1 and later clear them out the
   first time it starts and fetches them again as mu-law; it needs a plugin version that offers
   mu-law (with an older one it still works, fetching 16-bit).
 - If it can't reach the Wi-Fi it keeps trying and offers its set-up network meanwhile.

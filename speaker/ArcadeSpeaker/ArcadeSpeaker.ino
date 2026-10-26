@@ -13,11 +13,14 @@
 //     minute), and keeps them in PSRAM to play.
 //   - Serves a settings page on port 80. With no Wi-Fi set up, or none it can
 //     reach, it makes its own network "ArcadeSpeaker-XXXX" with that page.
+//   - Shows what it's doing on the board's RGB light (see README.md).
 //
 // Build for "ESP32S3 Dev Module" with Flash Size 16MB, PSRAM "OPI PSRAM" and
 // Partition Scheme "16M Flash (3MB APP/9.9MB FATFS)" - see README.md.
 
 #include <DNSServer.h>
+#include <ESPmDNS.h>
+#include <mdns.h>
 #include <ESP_I2S.h>
 #include <FFat.h>
 #include <HTTPClient.h>
@@ -26,18 +29,23 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 
+#include <algorithm>
 #include <map>
 #include <vector>
 
-#define FIRMWARE "1.1"
+#include "page.h"
+
+#define FIRMWARE "1.2"
 
 // Pins for an ESP32-S3-DevKitC-1; any free GPIOs will do.
 constexpr int PIN_BCLK = 5;    // MAX98357A BCLK
 constexpr int PIN_LRC = 6;     // MAX98357A LRC
 constexpr int PIN_DIN = 7;     // MAX98357A DIN
 constexpr int PIN_AMP_SD = 8;  // MAX98357A SD: high plays, low switches the amp off
+constexpr int PIN_LED = 48;    // the board's RGB status light (38 on some boards)
 
-constexpr int RATE = 22050;
+constexpr int RATE = 22050;       // the sounds, as fetched and kept
+constexpr int OUT_RATE = 44100;   // to the amp: one of the MAX98357A's rates, as 22.05 kHz isn't
 constexpr uint16_t LISTEN_PORT = 5572;
 constexpr uint16_t FPP_PORT = 5571;
 constexpr int MAX_VOICES = 10;
@@ -46,7 +54,7 @@ constexpr int BLOCK = 256;   // frames per write, about 12 ms
 // ------------------------------------------------------------------ settings
 
 struct Settings {
-    String ssid, pass, fpp, model, name;
+    String ssid, pass, fpp, model, name;   // name also gives its address: <name>.local
     int volume = 70;   // 0..100
 } cfg;
 Preferences prefs;
@@ -57,7 +65,10 @@ void loadSettings() {
     cfg.pass = prefs.getString("pass", "");
     cfg.fpp = prefs.getString("fpp", "");
     cfg.model = prefs.getString("model", "Matrix-Left");
-    cfg.name = prefs.getString("name", "Controller speaker");
+    cfg.name = prefs.getString("name", "");
+    if (cfg.name.isEmpty() || cfg.name == "Controller speaker") {   // unset, or 1.0's default
+        cfg.name = "Controller Speaker " + boardId();   // unique from the start
+    }
     cfg.volume = prefs.getInt("volume", 70);
     prefs.end();
 }
@@ -107,7 +118,10 @@ portMUX_TYPE voiceMux = portMUX_INITIALIZER_UNLOCKED;
 
 volatile uint32_t eventsReceived = 0;
 volatile uint32_t lastEventMs = 0;
+uint32_t lastPlayMs = 0;
 String lastEvent;
+volatile bool audioOk = true;   // false if I2S wouldn't start
+bool storageOk = true;          // false if there's no FAT partition
 
 void stopVoices(const char *game) {
     portENTER_CRITICAL(&voiceMux);
@@ -128,7 +142,7 @@ void playClip(const String &path, float gain) {
     }
     const Clip c = it->second;
     xSemaphoreGive(clipLock);
-    const int q = constrain((int)(gain * cfg.volume / 100.0f * 256), 0, 1024);
+    const int q = constrain((int)(gain * 256), 0, 1024);   // the volume is applied as it plays
     const String game = path.substring(0, path.indexOf('/'));
     portENTER_CRITICAL(&voiceMux);
     // A free voice, or else the one that's been playing longest.
@@ -153,36 +167,44 @@ void playClip(const String &path, float gain) {
 }
 
 // Mix and write 12 ms at a time; the I2S write blocks, which keeps time. The
-// amp is switched off after two quiet seconds - no hiss, and less battery.
+// mix goes out at twice its rate, with a point halfway between each pair of
+// samples. The amp is switched off after two quiet seconds - no hiss, and
+// less battery.
 void audioTask(void *) {
     static I2SClass i2s;
     i2s.setPins(PIN_BCLK, PIN_LRC, PIN_DIN);
-    if (!i2s.begin(I2S_MODE_STD, RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO)) {
+    if (!i2s.begin(I2S_MODE_STD, OUT_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO)) {
         Serial.println("I2S failed to start");
+        audioOk = false;
         vTaskDelete(nullptr);
     }
-    static int16_t out[BLOCK * 2];
+    static_assert(OUT_RATE == 2 * RATE, "the mix is written out at twice its rate");
+    static int16_t out[BLOCK * 4];   // left and right, two frames a sample
     int32_t mix[BLOCK];
     uint32_t quietSince = millis();
     bool ampOn = false;
+    int16_t prev = 0;   // the last sample written, for the next halfway point
     for (;;) {
         memset(mix, 0, sizeof(mix));
         bool active = false;
+        // The volume is read every block, so moving the slider is heard at once.
+        const int volQ8 = cfg.volume * 256 / 100;
         portENTER_CRITICAL(&voiceMux);
         for (auto &v : voices) {
             if (!v.data) {
                 continue;
             }
             const size_t n = min((size_t)BLOCK, v.frames - v.pos);
+            const int g = (v.gainQ8 * volQ8) >> 8;
             if (v.ulaw) {
                 const uint8_t *d = v.data + v.pos;
                 for (size_t i = 0; i < n; ++i) {
-                    mix[i] += (ULAW[d[i]] * v.gainQ8) >> 8;
+                    mix[i] += (ULAW[d[i]] * g) >> 8;
                 }
             } else {
                 const int16_t *d = (const int16_t *)v.data + v.pos;
                 for (size_t i = 0; i < n; ++i) {
-                    mix[i] += (d[i] * v.gainQ8) >> 8;
+                    mix[i] += (d[i] * g) >> 8;
                 }
             }
             v.pos += n;
@@ -194,7 +216,10 @@ void audioTask(void *) {
         portEXIT_CRITICAL(&voiceMux);
         for (int i = 0; i < BLOCK; ++i) {
             const int16_t s = (int16_t)constrain(mix[i], -32768, 32767);
-            out[2 * i] = out[2 * i + 1] = s;
+            const int16_t half = (int16_t)((prev + s) / 2);
+            out[4 * i] = out[4 * i + 1] = half;
+            out[4 * i + 2] = out[4 * i + 3] = s;
+            prev = s;
         }
         if (active) {
             quietSince = millis();
@@ -265,11 +290,25 @@ void loadClips() {
     Serial.printf("%u sounds loaded, %u bytes of PSRAM free\n", (unsigned)clips.size() - 1, ESP.getFreePsram());
 }
 
+// ------------------------------------------------------------------ status light
+
+// Kept dim: the LED is very bright at full power.
+uint32_t ledNow = 0xffffffff;
+
+void setLed(uint8_t r, uint8_t g, uint8_t b) {
+    const uint32_t c = (r << 16) | (g << 8) | b;
+    if (c != ledNow) {   // a write takes a moment, so only on a change
+        ledNow = c;
+        rgbLedWrite(PIN_LED, r, g, b);
+    }
+}
+
 // ------------------------------------------------------------------ sync
 
 String fppUrl(const String &path) { return "http://" + cfg.fpp + "/api/plugin-apis/arcade/" + path; }
 String syncStatus = "Not synced yet";
 uint32_t lastSyncCheck = 0;
+bool fppAsked = false, fppAnswered = false;   // the last time we asked for its sound list
 
 // What we have: "path version" per line.
 std::map<String, String> readIndex() {
@@ -309,7 +348,9 @@ bool syncSounds() {
     HTTPClient http;
     http.setTimeout(5000);
     http.begin(fppUrl("sounds"));
-    if (http.GET() != 200) {
+    fppAsked = true;
+    fppAnswered = http.GET() == 200;
+    if (!fppAnswered) {
         syncStatus = "Couldn't reach FPP at " + cfg.fpp;
         http.end();
         return false;
@@ -333,6 +374,9 @@ bool syncSounds() {
         if (local.count(path) && local[path] == version && FFat.exists(clipFile(path))) {
             continue;
         }
+        // Purple, flickering a file at a time: the loop waits for this.
+        const bool odd = (fetched + failed) & 1;
+        setLed(odd ? 4 : 16, 0, odd ? 6 : 24);
         FFat.mkdir("/s");
         FFat.mkdir("/s/" + path.substring(0, path.indexOf('/')));
         HTTPClient get;
@@ -384,8 +428,43 @@ bool apMode = false;
 bool syncWanted = true;
 uint32_t lastHello = 0;
 
+// The last four hex digits of the MAC address, which differ from board to
+// board (the first ones are the maker's).
+String boardId() {
+    const uint64_t mac = ESP.getEfuseMac();   // first byte lowest
+    char id[5];
+    snprintf(id, sizeof(id), "%02x%02x", (unsigned)(mac >> 32) & 0xff, (unsigned)(mac >> 40) & 0xff);
+    return id;
+}
+
+// Its name on the network, from its name: "Left Controller" is at
+// http://left-controller.local, and the router lists it so. Letters and digits
+// are kept, anything else becomes one hyphen. page.h does the same.
+String hostName() {
+    String o;
+    for (size_t i = 0; i < cfg.name.length() && o.length() < 32; ++i) {
+        const char c = cfg.name[i];
+        if (isalnum((unsigned char)c)) {
+            o += (char)tolower((unsigned char)c);
+        } else if (o.length() && !o.endsWith("-")) {
+            o += '-';
+        }
+    }
+    while (o.endsWith("-")) {
+        o.remove(o.length() - 1);
+    }
+    return o.length() ? o : "arcade-speaker-" + boardId();
+}
+
+// The name it's actually answering to: if another device has the same one,
+// the network gives this one "-2" on the end.
+String hostInUse() {
+    char h[65];
+    return mdns_hostname_get(h) == ESP_OK ? String(h) : hostName();
+}
+
 void startAccessPoint() {
-    const String ssid = "ArcadeSpeaker-" + String((uint32_t)ESP.getEfuseMac() & 0xffff, HEX);
+    const String ssid = "ArcadeSpeaker-" + boardId();
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(ssid.c_str());
     dns.start(53, "*", WiFi.softAPIP());
@@ -404,6 +483,7 @@ void handleEvent(char *msg) {
         char *gain = strtok(nullptr, " ");
         if (seq && path) {
             playClip(path, gain ? atof(gain) : 1.0f);
+            lastPlayMs = millis();
         }
     } else if (!strncmp(msg, "STOP ", 5)) {
         stopVoices(msg + 5);
@@ -425,61 +505,144 @@ void sendHello() {
     udp.endPacket();
 }
 
-// ------------------------------------------------------------------ web page
+// ------------------------------------------------------------------ status
 
-String html(const String &s) {
-    String o = s;
-    o.replace("&", "&amp;");
-    o.replace("<", "&lt;");
-    o.replace("\"", "&quot;");
-    return o;
+// What the speaker is doing, for the status light and the web page.
+enum class State { Fault, SetUp, Joining, NoFpp, Waiting, Ready };
+State state();   // declared here: the Arduino IDE's own declaration would come before State
+
+// What's wrong with the speaker itself, or "" if nothing.
+String fault() {
+    if (!storageOk) {
+        return "No FAT partition: rebuild with the 3MB APP / 9.9MB FATFS partition scheme.";
+    }
+    if (!audioOk) {
+        return "The amp output (I2S) didn't start.";
+    }
+    if (fppAnswered && clips.size() <= 1) {
+        return "No sounds loaded. FPP has none to give, or they don't fit.";
+    }
+    return "";
 }
 
-void handleRoot() {
-    String p;
-    p.reserve(6000);
-    p += F("<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
-           "<title>Arcade Speaker</title><style>"
-           "body{font:16px system-ui,sans-serif;margin:0;padding:16px;background:#14161b;color:#e6e8ee;max-width:640px}"
-           "h1{font-size:20px}h2{font-size:16px;margin-top:24px}label{display:block;margin:10px 0 4px}"
-           "input,select{font:inherit;padding:6px;width:100%;box-sizing:border-box;background:#22262f;color:inherit;border:1px solid #3a404c;border-radius:6px}"
-           "button{font:inherit;padding:8px 14px;margin:8px 8px 0 0;background:#2d6cdf;color:#fff;border:0;border-radius:6px}"
-           "table{border-collapse:collapse}td{padding:3px 12px 3px 0;vertical-align:top}.hint{opacity:.7;font-size:14px}"
-           "</style></head><body><h1>Arcade Speaker</h1><table>");
-    auto row = [&](const char *k, const String &v) { p += "<tr><td>" + String(k) + "</td><td>" + html(v) + "</td></tr>"; };
-    row("Name", cfg.name);
-    row("Plays for", cfg.model);
-    row("Wi-Fi", WiFi.status() == WL_CONNECTED
-                     ? cfg.ssid + " (" + WiFi.localIP().toString() + ", " + String(WiFi.RSSI()) + " dBm)"
-                     : (apMode ? "Not connected - set it up below" : "Connecting to " + cfg.ssid));
-    row("FPP", cfg.fpp.isEmpty() ? "Not set" : cfg.fpp);
-    row("Sounds", syncStatus + " (" + String(clips.size() - 1) + " loaded)");
-    row("Last event", eventsReceived ? lastEvent + " (" + String((millis() - lastEventMs) / 1000) + " s ago)" : "None yet");
-    row("Storage", String(FFat.usedBytes() / 1024) + " of " + String(FFat.totalBytes() / 1024) + " KB");
-    row("Firmware", FIRMWARE);
-    p += F("</table><h2>Volume</h2><input type=range min=0 max=100 value='");
-    p += String(cfg.volume);
-    p += F("' oninput=\"fetch('/volume?v='+this.value)\">"
-           "<button onclick=\"fetch('/test')\">Test sound</button><button onclick=\"fetch('/sync').then(()=>location.reload())\">Fetch sounds now</button>"
-           "<h2>Settings</h2><form method=post action=/save>"
-           "<label>Wi-Fi network</label><input name=ssid value='");
-    p += html(cfg.ssid);
-    p += F("'><label>Wi-Fi password</label><input name=pass type=password placeholder='(unchanged)'>"
-           "<label>FPP player (IP address or name)</label><input name=fpp value='");
-    p += html(cfg.fpp);
-    p += F("'><label>Model it plays for</label><input name=model list=models value='");
-    p += html(cfg.model);
-    p += F("'><datalist id=models></datalist><div class=hint>The FPP overlay model this controller plays, as on the Arcade Games page"
-           " (Matrix-Left, Matrix-Right, ...). Only that model's sounds play here.</div>"
-           "<label>Name</label><input name=name value='");
-    p += html(cfg.name);
-    p += F("'><button>Save and restart</button></form>"
-           "<script>fetch('http://");
-    p += html(cfg.fpp);
-    p += F("/api/models?simple=true').then(r=>r.json()).then(m=>{const d=document.getElementById('models');"
-           "m.forEach(n=>{const o=document.createElement('option');o.value=n;d.appendChild(o)})}).catch(()=>{})</script>"
-           "</body></html>");
-    web.send(200, "text/html", p);
+State state() {
+    if (fault().length()) {
+        return State::Fault;
+    }
+    if (WiFi.status() != WL_CONNECTED) {
+        return apMode ? State::SetUp : State::Joining;
+    }
+    if (cfg.fpp.isEmpty() || (fppAsked && !fppAnswered)) {
+        return State::NoFpp;
+    }
+    return fppAsked ? State::Ready : State::Waiting;
+}
+
+// White blink: a sound was just asked for. Red blinking: something's wrong
+// with the speaker itself; red: FPP doesn't answer. Blue blinking: the set-up
+// network is on. Amber: joining the Wi-Fi or waiting to hear from FPP.
+// Green: ready.
+void updateLed() {
+    const uint32_t now = millis();
+    const bool blinkOn = now % 1000 < 500;
+    if (now - lastPlayMs < 80 && lastPlayMs) {
+        setLed(24, 24, 24);
+        return;
+    }
+    switch (state()) {
+        case State::Fault: setLed(blinkOn ? 24 : 0, 0, 0); break;
+        case State::SetUp: setLed(0, 0, blinkOn ? 24 : 0); break;
+        case State::NoFpp: setLed(24, 0, 0); break;
+        case State::Joining:
+        case State::Waiting: setLed(24, 10, 0); break;
+        case State::Ready: setLed(0, 12, 0); break;
+    }
+}
+
+// ------------------------------------------------------------------ web page
+
+String json(const String &s) {
+    String o = "\"";
+    for (size_t i = 0; i < s.length(); ++i) {
+        const char c = s[i];
+        if (c == '"' || c == '\\') {
+            o += '\\';
+            o += c;
+        } else if ((uint8_t)c < 0x20) {
+            char u[7];
+            snprintf(u, sizeof(u), "\\u%04x", c);
+            o += u;
+        } else {
+            o += c;
+        }
+    }
+    return o + "\"";
+}
+
+// Everything the page shows, refreshed every two seconds.
+void handleStatus() {
+    static const char *const NAMES[] = {"fault", "setup", "joining", "nofpp", "waiting", "ready"};
+    const bool connected = WiFi.status() == WL_CONNECTED;
+    String j;
+    j.reserve(700);
+    j += "{\"state\":\"" + String(NAMES[(int)state()]) + "\"";
+    j += ",\"fault\":" + json(fault());
+    j += ",\"name\":" + json(cfg.name);
+    j += ",\"model\":" + json(cfg.model);
+    j += ",\"fpp\":" + json(cfg.fpp);
+    j += ",\"ssid\":" + json(cfg.ssid);
+    j += ",\"connected\":" + String(connected ? "true" : "false");
+    j += ",\"ip\":" + json(connected ? WiFi.localIP().toString() : "");
+    j += ",\"rssi\":" + String(connected ? WiFi.RSSI() : 0);
+    j += ",\"ap\":" + json(apMode ? "ArcadeSpeaker-" + boardId() : "");
+    j += ",\"fppAsked\":" + String(fppAsked ? "true" : "false");
+    j += ",\"fppOk\":" + String(fppAnswered ? "true" : "false");
+    j += ",\"sync\":" + json(syncStatus);
+    j += ",\"sounds\":" + String(clips.size() - 1);
+    j += ",\"events\":" + String(eventsReceived);
+    j += ",\"last\":" + json(lastEvent);
+    j += ",\"lastAgo\":" + String((millis() - lastEventMs) / 1000);
+    j += ",\"used\":" + String(storageOk ? FFat.usedBytes() : 0);
+    j += ",\"total\":" + String(storageOk ? FFat.totalBytes() : 0);
+    j += ",\"volume\":" + String(cfg.volume);
+    j += ",\"firmware\":" + json(FIRMWARE);
+    j += ",\"host\":" + json(hostInUse());
+    j += ",\"uptime\":" + String(millis() / 1000) + "}";
+    web.sendHeader("Cache-Control", "no-store");
+    web.send(200, "application/json", j);
+}
+
+// FPP's model names, fetched here so the page needn't reach FPP itself.
+void handleModels() {
+    HTTPClient http;
+    http.setTimeout(3000);
+    http.begin("http://" + cfg.fpp + "/api/models?simple=true");
+    if (WiFi.status() == WL_CONNECTED && !cfg.fpp.isEmpty() && http.GET() == 200) {
+        web.send(200, "application/json", http.getString());
+    } else {
+        web.send(200, "application/json", "[]");
+    }
+    http.end();
+}
+
+// The Wi-Fi networks in range, strongest first, each once.
+void handleScan() {
+    const int n = WiFi.scanNetworks();
+    std::map<String, int> best;
+    for (int i = 0; i < n; ++i) {
+        const String ssid = WiFi.SSID(i);
+        if (ssid.length() && (!best.count(ssid) || WiFi.RSSI(i) > best[ssid])) {
+            best[ssid] = WiFi.RSSI(i);
+        }
+    }
+    WiFi.scanDelete();
+    std::vector<std::pair<String, int>> list(best.begin(), best.end());
+    std::sort(list.begin(), list.end(), [](auto &a, auto &b) { return a.second > b.second; });
+    String j = "[";
+    for (auto &[ssid, rssi] : list) {
+        j += (j.length() > 1 ? "," : "") + String("{\"ssid\":") + json(ssid) + ",\"rssi\":" + String(rssi) + "}";
+    }
+    web.send(200, "application/json", j + "]");
 }
 
 void handleSave() {
@@ -491,7 +654,7 @@ void handleSave() {
     cfg.model = web.arg("model");
     cfg.name = web.arg("name");
     saveSettings();
-    web.send(200, "text/html", "<meta http-equiv=refresh content='8;url=/'>Saved. Restarting...");
+    web.send(200, "text/plain", "ok");
     delay(500);
     ESP.restart();
 }
@@ -502,10 +665,12 @@ void setup() {
     Serial.begin(115200);
     pinMode(PIN_AMP_SD, OUTPUT);
     digitalWrite(PIN_AMP_SD, LOW);
+    setLed(24, 10, 0);   // amber while it starts up
     loadSettings();
     clipLock = xSemaphoreCreateMutex();
     if (!FFat.begin(true)) {
         Serial.println("No FAT partition: build with the 3MB APP / 9.9MB FATFS partition scheme");
+        storageOk = false;
     }
     makeUlawTable();
     makeTestBeep();
@@ -513,11 +678,12 @@ void setup() {
     loadClips();
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 5, nullptr, 1);
 
-    WiFi.setHostname(("arcade-speaker-" + String((uint32_t)ESP.getEfuseMac() & 0xffff, HEX)).c_str());
+    WiFi.setHostname(hostName().c_str());
     if (cfg.ssid.isEmpty()) {
         startAccessPoint();
     } else {
         WiFi.mode(WIFI_STA);
+        WiFi.enableIPv6();   // so its .local name answers IPv6 lookups too, and nobody waits for one
         WiFi.begin(cfg.ssid.c_str(), cfg.pass.c_str());
         // Modem sleep holds incoming packets for up to a beacon interval; keep
         // the radio awake so a sound plays the moment its event arrives.
@@ -531,12 +697,22 @@ void setup() {
             startAccessPoint();   // keep trying the network, and offer set-up meanwhile
         }
     }
+    if (MDNS.begin(hostName().c_str())) {   // http://<name>.local
+        MDNS.addService("http", "tcp", 80);
+    }
     udp.begin(LISTEN_PORT);
-    web.on("/", handleRoot);
+    web.on("/", [] { web.send(200, "text/html", PAGE); });
+    web.on("/status", handleStatus);
+    web.on("/favicon.ico", [] { web.send(204); });   // the page has its own icon
+    web.on("/models", handleModels);
+    web.on("/scan", handleScan);
     web.on("/save", HTTP_POST, handleSave);
     web.on("/volume", [] {
+        // Heard straight away; saved once the slider is let go (save=1).
         cfg.volume = constrain(web.arg("v").toInt(), 0, 100);
-        saveSettings();
+        if (web.hasArg("save")) {
+            saveSettings();
+        }
         web.send(200, "text/plain", "ok");
     });
     web.on("/test", [] {
@@ -578,5 +754,6 @@ void loop() {
         lastSyncCheck = now;
         syncSounds();
     }
+    updateLed();
     delay(1);
 }

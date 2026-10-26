@@ -224,6 +224,8 @@ FPPBreakout::FPPBreakout(Json::Value &config)
                 ballSpeed = std::stof(value);
             } else if (name == "Top Speed") {
                 topSpeed = std::clamp(std::stof(value), 1.0f, 5.0f);
+            } else if (name == "Paddle Speed") {
+                paddleSpeed = std::clamp(std::stof(value), 0.3f, 3.0f);
             } else if (name == "Win Credits") {
                 winCredits = value != "0";
             } else if (name == "Credits") {
@@ -469,6 +471,8 @@ public:
         paddle.x = fieldX + (fieldW - paddle.width) / 2.0f;
         paddle.y = model->getHeight() - 1 - paddle.height;
         direction = 0;
+        tapped = 0;
+        paddleMoving = 0;
 
         // Reset any lingering portal state so a portal collected on the previous
         // level doesn't immediately trigger another level advance here.
@@ -1069,8 +1073,9 @@ public:
     float levelFactor() const { return std::min(1.0f + 0.1f * currentLevel, topSpeed); }
     float levelSpeed() const { return configuredBallSpeed * levelFactor(); }
 
-    void setExtras(float top, bool credits, const std::string &lines, const std::string &thanks) {
+    void setExtras(float top, float paddle, bool credits, const std::string &lines, const std::string &thanks) {
         topSpeed = std::max(1.0f, top);
+        paddleSpeed = paddle;
         winCredits = credits;
         creditLines = splitLines(lines);
         thanksLines = splitLines(thanks);
@@ -1481,10 +1486,23 @@ public:
         }
 
         // The paddle speeds up with the level as the ball does, so it can
-        // still get under the ball on the last levels. Not while the portal
-        // is taking it, which would pull it back inside the field.
+        // still get under the ball on the last levels, from Paddle Speed at
+        // level 1. Not while the portal is taking it, which would pull it
+        // back inside the field.
+        // When it stops it goes on to the next whole LED, so even a quick tap
+        // moves it one (a frame's move is under an LED, and it's drawn at the
+        // LED it's in); a press let go before any frame saw it moves it one too.
+        const int dir = direction.load(), tap = tapped.exchange(0);
         if (!portalTouched) {
-            paddle.x += direction * paddle.height * levelFactor() * frameScalar;
+            if (dir != 0) {
+                paddle.x += dir * paddle.height * paddleSpeed * levelFactor() * frameScalar;
+                paddleMoving = dir;
+            } else if (paddleMoving != 0) {
+                paddle.x = paddleMoving > 0 ? std::ceil(paddle.x) : std::floor(paddle.x);
+                paddleMoving = 0;
+            } else if (tap != 0) {
+                paddle.x = std::round(paddle.x) + tap * paddle.height;
+            }
             if (paddle.x < fieldX) paddle.x = fieldX;
             else if ((paddle.x + paddle.width) >= fieldRight()) paddle.x = fieldRight() - paddle.width;
         }
@@ -1629,8 +1647,9 @@ public:
             }
         }
 
-        // Normal frame cadence
-        return 50;
+        // 25 ms frames, as FPP outputs them: the paddle answers a press sooner
+        // than at 50, and everything moves by elapsed time anyway.
+        return 25;
     } // end update()
 
     // Returns true if at least one ball is currently stuck to the paddle.
@@ -1688,12 +1707,16 @@ public:
 
         if (isLeftPress) {
             direction = -1;
+            tapped = -1;
         } else if (isLeftRelease) {
-            if (direction < 0) direction = 0;
+            int d = -1;
+            direction.compare_exchange_strong(d, 0);
         } else if (isRightPress) {
             direction = 1;
+            tapped = 1;
         } else if (isRightRelease) {
-            if (direction > 0) direction = 0;
+            int d = 1;
+            direction.compare_exchange_strong(d, 0);
         } else if (isFirePress) {
             // Launch if any ball is stuck; otherwise fire lasers when active.
             if (anyBallStuck()) {
@@ -1744,7 +1767,10 @@ public:
     std::vector<float> rowStarts;
     std::vector<std::vector<bool>> bricksAlive;
     int remainingDestructible = 0;
-    int direction = 0;
+    // Set by button() on the command thread, read by update().
+    std::atomic<int> direction{0};
+    std::atomic<int> tapped{0};   // the last press, until a frame has moved the paddle for it
+    int paddleMoving = 0;         // update() only: the way it went last frame
     float basePaddleWidth = 0;
     // Horizontal playfield in panel pixels. The ball, the paddle and the portal
     // all bound against this rather than the model, so the ball can never travel
@@ -1771,6 +1797,7 @@ public:
     double levelIntroTimerMs = 0.0;
     double restartSoundMs = 0.0;   // counts down to the start jingle after a life is lost
     float topSpeed = 1.6f;
+    float paddleSpeed = 1.15f;
     bool winCredits = true;
     std::vector<std::string> creditLines;
     std::vector<std::string> thanksLines;
@@ -1836,8 +1863,8 @@ void FPPBreakout::button(const std::string &button) {
                 getRowGaps(),
                 getTopSpace()
             );
-            effect->setExtras(getTopSpeed(), getWinCredits(), getCredits(), getThanks());
-            m->setRunningEffect(effect, 50);
+            effect->setExtras(getTopSpeed(), getPaddleSpeed(), getWinCredits(), getCredits(), getThanks());
+            m->setRunningEffect(effect, 25);
         } else {
             effect->button(button);
         }

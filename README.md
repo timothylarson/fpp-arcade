@@ -186,7 +186,8 @@ paddle's ends turn red and A or B fires two beams), **expand** (blue), **triple 
 **extra life** (red and white checks, like a candy cane), **slow** (orange), **power ball**
 (yellow, goes through bricks), **sticky** (green) and the **portal** (magenta, to the next level). Clearing a level gives two extra lives (up to 9, the
 same limit as the extra-life capsule). Each level makes the ball and the paddle 10% faster,
-up to *Fastest ball* (1.6 times level 1 by default, reached at level 7).
+up to *Fastest ball* (1.6 times level 1 by default, reached at level 7). *Paddle speed* sets how
+fast the paddle moves to start with (1.15 by default, 15% faster than it used to be).
 The brick rows are stacked edge to edge, Arkanoid style, with bricks twice as tall where the
 level fits (it always ends above the lower third), and *Space above bricks* (3 LEDs by default)
 open above them for the ball to get into. *Gap between rows* at Yes spaces the rows out instead,

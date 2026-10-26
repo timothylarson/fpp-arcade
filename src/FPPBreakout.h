@@ -17,6 +17,7 @@ public:
     int getPaddleWidth() const { return paddleWidth; }
     float getBallSpeed() const { return ballSpeed; }
     float getTopSpeed() const { return topSpeed; }
+    float getPaddleSpeed() const { return paddleSpeed; }
     bool getWinCredits() const { return winCredits; }
     const std::string &getCredits() const { return credits; }
     const std::string &getThanks() const { return thanks; }
@@ -30,6 +31,7 @@ protected:
     int paddleWidth = 0; // 0 = auto
     float ballSpeed = 1.0f;
     float topSpeed = 1.6f;      // the most the levels speed the ball (and paddle) up
+    float paddleSpeed = 1.15f;  // the paddle's speed: 1 is how it moved before the setting
     bool winCredits = true;     // the credits show after the last level
     std::string credits = "THANKS FOR PLAYING|MERRY CHRISTMAS";   // lines for it, | between
     std::string thanks = "SANTA|RUDOLPH";                         // its SPECIAL THANKS, | between

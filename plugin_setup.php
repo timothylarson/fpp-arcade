@@ -147,6 +147,8 @@ var ARCADE_GAMES = {
                   { name: 'Ball Speed', label: 'Ball speed', type: 'number', def: 1.0, min: 0.1, max: 5, step: 0.1, hint: '1 is normal.' },
                   { name: 'Top Speed', label: 'Fastest ball', type: 'number', def: 1.6, min: 1, max: 5, step: 0.1,
                     hint: 'Each level is 10% faster (the paddle too), up to this many times level 1. 1.6 is reached at level 7.' },
+                  { name: 'Paddle Speed', label: 'Paddle speed', type: 'number', def: 1.15, min: 0.3, max: 3, step: 0.05,
+                    hint: 'How fast the paddle moves at level 1; it speeds up with the ball from there. 1 is the original speed.' },
                   { name: 'Playfield Width', label: 'Playfield width', type: 'number', def: 0, min: 0, max: 500, hint: 'In cells. 0 fits the bricks.' },
                   { name: 'Win Credits', label: 'Credits when won', type: 'select', def: '1', choices: YESNO,
                     hint: 'After the last level: YOU WON!, fireworks, a little story and rolling credits, as long as the WonGame music.' },

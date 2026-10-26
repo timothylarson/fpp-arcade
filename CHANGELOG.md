@@ -1,5 +1,7 @@
 # FPP Arcade Changelog
 
+- Breakout: a *Paddle speed* setting, 1.15 by default - the paddle moves 15% faster than before at every level (it still speeds up with the ball).
+- Breakout answers the controls sooner: it runs at 25 ms frames instead of 50 (the next frame is never more than 25 ms away), and every tap moves the paddle at least one LED - a quick one could move it a fraction of an LED, drawn where it was, or be missed between frames.
 - Controller speakers (firmware 1.1) fetch their sounds as 8-bit mu-law, half the size of 16-bit: all the games' sounds (12.2 MB as 16-bit) had outgrown the speaker's 8 MB of PSRAM, and some would have gone silent. They now take 6.1 MB, at about 38 dB signal to noise. The first start of the new firmware clears out the old 16-bit copies and fetches them again; speakers on firmware 1.0 still get 16-bit.
 - Five new games: Stick Bridge (grow a candy cane to bridge the gap to the next gift box), Sky Jump (climb the night sky on coins and blasts, smash enemies with a star), Reindeer Run (an endless runner: jump and duck), Road Race (change lanes past traffic that speeds up) and Snowball Fight (two elves lob snowballs over snowy hills against the wind, craters and all; alone, against the computer). Each has drop-in two players, sounds and an end show.
 - Night skies (the end shows' shared one, Stick Bridge's and Flap's) and Snowball Fight's snowy hills below their surface are 2% at most: a coloured fill washes out on the real wall.

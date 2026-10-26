@@ -476,7 +476,6 @@ public:
 
         // Reset any lingering portal state so a portal collected on the previous
         // level doesn't immediately trigger another level advance here.
-        portalOpenTimerMs = 0.0;
         portalActive = false;
         portalTouched = false;
         portalTouchedTimerMs = 0.0;
@@ -1020,7 +1019,7 @@ public:
         }
 
         // Draw the portal if open/active/touched: three pulsing vertical pixels at bottom-right
-        if (portalOpenTimerMs > 0.0 || portalActive || portalTouched) {
+        if (portalActive || portalTouched) {
             int x = std::max(0, (int)fieldRight() - 1);
             int h = model->getHeight();
             float pulse = 0.5f + 0.5f * std::sin(portalPulsePhase);
@@ -1158,8 +1157,10 @@ public:
                 }
                 break;
             case PowerUp::Type::Portal:
-                // Open visual portal and schedule level advance shortly.
-                portalOpenTimerMs = 1500.0;
+                // Open at once: the paddle goes through the moment it reaches
+                // the right edge. (It used to open after 1.5 s, so an early
+                // arrival waited - and a ball lost meanwhile cost a life.)
+                portalActive = true;
                 break;
         }
     }
@@ -1438,23 +1439,16 @@ public:
             }
         }
 
-        // Advance portal pulse and handle portal open / touch mechanics.
+        // Advance portal pulse and handle portal touch mechanics.
         portalPulsePhase += elapsedMs * 0.02;
-        // If opening animation timer is running, decrement it. When it finishes, make portal active.
-        if (portalOpenTimerMs > 0.0) {
-            portalOpenTimerMs -= elapsedMs;
-            if (portalOpenTimerMs <= 0.0) {
-                portalOpenTimerMs = 0.0;
-                portalActive = true;
-            }
-        }
 
-        // If portal is active and not yet touched, check for paddle overlap to trigger the suck animation.
+        // The paddle goes through as soon as its right end is lit on the
+        // portal's column, the field's last LED (as both are drawn).
         if (portalActive && !portalTouched) {
             int portalX = std::max(0, (int)fieldRight() - 1);
             int portalTop = std::max(0, model->getHeight() - 1 - 2);
-            float paddleRight = paddle.x + paddle.width;
-            if (paddleRight >= portalX - 0.5f && (paddle.y + paddle.height) >= portalTop) {
+            const int paddleRightLed = (int)(paddle.x + paddle.width - 1);
+            if (paddleRightLed >= portalX && (paddle.y + paddle.height) >= portalTop) {
                 sound("LevelPortal");
                 portalTouched = true;
                 portalTouchedTimerMs = portalTouchDurationMs;
@@ -1541,7 +1535,11 @@ public:
 
         moveBalls((float)frameScalar);
         updatePowerUps((float)frameScalar);
-        updatePowerUpTimers(elapsedMs);
+        if (!portalTouched) {
+            // Expand running out mid-way would put the paddle back to full
+            // width inside the field, pulling it out of the portal.
+            updatePowerUpTimers(elapsedMs);
+        }
         updateLasers((float)frameScalar);
 
         for (auto &ball : balls) {
@@ -1827,7 +1825,6 @@ public:
     bool GameOn = true;
     bool WaitingUntilOutput = false;
     // Portal visuals/timer
-    double portalOpenTimerMs = 0.0;
     double portalPulsePhase = 0.0;
     bool portalActive = false;         // true when portal is open and awaiting touch
     bool portalTouched = false;        // true when paddle has touched portal and animation is running

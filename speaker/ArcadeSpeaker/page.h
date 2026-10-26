@@ -91,6 +91,7 @@ body.setupmode #settings{order:-1}
 <dt>FPP</dt><dd id="fpp">-</dd>
 <dt>Sounds</dt><dd id="sounds">-</dd>
 <dt>Last sound</dt><dd id="last">-</dd>
+<dt>Timing</dt><dd id="timing">-</dd>
 <dt>Storage</dt><dd id="storage">-</dd>
 </dl>
 <div class="actions"><button id="sync">Fetch sounds now</button><span class="msg" id="syncMsg"></span></div>
@@ -194,6 +195,10 @@ function render(s) {
   if (s.connected) {
     $('wifi').innerHTML = bars(s.rssi);
     $('wifi').append(s.ssid + ' (' + s.rssi + ' dBm)');
+    if (s.powerSave) {
+      const w = document.createElement('div'); w.className = 'sub'; w.textContent = 'Power saving is on: sounds may lag';
+      $('wifi').appendChild(w);
+    }
     const a = document.createElement('a'); a.href = 'http://' + s.host + '.local/'; a.textContent = s.host + '.local';
     $('addr').replaceChildren(a);
     const d = document.createElement('div'); d.className = 'sub'; d.textContent = s.ip; $('addr').appendChild(d);
@@ -208,6 +213,15 @@ function render(s) {
     text('last', m ? m[1] : s.last, (m ? 'at ' + Math.round(m[2] * 100) + '% from FPP, ' : '') + ago(s.lastAgo));
   } else {
     text('last', 'None yet');
+  }
+  // How the Wi-Fi is treating the sounds: FPP stamps each one with its time.
+  if (s.timed) {
+    const pct = n => (n * 100 / s.timed).toFixed(n * 100 / s.timed < 10 ? 1 : 0) + '%';
+    text('timing', s.lateSkipped ? s.lateSkipped + ' late sounds skipped' : 'No late sounds',
+         pct(s.late50) + ' of ' + s.timed + ' arrived over 50 ms late; the latest ' + s.lateWorst + ' ms');
+  } else {
+    text('timing', s.events ? 'FPP doesn\'t time its sounds' : 'No sounds yet',
+         s.events ? 'Its arcade plugin is older than this speaker' : '');
   }
   $('storage').textContent = mb(s.used) + ' of ' + mb(s.total) + ' MB';
   const meter = document.createElement('div'); meter.className = 'meter';

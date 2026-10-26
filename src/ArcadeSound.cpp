@@ -186,9 +186,14 @@ public:
             return;
         }
         {
+            // Stamped with this player's clock, so a speaker can tell a sound
+            // that sat in the Wi-Fi from one that didn't (see ArcadeSound.h).
+            const auto ms = (uint32_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now().time_since_epoch())
+                                .count();
             char msg[256];
-            snprintf(msg, sizeof(msg), "PLAY %u %s/%s %.3f", ++eventSeq, game.c_str(), name.c_str(),
-                     std::clamp(gain, 0.0f, 4.0f) * volume);
+            snprintf(msg, sizeof(msg), "PLAY %u %s/%s %.3f %u", ++eventSeq, game.c_str(), name.c_str(),
+                     std::clamp(gain, 0.0f, 4.0f) * volume, ms);
             sendToSpeakers(msg, model);
         }
         std::lock_guard<std::mutex> l(mu);

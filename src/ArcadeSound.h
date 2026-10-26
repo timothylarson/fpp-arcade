@@ -20,7 +20,11 @@
 // hello to UDP port 5571 every few seconds with the model it belongs to:
 //   "FAS-HELLO 1 <model>|<name>|<firmware>|<volume>"
 // and is sent, from that port to wherever its hello came from:
-//   "PLAY <seq> <game>/<name> <gain>"   play a clip (gain 0..1, volume applied)
+//   "PLAY <seq> <game>/<name> <gain> <ms>"
+//                                        play a clip (gain 0..1, volume applied);
+//                                        ms is this player's steady clock, from
+//                                        which firmware 1.3 and later skips a
+//                                        short sound that arrived late
 //   "STOP <game>"                        stop a game's clips ("*" for all)
 //   "SYNC"                               the sound files changed: fetch them
 // It fetches the files over HTTP: api/plugin-apis/arcade/sounds lists them

@@ -6,7 +6,8 @@
 // packet costs at most one sound, and sounds play the moment the event lands.
 //
 //   - Says hello to FPP (UDP 5571) every 3 s: which model it plays for.
-//   - Gets "PLAY <seq> <game>/<name> <gain>", "STOP <game>" and "SYNC" back.
+//   - Gets "PLAY <seq> <game>/<name> <gain> <ms>", "STOP <game>" and "SYNC"
+//     back, and skips a short sound that arrives late (see lateness()).
 //   - Fetches the sound files over HTTP from the arcade plugin, at 22.05 kHz
 //     as 8-bit mu-law (half the size of 16-bit, so every game's sounds fit),
 //     when it starts, when told to, and when the list changes (checked every
@@ -28,6 +29,7 @@
 #include <WebServer.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <esp_wifi.h>
 
 #include <algorithm>
 #include <map>
@@ -35,7 +37,7 @@
 
 #include "page.h"
 
-#define FIRMWARE "1.2"
+#define FIRMWARE "1.3"
 
 // Pins for an ESP32-S3-DevKitC-1; any free GPIOs will do.
 constexpr int PIN_BCLK = 5;    // MAX98357A BCLK
@@ -122,6 +124,7 @@ uint32_t lastPlayMs = 0;
 String lastEvent;
 volatile bool audioOk = true;   // false if I2S wouldn't start
 bool storageOk = true;          // false if there's no FAT partition
+uint64_t storageUsed = 0;       // FFat.usedBytes(), kept: working it out reads the flash
 
 void stopVoices(const char *game) {
     portENTER_CRITICAL(&voiceMux);
@@ -133,7 +136,12 @@ void stopVoices(const char *game) {
     portEXIT_CRITICAL(&voiceMux);
 }
 
-void playClip(const String &path, float gain) {
+constexpr int LATE_MS = 150;              // a short sound arriving later than this is skipped
+constexpr size_t SHORT_FRAMES = RATE;     // under a second is an effect; longer (music) always plays
+uint32_t lateSkipped = 0;
+
+// late: how far behind the event this arrived, in ms (see lateness()).
+void playClip(const String &path, float gain, int32_t late = 0) {
     xSemaphoreTake(clipLock, portMAX_DELAY);
     auto it = clips.find(path);
     if (it == clips.end() || !it->second.data) {
@@ -142,6 +150,10 @@ void playClip(const String &path, float gain) {
     }
     const Clip c = it->second;
     xSemaphoreGive(clipLock);
+    if (late > LATE_MS && c.frames < SHORT_FRAMES) {
+        ++lateSkipped;   // a bounce heard after the bounce is worse than none
+        return;
+    }
     const int q = constrain((int)(gain * 256), 0, 1024);   // the volume is applied as it plays
     const String game = path.substring(0, path.indexOf('/'));
     portENTER_CRITICAL(&voiceMux);
@@ -370,8 +382,12 @@ bool syncSounds() {
     std::map<String, String> local = readIndex();
     bool changed = false;
     int fetched = 0, failed = 0;
+    // Every file is looked for once after starting; after that, only the
+    // index is trusted. Looking for 300 files each minute held up the loop -
+    // and sounds - for a moment, and reading the flash pauses the radio too.
+    static bool filesChecked = false;
     for (auto &[path, version] : remote) {
-        if (local.count(path) && local[path] == version && FFat.exists(clipFile(path))) {
+        if (local.count(path) && local[path] == version && (filesChecked || FFat.exists(clipFile(path)))) {
             continue;
         }
         // Purple, flickering a file at a time: the loop waits for this.
@@ -413,7 +429,9 @@ bool syncSounds() {
         }
         idx.close();
         loadClips();
+        storageUsed = FFat.usedBytes();
     }
+    filesChecked = true;
     syncStatus = String(remote.size()) + " sounds from FPP" + (fetched ? ", " + String(fetched) + " just fetched" : "") +
                  (failed ? ", " + String(failed) + " failed" : "");
     return changed;
@@ -472,17 +490,49 @@ void startAccessPoint() {
     Serial.printf("Set-up network %s at %s\n", ssid.c_str(), WiFi.softAPIP().toString().c_str());
 }
 
+// FPP stamps each PLAY with its own clock in ms. The gap between that and
+// ours is fixed but for how long the packet took, so the smallest gap seen
+// lately is a packet that wasn't held up, and the rest are late by how much
+// bigger theirs is. Lately is this half-minute and the last, so the two clocks
+// drifting apart is followed.
+int32_t gapLeast[2] = {INT32_MAX, INT32_MAX};
+uint32_t gapSince = 0;
+uint32_t playsTimed = 0, lateOver50 = 0;
+int32_t lateWorst = 0;
+
+int32_t lateness(uint32_t fppMs) {
+    const uint32_t now = millis();
+    const int32_t gap = (int32_t)(now - fppMs);
+    if (now - gapSince > 30000) {
+        gapLeast[1] = gapLeast[0];
+        gapLeast[0] = INT32_MAX;
+        gapSince = now;
+    }
+    int32_t least = min(gapLeast[0], gapLeast[1]);
+    if (least != INT32_MAX && (int64_t)gap - least > 10000) {
+        gapLeast[0] = gapLeast[1] = least = INT32_MAX;   // a jump: FPP's player restarted, so start again
+    }
+    gapLeast[0] = min(gapLeast[0], gap);
+    least = min(least, gap);
+    const int32_t late = (int32_t)((int64_t)gap - least);
+    ++playsTimed;
+    lateOver50 += late > 50;
+    lateWorst = max(lateWorst, late);
+    return late;
+}
+
 void handleEvent(char *msg) {
     ++eventsReceived;
     lastEventMs = millis();
     lastEvent = msg;
     if (!strncmp(msg, "PLAY ", 5)) {
-        // PLAY <seq> <path> <gain>
+        // PLAY <seq> <path> <gain> [<ms>]: older plugins don't send the time.
         char *seq = strtok(msg + 5, " ");
         char *path = strtok(nullptr, " ");
         char *gain = strtok(nullptr, " ");
+        char *ms = strtok(nullptr, " ");
         if (seq && path) {
-            playClip(path, gain ? atof(gain) : 1.0f);
+            playClip(path, gain ? atof(gain) : 1.0f, ms ? lateness(strtoul(ms, nullptr, 10)) : 0);
             lastPlayMs = millis();
         }
     } else if (!strncmp(msg, "STOP ", 5)) {
@@ -594,6 +644,13 @@ void handleStatus() {
     j += ",\"connected\":" + String(connected ? "true" : "false");
     j += ",\"ip\":" + json(connected ? WiFi.localIP().toString() : "");
     j += ",\"rssi\":" + String(connected ? WiFi.RSSI() : 0);
+    wifi_ps_type_t ps = WIFI_PS_MIN_MODEM;
+    esp_wifi_get_ps(&ps);
+    j += ",\"powerSave\":" + String(ps == WIFI_PS_NONE ? "false" : "true");
+    j += ",\"timed\":" + String(playsTimed);
+    j += ",\"late50\":" + String(lateOver50);
+    j += ",\"lateSkipped\":" + String(lateSkipped);
+    j += ",\"lateWorst\":" + String(lateWorst);
     j += ",\"ap\":" + json(apMode ? "ArcadeSpeaker-" + boardId() : "");
     j += ",\"fppAsked\":" + String(fppAsked ? "true" : "false");
     j += ",\"fppOk\":" + String(fppAnswered ? "true" : "false");
@@ -602,7 +659,7 @@ void handleStatus() {
     j += ",\"events\":" + String(eventsReceived);
     j += ",\"last\":" + json(lastEvent);
     j += ",\"lastAgo\":" + String((millis() - lastEventMs) / 1000);
-    j += ",\"used\":" + String(storageOk ? FFat.usedBytes() : 0);
+    j += ",\"used\":" + String(storageUsed);
     j += ",\"total\":" + String(storageOk ? FFat.totalBytes() : 0);
     j += ",\"volume\":" + String(cfg.volume);
     j += ",\"firmware\":" + json(FIRMWARE);
@@ -676,6 +733,7 @@ void setup() {
     makeTestBeep();
     dropOldSounds();
     loadClips();
+    storageUsed = storageOk ? FFat.usedBytes() : 0;
     xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 5, nullptr, 1);
 
     WiFi.setHostname(hostName().c_str());
@@ -689,6 +747,9 @@ void setup() {
         // the radio awake so a sound plays the moment its event arrives.
         WiFi.setSleep(false);
         WiFi.setAutoReconnect(true);
+        // And at the driver, on every (re)connection, so nothing turns it back on.
+        WiFi.onEvent([](arduino_event_id_t, arduino_event_info_t) { esp_wifi_set_ps(WIFI_PS_NONE); },
+                     ARDUINO_EVENT_WIFI_STA_CONNECTED);
         const uint32_t start = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
             delay(200);

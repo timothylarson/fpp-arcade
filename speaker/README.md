@@ -135,5 +135,10 @@ the speaker either way.
   first time it starts and fetches them again as mu-law; it needs a plugin version that offers
   mu-law (with an older one it still works, fetching 16-bit).
 - If it can't reach the Wi-Fi it keeps trying and offers its set-up network meanwhile.
+- Wi-Fi now and then holds a packet up for a few hundred milliseconds. FPP stamps every sound
+  with its own clock, and the speaker skips a short sound (under a second) that arrives more
+  than 150 ms later than usual, since a bounce heard after the bounce is worse than none; music
+  and other long sounds still play. Its page shows how many it skipped and how late the
+  latest was. Firmware 1.3 and later; with an older plugin every sound plays.
 - Messages are plain UDP (see `src/ArcadeSound.h` in the plugin), so a sound-effects speaker can
   be built from anything that can play a clip when told to.

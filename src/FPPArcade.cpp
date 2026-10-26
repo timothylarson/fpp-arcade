@@ -495,6 +495,10 @@ static const std::map<char, std::array<const char *, 10>> LETTERS_2X = {
     {'D', {"XXXX..", "XXXXX.", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XXXXX.", "XXXX.."}},
     // W with a centre stroke, seven wide so the stroke can be one LED
     {'W', {"XX...XX", "XX...XX", "XX...XX", "XX...XX", "XX.X.XX", "XXXXXXX", "XXXXXXX", "XXX.XXX", "XX...XX", "XX...XX"}},
+    // G with a bar in from the right: without one it read as a C
+    {'G', {"XXXXXX", "XXXXXX", "XX....", "XX....", "XX.XXX", "XX.XXX", "XX..XX", "XX..XX", "XXXXXX", "XXXXXX"}},
+    // V tapering over its lower half rather than two bars and a point
+    {'V', {"XX..XX", "XX..XX", "XX..XX", "XX..XX", "XX..XX", "XX..XX", ".XXXX.", ".XXXX.", "..XX..", "..XX.."}},
 };
 
 bool arcadeGlyphScaled(char c, int px, int py, int scl) {

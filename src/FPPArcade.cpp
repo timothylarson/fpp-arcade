@@ -670,6 +670,7 @@ void FPPArcadeGameEffect::drawUnderline(int x, int y, int length, int r, int g, 
 // Both ways of choosing a pause-menu entry (Start, or A/B) land here, so the
 // two cannot drift apart.
 void FPPArcadeGameEffect::activatePauseSelection() {
+    sfx("arcade", "Unpause");   // shared by every game, in sounds/arcade
     if (pauseMenu.isResumeSelected()) {
         resume();
         return;
@@ -743,6 +744,10 @@ void FPPArcadeGameEffect::button(const std::string &button) {
     // Start always toggles pause / activates selection when paused
     if (button == "Start - Pressed" || button == "Start") {
         if (!paused) {
+            // The game's own sounds stop (not the other player's), and the
+            // menu's plays.
+            sfxStop(ArcadeSound::folderFor(name()));   // "MazeChase" -> mazechase
+            sfx("arcade", "Pause");
             pause();
         } else {
             activatePauseSelection();

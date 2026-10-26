@@ -379,8 +379,9 @@ plugged into the player, and/or streamed over the network to a computer.
   the bundled sound of the same name. Use 16-bit PCM WAV, ideally mono at 44.1 kHz with no
   silence at the end. A sound with no file is simply silent. Saving the Arcade Games page
   reloads them.
-- Every game plays `GameSelected` when its title is shown. **Breakout**, whose sounds you supply,
-  also plays:
+- Every game plays `GameSelected` when its title is shown. Pausing with Start stops the game's
+  sounds and plays `Pause`; leaving the menu plays `Unpause` (both in `sounds/arcade/`, shared by
+  every game). **Breakout**, whose sounds you supply, also plays:
 
   | File | When |
   |---|---|

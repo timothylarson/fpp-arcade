@@ -955,7 +955,7 @@ public:
             return 50;
         }
         int scl = fitTextScale({"YOU", "WIN"}, std::max(1, (int)paddle.height));
-        CopyToModel(0.2f);
+        CopyToModel(0.2f, false);
         outputString("YOU", centeredTextX("YOU", scl),
                     (model->getHeight()/2 - (6 * scl)) / scl, 255, 255, 255, scl);
         outputString("WIN", centeredTextX("WIN", scl),
@@ -1216,7 +1216,11 @@ public:
         return false;
     }
 
-    void CopyToModel(float brightness = 1.0f) {
+    // Draws the field and pushes it to the wall - unless flush is false, for
+    // a screen that puts text over it and pushes once that's on. (Pushing the
+    // field and then again with the text let a frame without the text reach
+    // the wall now and then: LEVEL 1 blinked.)
+    void CopyToModel(float brightness = 1.0f, bool flush = true) {
         float scaled = std::clamp(brightness, 0.0f, 1.0f);
         model->clearOverlayBuffer();
         // The shine crosses the field every 3.5 s, then waits off the right.
@@ -1308,7 +1312,9 @@ public:
         outputString(std::to_string(std::max(0, remainingDestructible)), 0, hudY, 255, 255, 255, scl);
 #endif
 
-        model->flushOverlayBuffer();
+        if (flush) {
+            model->flushOverlayBuffer();
+        }
     }
 
     void updatePowerUps(float frameScalar) {
@@ -1713,7 +1719,7 @@ public:
         launchHoldMs = std::max(0.0, launchHoldMs - elapsedMs);
         if (showingLevelIntro) {
             levelIntroTimerMs -= elapsedMs;
-            CopyToModel(0.2f);
+            CopyToModel(0.2f, false);
             int scl = fitTextScale({levelIntroText}, std::max(1, (int)paddle.height));
             int introY = (int)((model->getHeight()/2 - (6 * scl)) / scl);
             if (introY < 0) introY = 0;
@@ -1777,16 +1783,21 @@ public:
         // still get under the ball on the last levels, from Paddle Speed at
         // level 1. Not while the portal is taking it, which would pull it
         // back inside the field.
-        // When it stops it goes on to the next whole LED, so even a quick tap
-        // moves it one (a frame's move is under an LED, and it's drawn at the
-        // LED it's in); a press let go before any frame saw it moves it one too.
+        // When it stops it stays on the LED it's drawn at (floor), but at
+        // least one from where the press began, so even a quick tap moves it
+        // one (a frame's move is under an LED); a press let go before any
+        // frame saw it moves it one too.
         const int dir = direction.load(), tap = tapped.exchange(0);
         if (!portalTouched) {
             if (dir != 0) {
+                if (paddleMoving != dir) {
+                    paddleFrom = std::round(paddle.x);
+                }
                 paddle.x += dir * paddle.height * paddleSpeed * levelFactor() * frameScalar;
                 paddleMoving = dir;
             } else if (paddleMoving != 0) {
-                paddle.x = paddleMoving > 0 ? std::ceil(paddle.x) : std::floor(paddle.x);
+                const float shown = std::floor(paddle.x);
+                paddle.x = paddleMoving > 0 ? std::max(paddleFrom + 1.0f, shown) : std::min(paddleFrom - 1.0f, shown);
                 paddleMoving = 0;
             } else if (tap != 0) {
                 paddle.x = std::round(paddle.x) + tap * paddle.height;
@@ -1925,7 +1936,7 @@ public:
                 sound("LoseGame");
                 LogInfo(VB_PLUGIN, "[Breakout] GAME OVER on level %d", currentLevel + 1);
                 int scl = fitTextScale({"GAME", "OVER"}, std::max(1, (int)paddle.height));
-                CopyToModel(0.2f);
+                CopyToModel(0.2f, false);
                 outputString("GAME", centeredTextX("GAME", scl),
                              (model->getHeight()/2-(6 * scl)) / scl, 255, 255, 255, scl);
                 outputString("OVER", centeredTextX("OVER", scl),
@@ -2059,6 +2070,7 @@ public:
     std::atomic<int> direction{0};
     std::atomic<int> tapped{0};   // the last press, until a frame has moved the paddle for it
     int paddleMoving = 0;         // update() only: the way it went last frame
+    float paddleFrom = 0.0f;      // and the LED it set off from
     float basePaddleWidth = 0;
     // Horizontal playfield in panel pixels. The ball, the paddle and the portal
     // all bound against this rather than the model, so the ball can never travel

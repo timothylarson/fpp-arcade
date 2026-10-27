@@ -33,8 +33,9 @@ const RGB WIDE_BLUE = {0.0f, 0.3f, 1.0f};   // the capsule colours as in Breakou
 
 class BreakoutVersusEffect : public FPPArcadeGameEffect {
 public:
-    BreakoutVersusEffect(PixelOverlayModel *m, int goals, float ballSpeed, int showMode, int goodMargin)
+    BreakoutVersusEffect(PixelOverlayModel *m, int goals, float ballSpeed, float paddleSpeed, int showMode, int goodMargin)
         : FPPArcadeGameEffect(m), toWin(std::clamp(goals, 1, 15)), speedSetting(std::clamp(ballSpeed, 0.3f, 3.0f)),
+          paddleSpeed(std::clamp(paddleSpeed, 0.3f, 3.0f)),
           endShow(showMode), goodGame(goodMargin), rng(std::random_device{}()) {
         model->getSize(W, H);
         W = std::max(16, W);
@@ -68,6 +69,7 @@ public:
             else if (n == "A Button") bits = P2_RIGHT;
             if (pressed) {
                 held.fetch_or(bits);
+                tapped.fetch_or(bits);   // even if it's let go before a frame sees it
             } else {
                 held.fetch_and(~bits);
             }
@@ -136,6 +138,8 @@ private:
     struct Paddle {
         float x = 0;
         float wideT = 0, laserT = 0, fireT = 0;   // power-ups' time left, and the laser's cooldown
+        int moving = 0;                           // the way it went last frame
+        float from = 0;                           // and the LED it set off from
     };
     struct Ball {
         int owner;        // 0 bottom, 1 top
@@ -180,6 +184,7 @@ private:
         balls.push_back({1, 0, 0, 0, 0, true, 0});
         capsules.clear();
         beams.clear();
+        tapped = 0;
         buildWall();
         state = State::Intro;
         stateT = 0;
@@ -204,9 +209,10 @@ private:
     }
     static RGB hue(float h) { return ArcadeShow::hue(h); }
 
+    // Off the paddle at an angle, never straight: 17 to 27 degrees, either way.
     void launch(Ball &b) {
         const float v = ballSpeed();
-        b.vx = v * (rnd() * 0.8f - 0.4f);
+        b.vx = v * (0.3f + 0.15f * rnd()) * (rnd() < 0.5f ? -1.0f : 1.0f);
         b.vy = (b.owner == 0 ? -1.0f : 1.0f) * std::sqrt(std::max(1.0f, v * v - b.vx * b.vx));
         b.stuck = false;
         sound("Launch", 0.8f);
@@ -222,11 +228,15 @@ private:
         return nullptr;
     }
     // A brick broken by player p: now and then a capsule falls toward them.
+    // As in Arkanoid: one at a time for each player, and never the power
+    // their paddle already has.
     void breakBrick(Brick &b, int p) {
         b.alive = false;
         sound("Brick", 0.8f);
-        if (rnd() < 0.12f) {
-            capsules.push_back({b.x + 1.0f, (float)b.y, p == 0 ? 9.0f : -9.0f, rnd() < 0.5f ? 0 : 1, p});
+        const bool falling = std::any_of(capsules.begin(), capsules.end(), [p](const Capsule &c) { return c.to == p; });
+        if (!falling && rnd() < 0.12f) {
+            const int kind = paddles[p].wideT > 0 ? 1 : paddles[p].laserT > 0 ? 0 : (rnd() < 0.5f ? 0 : 1);
+            capsules.push_back({b.x + 1.0f, (float)b.y, p == 0 ? 9.0f : -9.0f, kind, p});
         }
     }
 
@@ -272,12 +282,32 @@ private:
         }
 
         // Paddles.
-        const uint32_t h = held.load();
-        const float move = 30.0f * dt;
-        const int dir[2] = {((h & P1_RIGHT) ? 1 : 0) - ((h & P1_LEFT) ? 1 : 0), ((h & P2_RIGHT) ? 1 : 0) - ((h & P2_LEFT) ? 1 : 0)};
+        // Paddle speed is in Breakout's units: 1 is 20 LEDs a second. When a
+        // paddle stops it stays on the LED it's drawn at, but at least one
+        // from where the press began, so a quick tap moves it one (a frame's
+        // move is under an LED); a press let go before any frame saw it moves
+        // it one too.
+        const uint32_t h = held.load(), tap = tapped.exchange(0);
+        const float move = 20.0f * paddleSpeed * dt;
+        auto way = [](uint32_t bits, uint32_t left, uint32_t right) { return ((bits & right) ? 1 : 0) - ((bits & left) ? 1 : 0); };
+        const int dir[2] = {way(h, P1_LEFT, P1_RIGHT), way(h, P2_LEFT, P2_RIGHT)};
+        const int tapDir[2] = {way(tap, P1_LEFT, P1_RIGHT), way(tap, P2_LEFT, P2_RIGHT)};
         for (int p = 0; p < 2; ++p) {
             Paddle &pd = paddles[p];
-            pd.x = std::clamp(pd.x + dir[p] * move, 0.0f, (float)(W - paddleWidth(p)));
+            if (dir[p] != 0) {
+                if (pd.moving != dir[p]) {
+                    pd.from = std::round(pd.x);
+                }
+                pd.x += dir[p] * move;
+                pd.moving = dir[p];
+            } else if (pd.moving != 0) {
+                const float shown = std::round(pd.x);   // drawn at lround
+                pd.x = pd.moving > 0 ? std::max(pd.from + 1.0f, shown) : std::min(pd.from - 1.0f, shown);
+                pd.moving = 0;
+            } else if (tapDir[p] != 0) {
+                pd.x = std::round(pd.x) + tapDir[p];
+            }
+            pd.x = std::clamp(pd.x, 0.0f, (float)(W - paddleWidth(p)));
             pd.wideT = std::max(0.0f, pd.wideT - dt);
             pd.laserT = std::max(0.0f, pd.laserT - dt);
             pd.fireT = std::max(0.0f, pd.fireT - dt);
@@ -338,7 +368,16 @@ private:
             if (reached) {
                 const float px = paddles[c.to].x;
                 if (c.x + 1 >= px && c.x <= px + paddleWidth(c.to)) {
-                    (c.kind == 0 ? paddles[c.to].wideT : paddles[c.to].laserT) = c.kind == 0 ? 10.0f : 8.0f;
+                    // One power at a time: wide ends the laser, the laser ends wide.
+                    Paddle &pd = paddles[c.to];
+                    if (c.kind == 0) {
+                        pd.wideT = 10.0f;
+                        pd.laserT = 0.0f;
+                    } else {
+                        pd.laserT = 8.0f;
+                        pd.wideT = 0.0f;
+                        pd.x = std::min(pd.x, (float)(W - paddleWidth(c.to)));
+                    }
                     sound("PowerUp");
                 }
                 capsules.erase(capsules.begin() + i);
@@ -484,6 +523,7 @@ private:
     int W = 60, H = 25;
     const int toWin;
     const float speedSetting;
+    const float paddleSpeed;
     int endShow = 1, goodGame = 3;
     std::mt19937 rng;
     ArcadeCanvas::Canvas canvas;
@@ -500,6 +540,7 @@ private:
     std::vector<Capsule> capsules;
     std::vector<Beam> beams;
     std::atomic<uint32_t> held{0};
+    std::atomic<uint32_t> tapped{0};   // presses, until a frame has moved the paddle for them
     std::atomic<bool> upNow{false};
     bool finished = false;
 };
@@ -527,7 +568,12 @@ void FPPBreakoutVersus::button(const std::string &button) {
             speed = std::stof(findOption("Ball Speed", "1"));
         } catch (...) {
         }
-        effect = new BreakoutVersusEffect(m, findIntOption("Goals", 5), speed, endShowOption(), goodGameOption(3));
+        float paddle = 1.5f;
+        try {
+            paddle = std::stof(findOption("Paddle Speed", "1.5"));
+        } catch (...) {
+        }
+        effect = new BreakoutVersusEffect(m, findIntOption("Goals", 5), speed, paddle, endShowOption(), goodGameOption(3));
         m->setRunningEffect(effect, 25);
     }
     // The press that starts it only starts it.

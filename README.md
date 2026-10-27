@@ -86,7 +86,10 @@ bottom row (Left/Right, and Up to launch or fire) and one on the top row (B left
 ball launches by itself and its laser fires by itself, as it has no button left over). Each
 player has a ball in their colour, yellow and blue. A ball that gets past a paddle scores for the
 other player, whoever's ball it was; bricks are in the way and break when hit, and sometimes
-drop a capsule toward whoever broke them: blue for a wider paddle, red for a laser. A new wall
+drop a capsule toward whoever broke them: blue for a wider paddle, red for a laser - as in
+Arkanoid one at a time for each player, never the power they already have, and catching one
+ends the other. Balls leave a paddle at an angle, never straight; *Paddle speed* (1.5) sets how
+fast both paddles move, and every tap moves one at least an LED. A new wall
 goes up when one is gone, the balls quicken a little with every goal, and the first to *Goals
 to win* (5) wins. Its end show (after a win by Good Game goals, 3) has the winner's paddle smash
 a rainbow ball through the wall.

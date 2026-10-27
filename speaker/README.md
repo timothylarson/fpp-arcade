@@ -102,6 +102,28 @@ arduino-cli compile --upload -p /dev/cu.usbmodem1101 --fqbn "esp32:esp32:esp32s3
 
 Sounds added on FPP are picked up when the Arcade Games page is saved, or within a minute.
 
+## Show music
+
+A speaker can also play the music of FPP's show - a playlist's media, or a sequence's - in time
+with the lights. Tick **Play the show's music** on its page (it restarts); the music has its own
+volume slider beside the games'. Each speaker is set on its own, so only the ones you choose play
+it.
+
+On the FPP player running the show, under *Settings › MultiSync*, tick **Send MultiSync Packets**
+and **Send MultiSync to ALL remotes via Multicast** (or *via Broadcast*). FPP then says, every half
+second, which media file is playing and how far in. The speaker downloads that file from the same
+FPP, decodes it itself and keeps to FPP's position, within a few milliseconds; the page's *Show
+audio* line says how close it is.
+
+- MP3s only (FPP's Music folder). A song in another format is left silent, and the page says so.
+- Setting FPP's **Open/Start Delay** to about 1000 ms gives the speaker a moment to start
+  downloading before each song, so it's in time from the first note. Without it, it's a few tens
+  of milliseconds late at first and catches up within a few seconds.
+- A speaker that starts part-way through a song (switched on mid-show, or back from a Wi-Fi
+  drop) reads the file from the top to find its place, which takes a few seconds, then joins in.
+- If the music is early or late against the lights, **Music timing** on its page moves it.
+- Game sounds play over the music as usual.
+
 ## Status light
 
 The board's RGB LED (GPIO 48; 38 on some boards, set at the top of `ArcadeSpeaker.ino`) shows

@@ -37,7 +37,7 @@
 
 #include "page.h"
 
-#define FIRMWARE "1.3"
+#define FIRMWARE "1.4"
 
 // Pins for an ESP32-S3-DevKitC-1; any free GPIOs will do.
 constexpr int PIN_BCLK = 5;    // MAX98357A BCLK
@@ -58,6 +58,9 @@ constexpr int BLOCK = 256;   // frames per write, about 12 ms
 struct Settings {
     String ssid, pass, fpp, model, name;   // name also gives its address: <name>.local
     int volume = 70;   // 0..100
+    bool show = false;      // play the show's music too (show.h)
+    int showVolume = 70;    // 0..100
+    int showOffset = 0;     // ms: + plays it later, - earlier
 } cfg;
 Preferences prefs;
 
@@ -72,6 +75,9 @@ void loadSettings() {
         cfg.name = "Controller Speaker " + boardId();   // unique from the start
     }
     cfg.volume = prefs.getInt("volume", 70);
+    cfg.show = prefs.getBool("show", false);
+    cfg.showVolume = prefs.getInt("showVol", 70);
+    cfg.showOffset = prefs.getInt("showOfs", 0);
     prefs.end();
 }
 
@@ -83,6 +89,9 @@ void saveSettings() {
     prefs.putString("model", cfg.model);
     prefs.putString("name", cfg.name);
     prefs.putInt("volume", cfg.volume);
+    prefs.putBool("show", cfg.show);
+    prefs.putInt("showVol", cfg.showVolume);
+    prefs.putInt("showOfs", cfg.showOffset);
     prefs.end();
 }
 
@@ -125,6 +134,7 @@ String lastEvent;
 volatile bool audioOk = true;   // false if I2S wouldn't start
 bool storageOk = true;          // false if there's no FAT partition
 uint64_t storageUsed = 0;       // FFat.usedBytes(), kept: working it out reads the flash
+uint32_t loopWorstMs = 0;       // the longest pass through loop() lately: events wait that long
 
 void stopVoices(const char *game) {
     portENTER_CRITICAL(&voiceMux);
@@ -178,6 +188,8 @@ void playClip(const String &path, float gain, int32_t late = 0) {
     portEXIT_CRITICAL(&voiceMux);
 }
 
+#include "show.h"
+
 // Mix and write 12 ms at a time; the I2S write blocks, which keeps time. The
 // mix goes out at twice its rate, with a point halfway between each pair of
 // samples. The amp is switched off after two quiet seconds - no hiss, and
@@ -226,6 +238,14 @@ void audioTask(void *) {
             active = true;
         }
         portEXIT_CRITICAL(&voiceMux);
+        static int16_t music[BLOCK];
+        if (showMix(music)) {
+            const int sv = cfg.showVolume * 256 / 100;
+            for (int i = 0; i < BLOCK; ++i) {
+                mix[i] += (music[i] * sv) >> 8;
+            }
+            active = true;
+        }
         for (int i = 0; i < BLOCK; ++i) {
             const int16_t s = (int16_t)constrain(mix[i], -32768, 32767);
             const int16_t half = (int16_t)((prev + s) / 2);
@@ -662,6 +682,14 @@ void handleStatus() {
     j += ",\"used\":" + String(storageUsed);
     j += ",\"total\":" + String(storageOk ? FFat.totalBytes() : 0);
     j += ",\"volume\":" + String(cfg.volume);
+    j += ",\"show\":" + String(cfg.show ? "true" : "false");
+    j += ",\"showVolume\":" + String(cfg.showVolume);
+    j += ",\"showOffset\":" + String(cfg.showOffset);
+    j += ",\"showStatus\":" + json(showStatus());
+    j += ",\"showPlaying\":" + String(showStarted && ringValid ? "true" : "false");
+    j += ",\"showErr\":" + String(showErrMs);
+    j += ",\"showHeardAgo\":" + String(showFile[0] ? millis() - showLastHeard : 0);
+    j += ",\"loopWorst\":" + String(loopWorstMs);
     j += ",\"firmware\":" + json(FIRMWARE);
     j += ",\"host\":" + json(hostInUse());
     j += ",\"uptime\":" + String(millis() / 1000) + "}";
@@ -710,6 +738,8 @@ void handleSave() {
     cfg.fpp = web.arg("fpp");
     cfg.model = web.arg("model");
     cfg.name = web.arg("name");
+    cfg.show = web.arg("show") == "on";
+    cfg.showOffset = constrain(web.arg("showOffset").toInt(), -2000, 2000);
     saveSettings();
     web.send(200, "text/plain", "ok");
     delay(500);
@@ -731,6 +761,7 @@ void setup() {
     }
     makeUlawTable();
     makeTestBeep();
+    showBegin();   // before the sounds, so its buffer isn't squeezed between them
     dropOldSounds();
     loadClips();
     storageUsed = storageOk ? FFat.usedBytes() : 0;
@@ -770,7 +801,12 @@ void setup() {
     web.on("/save", HTTP_POST, handleSave);
     web.on("/volume", [] {
         // Heard straight away; saved once the slider is let go (save=1).
-        cfg.volume = constrain(web.arg("v").toInt(), 0, 100);
+        if (web.hasArg("v")) {
+            cfg.volume = constrain(web.arg("v").toInt(), 0, 100);
+        }
+        if (web.hasArg("show")) {
+            cfg.showVolume = constrain(web.arg("show").toInt(), 0, 100);
+        }
         if (web.hasArg("save")) {
             saveSettings();
         }
@@ -793,6 +829,14 @@ void setup() {
 }
 
 void loop() {
+    static uint32_t passStart = millis(), worstSince = millis();
+    const uint32_t passMs = millis() - passStart;
+    if (millis() - worstSince > 10000) {
+        loopWorstMs = 0;
+        worstSince = millis();
+    }
+    loopWorstMs = max(loopWorstMs, passMs);
+    passStart = millis();
     web.handleClient();
     if (apMode) {
         dns.processNextRequest();
@@ -815,6 +859,7 @@ void loop() {
         lastSyncCheck = now;
         syncSounds();
     }
+    showPoll();
     updateLed();
     delay(1);
 }

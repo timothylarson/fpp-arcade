@@ -59,6 +59,12 @@ input:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:
 .dirty{color:var(--warn);font-size:14px;display:none}
 .msg{font-size:14px;color:var(--muted)}
 footer{text-align:center;color:var(--muted);font-size:13px}
+.volname{font-weight:600;margin:14px 0 2px}.volname:first-of-type{margin-top:0}
+body:not(.show) .showonly{display:none}
+.check{display:flex;align-items:center;gap:10px;font-weight:600;margin:14px 0 6px}
+.check input{width:22px;height:22px;accent-color:var(--accent);margin:0}
+input[type=number]{width:110px;font:inherit;min-height:44px;padding:0 12px;border-radius:10px;
+border:1px solid var(--line);background:var(--field);color:var(--text)}
 a{color:var(--accent)}
 body.setupmode #settings{order:-1}
 @media (max-width:340px){dl{grid-template-columns:1fr;gap:2px}dd{margin-bottom:8px}}
@@ -73,11 +79,21 @@ body.setupmode #settings{order:-1}
 
 <section id="volume">
 <h2>Volume</h2>
+<div class="volname showonly">Games</div>
 <div class="vol"><b id="volNum">-</b><span>%</span></div>
 <div class="volrow">
 <button class="step" id="volDown" aria-label="Quieter">&minus;</button>
-<input type="range" id="vol" min="0" max="100" step="1" aria-label="Volume">
+<input type="range" id="vol" min="0" max="100" step="1" aria-label="Game volume">
 <button class="step" id="volUp" aria-label="Louder">+</button>
+</div>
+<div class="showonly">
+<div class="volname">Show music</div>
+<div class="vol"><b id="svolNum">-</b><span>%</span></div>
+<div class="volrow">
+<button class="step" id="svolDown" aria-label="Music quieter">&minus;</button>
+<input type="range" id="svol" min="0" max="100" step="1" aria-label="Show music volume">
+<button class="step" id="svolUp" aria-label="Music louder">+</button>
+</div>
 </div>
 <div class="actions"><button id="test">Test sound</button></div>
 </section>
@@ -92,6 +108,7 @@ body.setupmode #settings{order:-1}
 <dt>Sounds</dt><dd id="sounds">-</dd>
 <dt>Last sound</dt><dd id="last">-</dd>
 <dt>Timing</dt><dd id="timing">-</dd>
+<dt class="showonly">Show audio</dt><dd class="showonly" id="showst">-</dd>
 <dt>Storage</dt><dd id="storage">-</dd>
 </dl>
 <div class="actions"><button id="sync">Fetch sounds now</button><span class="msg" id="syncMsg"></span></div>
@@ -112,6 +129,16 @@ body.setupmode #settings{order:-1}
 <label for="fFpp">FPP player</label>
 <div class="field"><input type="text" id="fFpp" name="fpp" inputmode="url" maxlength="60" placeholder="10.0.0.20"></div>
 <div class="hint">Its IP address or name.</div>
+
+<label class="check"><input type="checkbox" id="fShow" name="show"> Play the show's music</label>
+<div class="hint">Plays the music of FPP's playlists and sequences, in time with the lights. On the show's
+FPP player, under Settings &rsaquo; MultiSync, tick <b>Send MultiSync Packets</b> and <b>Send MultiSync to ALL
+remotes via Multicast</b> (or Broadcast). The music has its own volume above.</div>
+<div class="showonly">
+<label for="fShowOfs">Music timing (ms)</label>
+<div class="field"><input type="number" id="fShowOfs" name="showOffset" min="-2000" max="2000" step="10"></div>
+<div class="hint">If the music is early or late against the lights: + plays it later, &minus; earlier.</div>
+</div>
 
 <label for="fSsid">Wi-Fi network</label>
 <div class="field"><input type="text" id="fSsid" name="ssid" list="ssids" maxlength="32">
@@ -190,7 +217,13 @@ function render(s) {
   $('name').textContent = s.name || 'Arcade Speaker';
   document.title = (s.name || 'Arcade Speaker') + ' - Arcade Speaker';
   setState(s.state, s);
-  if (!dragging) { $('vol').value = s.volume; $('volNum').textContent = s.volume; }
+  document.body.classList.toggle('show', $('fShow').checked || s.show);
+  if (dragging !== 'vol') { $('vol').value = s.volume; $('volNum').textContent = s.volume; }
+  if (dragging !== 'svol') { $('svol').value = s.showVolume; $('svolNum').textContent = s.showVolume; }
+  if (s.show) {
+    text('showst', s.showStatus, s.showPlaying ? (Math.abs(s.showErr) <= 5 ? 'In time with FPP'
+                                                 : 'Off by ' + s.showErr + ' ms, catching up') : '');
+  }
   text('model', s.model || 'Not set');
   if (s.connected) {
     $('wifi').innerHTML = bars(s.rssi);
@@ -230,6 +263,7 @@ function render(s) {
   $('foot').textContent = 'Firmware ' + s.firmware + ' · up ' + ago(s.uptime).replace(' ago', '');
   if (!filled || !dirty) {
     $('fName').value = s.name; $('fModel').value = s.model; $('fFpp').value = s.fpp; $('fSsid').value = s.ssid;
+    $('fShow').checked = s.show; $('fShowOfs').value = s.showOffset;
     nameHint();
     if (!filled && s.connected) loadModels();
     filled = true;
@@ -252,19 +286,25 @@ async function loadModels() {
   } catch (e) {}
 }
 
-function sendVolume(save) {
+// Each slider (vol: games, svol: show music) is heard as it moves and saved
+// when it's let go.
+const VOL_ARG = {vol: 'v', svol: 'show'};
+function sendVolume(id, save) {
   clearTimeout(volTimer);
-  volTimer = setTimeout(() => fetch('/volume?v=' + $('vol').value + (save ? '&save=1' : '')), save ? 0 : 80);
+  volTimer = setTimeout(() => fetch('/volume?' + VOL_ARG[id] + '=' + $(id).value + (save ? '&save=1' : '')), save ? 0 : 80);
 }
-$('vol').addEventListener('input', () => { dragging = true; $('volNum').textContent = $('vol').value; sendVolume(false); });
-$('vol').addEventListener('change', () => { dragging = false; sendVolume(true); });
-function step(d) {
-  $('vol').value = Math.max(0, Math.min(100, +$('vol').value + d));
-  $('volNum').textContent = $('vol').value;
-  sendVolume(true);
+for (const id of ['vol', 'svol']) {
+  $(id).addEventListener('input', () => { dragging = id; $(id + 'Num').textContent = $(id).value; sendVolume(id, false); });
+  $(id).addEventListener('change', () => { dragging = false; sendVolume(id, true); });
+  const step = d => {
+    $(id).value = Math.max(0, Math.min(100, +$(id).value + d));
+    $(id + 'Num').textContent = $(id).value;
+    sendVolume(id, true);
+  };
+  $(id + 'Down').onclick = () => step(-5);
+  $(id + 'Up').onclick = () => step(5);
 }
-$('volDown').onclick = () => step(-5);
-$('volUp').onclick = () => step(5);
+$('fShow').addEventListener('change', () => document.body.classList.toggle('show', $('fShow').checked));
 $('test').onclick = () => fetch('/test');
 
 $('sync').onclick = async () => {

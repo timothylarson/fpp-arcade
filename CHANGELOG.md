@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Breakout: the snowman's snowballs are icy blue (white ones looked like the ball). Two sounds renamed for what they do: BreakMetalicBrick is now HitMetalBrick (a silver or gold brick hit but holding) and HitNoBreak is HitEnemy (hitting the snowman); the old file names still play.
 - Breakout ends with a final boss after level 15: an evil snowman who takes *Boss hits* (16) to beat while he throws snowballs at the paddle (each one that lands costs a life). He shows the next snowball in his hand before throwing, throws faster as he weakens, has a health bar along the bottom, and melts down to his hat before the credits. Optional sounds BossHit, BossThrow and BossDefeated.
 - Breakout's speed defaults suit the 25-LED-tall wall: *Ball speed* 0.8 (was 1), *Fastest ball* 1.3 (was 1.6, now reached at level 4) and *Paddle speed* 1.4. Saved settings are kept.
 - Breakout plays more like Arkanoid: one capsule falls at a time, none during triple ball and never the power you already have, with *Capsule chance* (20%) of broken bricks dropping one; any capsule ends sticky, expand or laser; the ball leaves the paddle at a slight angle; the tougher bricks are silver and the unbreakable ones gold (same places), ringing (BreakMetalicBrick) and flashing when hit, with a shine crossing them; a silver brick breaking sounds like any other.

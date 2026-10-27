@@ -968,7 +968,8 @@ public:
     int levelCount() const { return (int)LEVEL_LAYOUTS.size() + (bossHits > 0 ? 1 : 0); }
     bool bossOn() const { return bossHits > 0 && currentLevel == (int)LEVEL_LAYOUTS.size(); }
     float bossDamage() const { return bossHits > 0 ? 1.0f - (float)bossHp / bossHits : 0.0f; }
-    // A sound of his own if there's a file for it, else one Breakout has.
+    // A sound if there's a file for it, else another (an older name, or one
+    // Breakout has).
     void soundOr(const char *name, const char *fallback) {
         sound(ArcadeSound::lengthMs("breakout", name) > 0 ? name : fallback);
     }
@@ -1038,7 +1039,7 @@ public:
         ++bricksBroken;   // he counts, for the credits
         bossFlashMs = 250.0;
         if (bossHp > 0) {
-            soundOr("BossHit", "BreakMetalicBrick");
+            soundOr("HitEnemy", "HitNoBreak");   // the enemy-hit sound, once called HitNoBreak
             return;
         }
         // Beaten: he melts away, then the credits. The ball goes in
@@ -1125,7 +1126,7 @@ public:
                     case 'W': flash ? put(x, y, 255, 90, 90, 1.0f) : put(x, y, 200, 215, 240, fade); break;
                     case 'B':
                         if (windUp && c == SNOWMAN_HANDS[bossHand][0] && r == SNOWMAN_HANDS[bossHand][1]) {
-                            put(x, y, 230, 240, 255, 1.0f);
+                            put(x, y, SNOWBALL.r, SNOWBALL.g, SNOWBALL.b, 1.0f);
                         }
                         break;
                     default: break;
@@ -1143,7 +1144,7 @@ public:
             }
         }
         for (const auto &sb : snowballs) {
-            put(sb.x, sb.y, 230, 240, 255, 1.0f);
+            put(sb.x, sb.y, SNOWBALL.r, SNOWBALL.g, SNOWBALL.b, 1.0f);
         }
         // His health along the bottom row, under the paddle.
         const int barW = std::min(bossHits, std::max(1, (int)fieldW - 4));
@@ -1378,12 +1379,13 @@ public:
     // A brick that took a hit: it breaks (tough ones with their own sound) or
     // it holds.
     // Silver and gold ring when hit, and flash; a silver brick breaking
-    // sounds like any other brick breaking.
+    // sounds like any other brick breaking. (HitMetalBrick was called
+    // BreakMetalicBrick; a player with the old file still hears it.)
     void brickSound(Block &b, bool destroyed) {
         if (destroyed) {
             sound("BreakRegularBrick");
         } else {
-            sound(b.metal() ? "BreakMetalicBrick" : "HitNoBreak");
+            soundOr("HitMetalBrick", "BreakMetalicBrick");
             b.shineMs = 150.0;
         }
     }
@@ -2130,6 +2132,9 @@ public:
     static constexpr double BOSS_MELT_MS = 2500.0;
     static constexpr double BOSS_FIRST_THROW_MS = 3000.0;
     static constexpr float BOSS_SNOWBALL_SPEED = 9.0f;   // LEDs a second, falling
+    // Icy blue, not white: white snowballs looked like the ball.
+    struct Rgb { int r, g, b; };
+    static constexpr Rgb SNOWBALL = {60, 160, 255};
     int bossHp = 0, bossScale = 1, bossHand = 0;
     float bossX = 0.0f, bossY = 0.0f;
     double bossFlashMs = 0.0, bossMeltMs = 0.0, bossThrowMs = 0.0;

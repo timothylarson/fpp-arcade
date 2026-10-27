@@ -202,7 +202,7 @@ as before.
 
 After level 15 comes the **final boss**: an evil snowman at the top of the field, with no bricks.
 Hit him *Boss hits* times (16, as many as Arkanoid's DOH; 0 leaves him out) while he throws
-snowballs at the paddle - each one costs a life, so dodge them. He holds the next snowball up in
+icy-blue snowballs at the paddle - each one costs a life, so dodge them. He holds the next snowball up in
 a stick hand before he throws it, throws more often and faster as he weakens, and his health runs
 along the bottom row. Beaten, he melts down to his hat, and the credits play. The last-level cheat
 goes straight to him.
@@ -401,9 +401,10 @@ plugged into the player, and/or streamed over the network to a computer.
   |---|---|
   | `StartLevel`, `LastLevel` | a level starts, and again for the new ball after each lost life (`LastLevel` on the final level: the snowman, or level 15 without him) |
   | `BounceFromPaddle`, `StickToPaddle` | the ball hits the paddle or is launched from it; it sticks, with Sticky |
-  | `BreakMetalicBrick` | a silver or gold brick is hit but holds |
+  | `HitMetalBrick` | a silver or gold brick is hit but holds (it was `BreakMetalicBrick`, which still plays if that's the file there) |
   | `BreakRegularBrick` | a brick breaks, silver ones included |
-  | `BossHit`, `BossThrow`, `BossDefeated` | the snowman is hit, throws a snowball, is beaten (optional: without them, `BreakMetalicBrick`, `FireLaser` and `BreakRegularBrick` play) |
+  | `HitEnemy` | the snowman is hit (it was `HitNoBreak`, likewise) |
+  | `BossThrow`, `BossDefeated` | the snowman throws a snowball, is beaten (optional: without them, `FireLaser` and `BreakRegularBrick` play) |
   | `FireLaser` | a laser shot |
   | `GrowPaddle`, `ExtraLife`, `Shrill`, `Coin` | catching Expand, Extra Life, the power ball (Break), any other power-up |
   | `LevelPortal` | the paddle goes through the portal |

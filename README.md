@@ -184,7 +184,13 @@ What counts as good, and each game's story:
 Fifteen levels of bricks, with power-ups that fall from broken bricks: **laser** (red: the
 paddle's ends turn red and A or B fires two beams), **expand** (blue), **triple ball** (cyan),
 **extra life** (red and white checks, like a candy cane), **slow** (orange), **power ball**
-(yellow, goes through bricks), **sticky** (green) and the **portal** (magenta, to the next level). Clearing a level gives two extra lives (up to 9, the
+(yellow, goes through bricks), **sticky** (green) and the **portal** (magenta, to the next level).
+As in Arkanoid, one capsule falls at a time, none during triple ball, and never the power the
+paddle already has; *Capsule chance* (20%) is how many broken bricks drop one when one can.
+Catching a capsule ends the paddle's sticky, expand or laser, so it has one of those at a time
+(slow and the power ball carry on). The ball leaves the paddle at a slight angle, never straight
+up. **Silver** bricks take two or three hits and **gold** ones can't be broken; both ring and
+flash when hit, and a shine crosses them now and then. Clearing a level gives two extra lives (up to 9, the
 same limit as the extra-life capsule). Each level makes the ball and the paddle 10% faster,
 up to *Fastest ball* (1.6 times level 1 by default, reached at level 7). *Paddle speed* sets how
 fast the paddle moves to start with (1.15 by default, 15% faster than it used to be).

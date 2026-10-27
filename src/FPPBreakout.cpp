@@ -42,9 +42,12 @@ static const std::unordered_map<char, BrickTemplate> BRICK_TYPES = {
     {'P', {0xFF4CFF, 1, false}},
     {'C', {0x4CFFF2, 1, false}},
     {'W', {0xFFFFFF, 1, false}},
-    {'2', {0xFF964C, 2, false}},
-    {'H', {0x4C4CFF, 3, false}},
-    {'I', {0xB0B0B0, 1, true}},
+    // Metal, as in Arkanoid: silver takes more than one hit (2 here, 3 for H),
+    // gold can't be broken. Darker than the white and yellow bricks, with a
+    // shine (see Block::draw) so they read as metal on the LEDs.
+    {'2', {0x8C96AF, 2, false}},   // silver
+    {'H', {0x8C96AF, 3, false}},   // silver, a hit tougher
+    {'I', {0xA87000, 1, true}},    // gold
 };
 
 static const std::vector<LevelDefinition> LEVEL_LAYOUTS = {
@@ -226,6 +229,8 @@ FPPBreakout::FPPBreakout(Json::Value &config)
                 topSpeed = std::clamp(std::stof(value), 1.0f, 5.0f);
             } else if (name == "Paddle Speed") {
                 paddleSpeed = std::clamp(std::stof(value), 0.3f, 3.0f);
+            } else if (name == "Capsule Chance") {
+                capsuleChance = std::clamp(std::atoi(value.c_str()), 0, 100);
             } else if (name == "Win Credits") {
                 winCredits = value != "0";
             } else if (name == "Credits") {
@@ -255,21 +260,30 @@ struct Block {
     int hitPoints = 1;
     int maxHitPoints = 1;
     bool indestructible = false;
+    double shineMs = 0.0;   // a metal brick flashes for a moment when it's hit
+
+    bool metal() const { return indestructible || maxHitPoints > 1; }
 
     float left() const { return x; }
     float top() const { return y; }
     float right() const { return x + width - 0.1f; }
     float bottom() const { return y + height - 0.1f; }
 
-    void draw(PixelOverlayModel *m, float brightness = 1.0f) const {
+    // glintX: where the shine crossing the metal bricks is (a diagonal band,
+    // its x at the top row); a hit flash lights the whole brick.
+    void draw(PixelOverlayModel *m, float brightness = 1.0f, float glintX = -1000.0f) const {
         float hpScalar = maxHitPoints > 0 ? (0.6f + 0.4f * (static_cast<float>(hitPoints) / maxHitPoints)) : 1.0f;
         float adjusted = std::clamp(brightness * hpScalar, 0.0f, 1.0f);
-        int rr = std::clamp(static_cast<int>(r * adjusted), 0, 255);
-        int gg = std::clamp(static_cast<int>(g * adjusted), 0, 255);
-        int bb = std::clamp(static_cast<int>(b * adjusted), 0, 255);
+        const float flash = metal() ? (float)std::clamp(shineMs / 150.0, 0.0, 1.0) : 0.0f;
         for (int xp = 0; xp < (int)width; xp++) {
             for (int yp = 0; yp < (int)height; yp++) {
-                m->setOverlayPixelValue((int)(xp + x), (int)(yp + y), rr, gg, bb);
+                float w = flash;
+                if (metal()) {
+                    const float d = std::fabs((x + xp) - 0.5f * (y + yp) - glintX);
+                    w = std::max(w, 0.6f * std::clamp(1.0f - d / 1.5f, 0.0f, 1.0f));
+                }
+                auto ch = [&](int c) { return std::clamp(static_cast<int>((c + (255 - c) * w) * adjusted), 0, 255); };
+                m->setOverlayPixelValue((int)(xp + x), (int)(yp + y), ch(r), ch(g), ch(b));
             }
         }
     }
@@ -912,7 +926,12 @@ public:
         return 2000;
     }
 
+    // Capsules as in Arkanoid: one falling at a time, none while more than
+    // one ball is in play, and never the power the paddle already has.
     void maybeSpawnPowerUp(const Block &from) {
+        if (!powerUps.empty() || balls.size() > 1) {
+            return;
+        }
         PowerUp::Type selected;
         if (!pickPowerUp(selected)) {
             return;
@@ -936,14 +955,28 @@ public:
             {PowerUp::Type::ExtraLife,  2},
             {PowerUp::Type::Portal,     2}
         }};
-        if ((std::rand() % 100) >= 12) {
+        if ((std::rand() % 100) >= capsuleChance) {
             return false;
         }
+        auto have = [this](PowerUp::Type t) {
+            switch (t) {
+                case PowerUp::Type::Expand: return expandTimerMs > 0.0;
+                case PowerUp::Type::Slow:   return slowTimerMs > 0.0;
+                case PowerUp::Type::Break:  return powerBallActive;
+                case PowerUp::Type::Sticky: return stickyActive;
+                case PowerUp::Type::Laser:  return laserActive;
+                default:                    return false;
+            }
+        };
         int totalWeight = 0;
-        for (const auto &entry : table) totalWeight += entry.weight;
+        for (const auto &entry : table) totalWeight += have(entry.type) ? 0 : entry.weight;
+        if (totalWeight <= 0) {
+            return false;
+        }
         int roll = std::rand() % totalWeight;
         int accum = 0;
         for (const auto &entry : table) {
+            if (have(entry.type)) continue;
             accum += entry.weight;
             if (roll < accum) {
                 type = entry.type;
@@ -956,8 +989,10 @@ public:
     void CopyToModel(float brightness = 1.0f) {
         float scaled = std::clamp(brightness, 0.0f, 1.0f);
         model->clearOverlayBuffer();
+        // The shine crosses the field every 3.5 s, then waits off the right.
+        const float glintX = fieldX - 8.0f + (float)std::fmod(totalElapsedMs, 3500.0) / 3500.0f * (fieldW + 40.0f);
         for (auto &b : blocks) {
-            b.draw(model, scaled);
+            b.draw(model, scaled, glintX);
         }
         paddle.draw(model, scaled);
         if (laserActive) {
@@ -1072,6 +1107,7 @@ public:
     float levelFactor() const { return std::min(1.0f + 0.1f * currentLevel, topSpeed); }
     float levelSpeed() const { return configuredBallSpeed * levelFactor(); }
 
+    void setCapsuleChance(int pct) { capsuleChance = pct; }
     void setExtras(float top, float paddle, bool credits, const std::string &lines, const std::string &thanks) {
         topSpeed = std::max(1.0f, top);
         paddleSpeed = paddle;
@@ -1108,16 +1144,32 @@ public:
 
     // A brick that took a hit: it breaks (tough ones with their own sound) or
     // it holds.
-    void brickSound(const Block &b, bool destroyed) {
-        if (!destroyed) {
-            sound("HitNoBreak");
+    // Silver and gold ring when hit, and flash; a silver brick breaking
+    // sounds like any other brick breaking.
+    void brickSound(Block &b, bool destroyed) {
+        if (destroyed) {
+            sound("BreakRegularBrick");
         } else {
-            sound(b.maxHitPoints > 1 ? "BreakMetalicBrick" : "BreakRegularBrick");
+            sound(b.metal() ? "BreakMetalicBrick" : "HitNoBreak");
+            b.shineMs = 150.0;
         }
     }
 
     void applyPowerUp(PowerUp::Type type) {
         constexpr int durationMs = 8000;
+        // As in Arkanoid, any capsule ends the paddle's power - sticky (letting
+        // go of a held ball), expand or laser - so it has one at a time. Slow
+        // and the power ball run on.
+        if (stickyActive) {
+            releaseStuckBalls();
+        }
+        if (expandTimerMs > 0.0) {
+            paddle.width = basePaddleWidth;
+            expandTimerMs = 0.0;
+            enforcePaddleBounds();
+        }
+        laserActive = false;
+        laserTimerMs = 0.0;
         switch (type) {
             case PowerUp::Type::Expand:    sound("GrowPaddle"); break;
             case PowerUp::Type::ExtraLife: sound("ExtraLife"); break;
@@ -1220,6 +1272,20 @@ public:
         }
     }
 
+    // Which way a ball leaves the paddle: by where it sits on it, as off the
+    // paddle in play, but never straight up - from the middle (a serve) it
+    // goes off at a slight angle, either way, as Arkanoid's does.
+    float launchDirX(const Ball &ball) const {
+        float t = paddle.width > 0.0f ? ball.stickOffset / (paddle.width * 0.5f) : 0.0f;
+        t = std::clamp(t, -1.0f, 1.0f);
+        if (std::fabs(t) < 0.3f) {
+            // Within half an LED of the middle it's a serve: pick a side.
+            const float o = ball.stickOffset;
+            t = o >= 0.5f ? 0.3f : o <= -0.5f ? -0.3f : (std::rand() & 1 ? 0.3f : -0.3f);
+        }
+        return t;
+    }
+
     void releaseStuckBalls(bool keepEffect = false) {
         if (anyBallStuck()) {
             sound("BounceFromPaddle");   // leaving the paddle sounds like hitting it
@@ -1228,17 +1294,7 @@ public:
             if (!ball.stuck) continue;
             // release immediately if minStuckMs < 0 (default behavior)
             ball.stuck = false;
-            float offsetNorm = 0.0f;
-            if (paddle.width > 0.0f) {
-                offsetNorm = ball.stickOffset / (paddle.width * 0.5f);
-            }
-            offsetNorm = std::clamp(offsetNorm, -1.0f, 1.0f);
-            if (std::fabs(offsetNorm) < 0.1f) {
-                if (ball.stickOffset > 0.0f)      offsetNorm = 0.2f;
-                else if (ball.stickOffset < 0.0f) offsetNorm = -0.2f;
-                else                                offsetNorm = 0.0f;
-            }
-            ball.directionX = offsetNorm;
+            ball.directionX = launchDirX(ball);
 
             float dirY = ball.directionY;
             if (std::fabs(dirY) < 0.1f) dirY = -0.75f;
@@ -1409,6 +1465,9 @@ public:
         // Track total elapsed time and periodically enable a one-shot random
         // perturbation to help escape repeating trajectories.
         totalElapsedMs += elapsedMs;
+        for (auto &b : blocks) {
+            b.shineMs = std::max(0.0, b.shineMs - elapsedMs);
+        }
         playMs += elapsedMs;
         bounceRandomMsAccumulator += elapsedMs;
         if (bounceRandomMsAccumulator >= 5000.0) {
@@ -1511,17 +1570,7 @@ public:
                 // Release this ball now (same logic as releaseStuckBalls)
                 sound("BounceFromPaddle");
                 ball.stuck = false;
-                float offsetNorm = 0.0f;
-                if (paddle.width > 0.0f) {
-                    offsetNorm = ball.stickOffset / (paddle.width * 0.5f);
-                }
-                offsetNorm = std::clamp(offsetNorm, -1.0f, 1.0f);
-                if (std::fabs(offsetNorm) < 0.1f) {
-                    if (ball.stickOffset > 0.0f)      offsetNorm = 0.2f;
-                    else if (ball.stickOffset < 0.0f) offsetNorm = -0.2f;
-                    else                                offsetNorm = 0.0f;
-                }
-                ball.directionX = offsetNorm;
+                ball.directionX = launchDirX(ball);
                 float dirY = ball.directionY;
                 if (std::fabs(dirY) < 0.1f) dirY = -0.75f;
                 dirY = -std::fabs(dirY);
@@ -1796,6 +1845,7 @@ public:
     double restartSoundMs = 0.0;   // counts down to the start jingle after a life is lost
     float topSpeed = 1.6f;
     float paddleSpeed = 1.15f;
+    int capsuleChance = 20;
     bool winCredits = true;
     std::vector<std::string> creditLines;
     std::vector<std::string> thanksLines;
@@ -1861,6 +1911,7 @@ void FPPBreakout::button(const std::string &button) {
                 getTopSpace()
             );
             effect->setExtras(getTopSpeed(), getPaddleSpeed(), getWinCredits(), getCredits(), getThanks());
+            effect->setCapsuleChance(getCapsuleChance());
             m->setRunningEffect(effect, 25);
         } else {
             effect->button(button);

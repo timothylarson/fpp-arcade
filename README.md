@@ -192,12 +192,20 @@ Catching a capsule ends the paddle's sticky, expand or laser, so it has one of t
 up. **Silver** bricks take two or three hits and **gold** ones can't be broken; both ring and
 flash when hit, and a shine crosses them now and then. Clearing a level gives two extra lives (up to 9, the
 same limit as the extra-life capsule). Each level makes the ball and the paddle 10% faster,
-up to *Fastest ball* (1.6 times level 1 by default, reached at level 7). *Paddle speed* sets how
-fast the paddle moves to start with (1.15 by default, 15% faster than it used to be).
+up to *Fastest ball* (1.3 times level 1 by default, reached at level 4). *Ball speed* is 0.8 by
+default - the wall is only 25 LEDs tall, so the ball is soon back at the paddle - and *Paddle
+speed* 1.4 (how fast the paddle moves to start with; 1 is how it moved before the setting).
 The brick rows are stacked edge to edge, Arkanoid style, with bricks twice as tall where the
 level fits (it always ends above the lower third), and *Space above bricks* (3 LEDs by default)
 open above them for the ball to get into. *Gap between rows* at Yes spaces the rows out instead,
 as before.
+
+After level 15 comes the **final boss**: an evil snowman at the top of the field, with no bricks.
+Hit him *Boss hits* times (16, as many as Arkanoid's DOH; 0 leaves him out) while he throws
+snowballs at the paddle - each one costs a life, so dodge them. He holds the next snowball up in
+a stick hand before he throws it, throws more often and faster as he weakens, and his health runs
+along the bottom row. Beaten, he melts down to his hat, and the credits play. The last-level cheat
+goes straight to him.
 
 Clearing the last level plays the credits, for as long as the WonGame music (30 seconds with
 sound off): YOU WON! over fireworks, the bricks broken and time played, a short story (Santa's
@@ -391,10 +399,11 @@ plugged into the player, and/or streamed over the network to a computer.
 
   | File | When |
   |---|---|
-  | `StartLevel`, `LastLevel` | a level starts, and again for the new ball after each lost life (`LastLevel` on the final level) |
+  | `StartLevel`, `LastLevel` | a level starts, and again for the new ball after each lost life (`LastLevel` on the final level: the snowman, or level 15 without him) |
   | `BounceFromPaddle`, `StickToPaddle` | the ball hits the paddle or is launched from it; it sticks, with Sticky |
-  | `HitNoBreak` | a brick is hit but holds |
-  | `BreakRegularBrick`, `BreakMetalicBrick` | a one-hit brick breaks; a multi-hit brick breaks |
+  | `BreakMetalicBrick` | a silver or gold brick is hit but holds |
+  | `BreakRegularBrick` | a brick breaks, silver ones included |
+  | `BossHit`, `BossThrow`, `BossDefeated` | the snowman is hit, throws a snowball, is beaten (optional: without them, `BreakMetalicBrick`, `FireLaser` and `BreakRegularBrick` play) |
   | `FireLaser` | a laser shot |
   | `GrowPaddle`, `ExtraLife`, `Shrill`, `Coin` | catching Expand, Extra Life, the power ball (Break), any other power-up |
   | `LevelPortal` | the paddle goes through the portal |

@@ -19,6 +19,7 @@ public:
     float getTopSpeed() const { return topSpeed; }
     float getPaddleSpeed() const { return paddleSpeed; }
     int getCapsuleChance() const { return capsuleChance; }
+    int getBossHits() const { return bossHits; }
     bool getWinCredits() const { return winCredits; }
     const std::string &getCredits() const { return credits; }
     const std::string &getThanks() const { return thanks; }
@@ -30,10 +31,11 @@ protected:
     bool brickSpacing = true;
     int maxBricksPerRow = 15;
     int paddleWidth = 0; // 0 = auto
-    float ballSpeed = 1.0f;
-    float topSpeed = 1.6f;      // the most the levels speed the ball (and paddle) up
-    float paddleSpeed = 1.15f;  // the paddle's speed: 1 is how it moved before the setting
+    float ballSpeed = 0.8f;     // the wall is short: the ball reaches the paddle quickly
+    float topSpeed = 1.3f;      // the most the levels speed the ball (and paddle) up
+    float paddleSpeed = 1.4f;   // the paddle's speed: 1 is how it moved before the setting
     int capsuleChance = 20;     // % of broken bricks that drop a capsule (when one can fall)
+    int bossHits = 16;          // the snowman after the last level; 0 for none
     bool winCredits = true;     // the credits show after the last level
     std::string credits = "THANKS FOR PLAYING|MERRY CHRISTMAS";   // lines for it, | between
     std::string thanks = "SANTA|RUDOLPH";                         // its SPECIAL THANKS, | between

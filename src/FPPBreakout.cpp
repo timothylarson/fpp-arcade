@@ -199,6 +199,34 @@ static const std::vector<LevelDefinition> LEVEL_LAYOUTS = {
     }
 };
 
+// The final boss, after the last level: an evil snowman, as Arkanoid ends
+// with DOH. No bricks - the field is laid out from an empty layout like the
+// others - just him at the top, to be hit Boss Hits times while he throws
+// snowballs at the paddle. Coal is LEDs left off (eyes, angry brows, the
+// frown); S is a stick arm, B the snowball in a hand as he winds up.
+static const LevelDefinition BOSS_LAYOUT = {
+    {"...............", "...............", "...............", "...............", "..............."}
+};
+static const char *const SNOWMAN[] = {
+    "......HHHHHHH.......",
+    "......HHHHHHH.......",
+    "......HHHHHHH.......",
+    "......RRRRRRR.......",
+    "....HHHHHHHHHHH.....",
+    "......WWWWWWW.......",
+    ".....WWWWWWWWW......",
+    "....WW.WWWWW.WW.....",
+    "....WWW..W..WWW....B",
+    "B..WWWWWWNNNNWWW..S.",
+    "S..WWWWWWWWWWWWW..S.",
+    ".S.WWWW.....WWWW.S..",
+    "..S.WW.WWWWW.WW.S...",
+    ".....WWWWWWWWW......",
+    "......WWWWWWW.......",
+};
+static constexpr int SNOWMAN_W = 20, SNOWMAN_H = 15;
+static constexpr int SNOWMAN_HANDS[2][2] = {{19, 8}, {0, 9}};   // the B cells, right then left
+
 FPPBreakout::FPPBreakout(Json::Value &config)
     : FPPArcadeGame(config)
 {
@@ -207,7 +235,7 @@ FPPBreakout::FPPBreakout(Json::Value &config)
     brickSpacing = true;
     maxBricksPerRow = 15;
     paddleWidth = 0; // 0 means auto-size based on model width
-    ballSpeed = 1.0f;  // default speed multiplier
+    ballSpeed = 0.8f;  // default speed multiplier
 
     // Look for 'options' array and parse values
     if (config.isMember("options") && config["options"].isArray()) {
@@ -231,6 +259,8 @@ FPPBreakout::FPPBreakout(Json::Value &config)
                 paddleSpeed = std::clamp(std::stof(value), 0.3f, 3.0f);
             } else if (name == "Capsule Chance") {
                 capsuleChance = std::clamp(std::atoi(value.c_str()), 0, 100);
+            } else if (name == "Boss Hits") {
+                bossHits = std::clamp(std::atoi(value.c_str()), 0, 99);
             } else if (name == "Win Credits") {
                 winCredits = value != "0";
             } else if (name == "Credits") {
@@ -471,10 +501,13 @@ public:
     }
     void loadLevel(int levelIndex) {
         currentLevel = levelIndex;
-        const LevelDefinition &level = LEVEL_LAYOUTS[currentLevel % LEVEL_LAYOUTS.size()];
+        const LevelDefinition &level = bossOn() ? BOSS_LAYOUT : LEVEL_LAYOUTS[currentLevel % LEVEL_LAYOUTS.size()];
 
         blocks.clear();
         powerUps.clear();
+        snowballs.clear();
+        bossCells.clear();
+        bossMeltMs = bossFlashMs = 0.0;
         lasers.clear(); 
         bricksAlive.clear();
         columnStarts.clear();
@@ -633,6 +666,10 @@ public:
             }
         }
 
+        if (bossOn()) {
+            setupBoss();
+        }
+
         // Start level with ball staged on the paddle
         spawnBallOnPaddle(/*stuck=*/true);
 
@@ -641,7 +678,7 @@ public:
         stopSounds();
         playLevelStartSound();
         levelIntroTimerMs = 1500.0;
-        levelIntroText = "LEVEL " + std::to_string(currentLevel + 1);
+        levelIntroText = bossOn() ? "FINAL BOSS" : "LEVEL " + std::to_string(currentLevel + 1);
         GameOn = true;
         WaitingUntilOutput = false;
         resetFrameTimer();
@@ -672,6 +709,7 @@ public:
             for (int s = 0; s < steps && ball.y < model->getHeight(); ++s) {
                 ball.move(frameScalar / steps);
                 collideBall(ball);
+                collideBoss(ball);
             }
 
             if (ball.y >= model->getHeight()) {
@@ -893,7 +931,7 @@ public:
 
     int32_t handleLevelClear() {
         currentLevel++;
-        if (currentLevel < (int)LEVEL_LAYOUTS.size()) {
+        if (currentLevel < levelCount()) {
             LogInfo(VB_PLUGIN, "[Breakout] Advancing to level %d", currentLevel + 1);
             lives = std::min(MAX_LIVES, lives + 2);   // two extra lives for every level cleared
             loadLevel(currentLevel);
@@ -924,6 +962,197 @@ public:
                     (model->getHeight()/2) / scl, 255, 255, 255, scl);
         model->flushOverlayBuffer();
         return 2000;
+    }
+
+    // ---- The snowman (see SNOWMAN) ----------------------------------------
+    int levelCount() const { return (int)LEVEL_LAYOUTS.size() + (bossHits > 0 ? 1 : 0); }
+    bool bossOn() const { return bossHits > 0 && currentLevel == (int)LEVEL_LAYOUTS.size(); }
+    float bossDamage() const { return bossHits > 0 ? 1.0f - (float)bossHp / bossHits : 0.0f; }
+    // A sound of his own if there's a file for it, else one Breakout has.
+    void soundOr(const char *name, const char *fallback) {
+        sound(ArcadeSound::lengthMs("breakout", name) > 0 ? name : fallback);
+    }
+
+    void setupBoss() {
+        bossScale = std::max(1, (int)paddle.height);
+        bossX = std::floor(fieldX + (fieldW - SNOWMAN_W * bossScale) / 2.0f);
+        bossY = 0.0f;   // the hat against the top, so the ball can't skim above him
+        bossCells.clear();
+        for (int r = 0; r < SNOWMAN_H; ++r) {
+            // Solid across each row of him (the coal too), and the arms.
+            const std::string row = SNOWMAN[r];
+            const size_t a = row.find_first_of("HRWN"), b = row.find_last_of("HRWN");
+            for (int c = 0; c < SNOWMAN_W; ++c) {
+                const bool body = a != std::string::npos && c >= (int)a && c <= (int)b;
+                if (body || row[c] == 'S') {
+                    bossCells.push_back({bossX + c * bossScale, bossY + r * bossScale});
+                }
+            }
+        }
+        bossHp = bossHits;
+        bossFlashMs = bossMeltMs = 0.0;
+        bossThrowMs = BOSS_FIRST_THROW_MS;
+        bossHand = 0;
+        snowballs.clear();
+    }
+
+    // The ball against him: it bounces off whichever side of the LED it hit.
+    void collideBoss(Ball &ball) {
+        if (!bossOn() || bossMeltMs > 0.0) {
+            return;
+        }
+        const float sc = (float)bossScale;
+        for (const auto &cell : bossCells) {
+            const float cl = cell.first, ct = cell.second, cr = cl + sc - 0.1f, cb = ct + sc - 0.1f;
+            if (ball.right() < cl || ball.left() > cr || ball.bottom() < ct || ball.top() > cb) {
+                continue;
+            }
+            const float oL = ball.right() - cl, oR = cr - ball.left(), oT = ball.bottom() - ct, oB = cb - ball.top();
+            if (std::min(oL, oR) < std::min(oT, oB)) {
+                ball.directionX = oL < oR ? -std::fabs(ball.directionX) : std::fabs(ball.directionX);
+                ball.x = oL < oR ? cl - ball.width : cl + sc;
+            } else {
+                ball.directionY = oT < oB ? -std::fabs(ball.directionY) : std::fabs(ball.directionY);
+                ball.y = oT < oB ? ct - ball.height : ct + sc;
+            }
+            // Never straight back the way it came: from the paddle's middle
+            // the ball goes straight up, and it would bounce between his face
+            // and a paddle that never moved. A little randomness, and an angle.
+            ball.directionX += 0.4f * ((float)std::rand() / RAND_MAX - 0.5f);
+            if (std::fabs(ball.directionX) < 0.3f) {
+                ball.directionX = ball.directionX < 0.0f ? -0.3f : 0.3f;
+            }
+            vec2_norm(ball.directionX, ball.directionY);
+            bounceOffWalls(ball);
+            bossHit();
+            return;
+        }
+    }
+
+    // A hit counts once a flash is over, so one bounce is one hit.
+    void bossHit() {
+        if (bossFlashMs > 0.0 || bossHp <= 0) {
+            return;
+        }
+        --bossHp;
+        ++bricksBroken;   // he counts, for the credits
+        bossFlashMs = 250.0;
+        if (bossHp > 0) {
+            soundOr("BossHit", "BreakMetalicBrick");
+            return;
+        }
+        // Beaten: he melts away, then the credits. The ball goes in
+        // updateBoss() - this runs while the balls are being moved.
+        stopSounds();
+        soundOr("BossDefeated", "BreakRegularBrick");
+        bossMeltMs = BOSS_MELT_MS;
+    }
+
+    void throwSnowball() {
+        const int *hand = SNOWMAN_HANDS[bossHand];
+        bossHand ^= 1;
+        const float hx = bossX + hand[0] * bossScale, hy = bossY + hand[1] * bossScale;
+        // At the paddle, give or take, quicker and more often as he weakens.
+        const float tx = paddle.x + paddle.width / 2.0f + (float)(std::rand() % 9 - 4);
+        const float vy = BOSS_SNOWBALL_SPEED * bossScale * (1.0f + 0.4f * bossDamage());
+        const float t = std::max(0.3f, (paddle.y - hy) / vy);
+        snowballs.push_back({hx, hy, (tx - hx) / t, vy});
+        soundOr("BossThrow", "FireLaser");
+        bossThrowMs = 2800.0 - 1400.0 * bossDamage();
+    }
+
+    bool bossThrowing() const { return bossMeltMs <= 0.0 && !balls.empty() && !anyBallStuck() && restartSoundMs <= 0.0; }
+
+    // Returns true once he's melted away.
+    bool updateBoss(double elapsedMs) {
+        bossFlashMs = std::max(0.0, bossFlashMs - elapsedMs);
+        if (bossMeltMs > 0.0) {
+            balls.clear();
+            snowballs.clear();
+            bossMeltMs -= elapsedMs;
+            return bossMeltMs <= 0.0;
+        }
+        // Snowballs fall; one on the paddle costs a life, as a lost ball does
+        // (update() takes it when it finds no ball).
+        const float dt = (float)(elapsedMs / 1000.0), sz = (float)bossScale;
+        for (auto it = snowballs.begin(); it != snowballs.end();) {
+            it->x += it->vx * dt;
+            it->y += it->vy * dt;
+            if (it->y + sz > paddle.y && it->y < paddle.y + paddle.height &&
+                it->x + sz > paddle.x && it->x < paddle.x + paddle.width) {
+                snowballs.clear();
+                balls.clear();
+                return false;
+            }
+            it = it->y >= model->getHeight() ? snowballs.erase(it) : std::next(it);
+        }
+        // He throws only while the ball is in play, not at a serve.
+        if (bossThrowing()) {
+            bossThrowMs -= elapsedMs;
+            if (bossThrowMs <= 0.0) {
+                throwSnowball();
+            }
+        }
+        return false;
+    }
+
+    void drawBoss(float scaled) {
+        const int sc = bossScale;
+        auto put = [&](float x, float y, int r, int g, int b, float k) {
+            k *= scaled;
+            for (int dy = 0; dy < sc; ++dy) {
+                for (int dx = 0; dx < sc; ++dx) {
+                    model->setOverlayPixelValue((int)x + dx, (int)y + dy, std::clamp((int)(r * k), 0, 255),
+                                                std::clamp((int)(g * k), 0, 255), std::clamp((int)(b * k), 0, 255));
+                }
+            }
+        };
+        // Melting: he sinks into his base, fading, as the puddle spreads.
+        const float melt = bossMeltMs > 0.0 ? 1.0f - (float)(bossMeltMs / BOSS_MELT_MS) : 0.0f;
+        const int sink = (int)(melt * SNOWMAN_H);
+        const float fade = 1.0f - 0.6f * melt;
+        const bool flash = bossFlashMs > 0.0 && bossMeltMs <= 0.0;
+        const bool windUp = bossThrowing() && bossThrowMs < 700.0;   // a snowball in hand: one's coming
+        for (int r = 0; r + sink < SNOWMAN_H; ++r) {
+            for (int c = 0; c < SNOWMAN_W; ++c) {
+                const char ch = SNOWMAN[r][c];
+                const float x = bossX + c * sc, y = bossY + (r + sink) * sc;
+                switch (ch) {
+                    case 'H': put(x, y, 55, 55, 70, fade); break;
+                    case 'R': put(x, y, 220, 20, 20, fade); break;
+                    case 'N': put(x, y, 255, 120, 0, fade); break;
+                    case 'S': put(x, y, 120, 70, 20, fade); break;
+                    case 'W': flash ? put(x, y, 255, 90, 90, 1.0f) : put(x, y, 200, 215, 240, fade); break;
+                    case 'B':
+                        if (windUp && c == SNOWMAN_HANDS[bossHand][0] && r == SNOWMAN_HANDS[bossHand][1]) {
+                            put(x, y, 230, 240, 255, 1.0f);
+                        }
+                        break;
+                    default: break;
+                }
+            }
+        }
+        if (melt > 0.0f) {
+            const int half = 3 + (int)(melt * 7);
+            const float py = bossY + (SNOWMAN_H - 1) * sc, mid = bossX + SNOWMAN_W * sc / 2.0f;
+            for (int i = -half; i <= half; ++i) {
+                put(mid + i * sc, py, 170, 190, 230, fade);
+            }
+            for (int i = 0; i < 3; ++i) {   // sparkles
+                put(bossX + std::rand() % (SNOWMAN_W * sc), bossY + std::rand() % (SNOWMAN_H * sc), 255, 255, 255, 1.0f - melt);
+            }
+        }
+        for (const auto &sb : snowballs) {
+            put(sb.x, sb.y, 230, 240, 255, 1.0f);
+        }
+        // His health along the bottom row, under the paddle.
+        const int barW = std::min(bossHits, std::max(1, (int)fieldW - 4));
+        const int full = (int)std::ceil(barW * (float)bossHp / bossHits);
+        const float x0 = std::floor(fieldX + (fieldW - barW) / 2.0f);
+        for (int i = 0; i < barW; ++i) {
+            const bool on = i < full;
+            model->setOverlayPixelValue((int)x0 + i, model->getHeight() - 1, on ? (int)(220 * scaled) : (int)(35 * scaled), on ? (int)(30 * scaled) : 0, 0);
+        }
     }
 
     // Capsules as in Arkanoid: one falling at a time, none while more than
@@ -993,6 +1222,9 @@ public:
         const float glintX = fieldX - 8.0f + (float)std::fmod(totalElapsedMs, 3500.0) / 3500.0f * (fieldW + 40.0f);
         for (auto &b : blocks) {
             b.draw(model, scaled, glintX);
+        }
+        if (bossOn()) {
+            drawBoss(scaled);
         }
         paddle.draw(model, scaled);
         if (laserActive) {
@@ -1108,6 +1340,7 @@ public:
     float levelSpeed() const { return configuredBallSpeed * levelFactor(); }
 
     void setCapsuleChance(int pct) { capsuleChance = pct; }
+    void setBossHits(int n) { bossHits = n; }
     void setExtras(float top, float paddle, bool credits, const std::string &lines, const std::string &thanks) {
         topSpeed = std::max(1.0f, top);
         paddleSpeed = paddle;
@@ -1135,7 +1368,7 @@ public:
     }
     void playLevelStartSound() {
         restartSoundMs = 0.0;
-        const char *name = currentLevel + 1 >= (int)LEVEL_LAYOUTS.size() ? "LastLevel" : "StartLevel";
+        const char *name = currentLevel + 1 >= levelCount() ? "LastLevel" : "StartLevel";
         sound(name);
         // The ball doesn't launch by itself until the jingle is over.
         launchHoldMs = ArcadeSound::lengthMs("breakout", name);
@@ -1450,8 +1683,8 @@ public:
         }
         const int cheat = takeCheat();
         if (cheat == CHEAT_LAST_LEVEL) {
-            // The final layout, with every life there is.
-            loadLevel((int)LEVEL_LAYOUTS.size() - 1);
+            // The final level (the snowman, unless he's turned off), with every life there is.
+            loadLevel(levelCount() - 1);
             lives = MAX_LIVES;
         } else if (cheat == CHEAT_NEXT_LEVEL) {
             return handleLevelClear();   // as if cleared: two more lives, or the credits after the last
@@ -1590,6 +1823,9 @@ public:
             updatePowerUpTimers(elapsedMs);
         }
         updateLasers((float)frameScalar);
+        if (bossOn() && updateBoss(elapsedMs)) {
+            return handleLevelClear();   // he's melted away: the credits
+        }
 
         for (auto &ball : balls) {
             if (ball.bottom() >= paddle.y && ball.left() <= (paddle.x + paddle.width) && ball.right() >= paddle.x && ball.directionY > 0) {
@@ -1631,7 +1867,7 @@ public:
         // ✅ Win condition (counter or live scan)
         if (remainingDestructible < 0) remainingDestructible = 0;
         int liveDestructible = countDestructible();
-        if (remainingDestructible == 0 || liveDestructible == 0 || blocks.empty()) {
+        if (!bossOn() && (remainingDestructible == 0 || liveDestructible == 0 || blocks.empty())) {
             LogInfo(VB_PLUGIN, "[Breakout] LEVEL CLEARED (level=%d) rem=%d live=%d size=%zu",
                     currentLevel + 1, remainingDestructible, liveDestructible, blocks.size());
             return handleLevelClear();
@@ -1643,7 +1879,7 @@ public:
         // ❌ Loss condition (no balls left). Not while the portal is taking the
         // paddle: it removes the balls on purpose, and counting that as a lost
         // ball took a life every few frames of the animation - Game Over.
-        if (balls.empty() && !portalTouched) {
+        if (balls.empty() && !portalTouched && bossMeltMs <= 0.0) {
             if (lives > 0) {
                 --lives;
                 sound("LoseLife");
@@ -1660,6 +1896,9 @@ public:
                 breakTimerMs = 0.0;
                 stickyTimerMs = 0.0;
                 laserTimerMs = 0.0;
+
+                snowballs.clear();
+                bossThrowMs = BOSS_FIRST_THROW_MS;
 
                 // Reset paddle to base size so Expand doesn't persist after death
                 paddle.width = basePaddleWidth;
@@ -1843,9 +2082,10 @@ public:
     bool showingLevelIntro = false;
     double levelIntroTimerMs = 0.0;
     double restartSoundMs = 0.0;   // counts down to the start jingle after a life is lost
-    float topSpeed = 1.6f;
-    float paddleSpeed = 1.15f;
+    float topSpeed = 1.3f;
+    float paddleSpeed = 1.4f;
     int capsuleChance = 20;
+    int bossHits = 16;
     bool winCredits = true;
     std::vector<std::string> creditLines;
     std::vector<std::string> thanksLines;
@@ -1882,6 +2122,19 @@ public:
     double portalTouchDurationMs = 1000.0; // animation duration (ms)
     float portalTouchStartX = 0.0f;
     float portalTouchStartY = 0.0f;
+
+    // The snowman, on the level after the last (see SNOWMAN)
+    struct Snowball {
+        float x, y, vx, vy;   // LEDs, and LEDs a second
+    };
+    static constexpr double BOSS_MELT_MS = 2500.0;
+    static constexpr double BOSS_FIRST_THROW_MS = 3000.0;
+    static constexpr float BOSS_SNOWBALL_SPEED = 9.0f;   // LEDs a second, falling
+    int bossHp = 0, bossScale = 1, bossHand = 0;
+    float bossX = 0.0f, bossY = 0.0f;
+    double bossFlashMs = 0.0, bossMeltMs = 0.0, bossThrowMs = 0.0;
+    std::vector<std::pair<float, float>> bossCells;   // the LEDs the ball bounces off, top-left corners
+    std::vector<Snowball> snowballs;
 };
 
 const std::string &FPPBreakout::getName() {
@@ -1912,6 +2165,7 @@ void FPPBreakout::button(const std::string &button) {
             );
             effect->setExtras(getTopSpeed(), getPaddleSpeed(), getWinCredits(), getCredits(), getThanks());
             effect->setCapsuleChance(getCapsuleChance());
+            effect->setBossHits(getBossHits());
             m->setRunningEffect(effect, 25);
         } else {
             effect->button(button);

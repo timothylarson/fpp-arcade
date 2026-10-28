@@ -29,7 +29,7 @@ public:
         const int rows = std::max(2, H / 6), top = H / 2 - rows / 2;
         for (int r = 0; r < rows; ++r) {
             for (int x = 1 + (r & 1) * 2; x + 2 < W - 1; x += 4) {
-                bricks.push_back({x, top + r, true, ArcadeShow::hue(0.08f + 0.6f * r / std::max(1, rows - 1))});
+                bricks.push_back({x, top + r, true, s.accent(0.08f + 0.6f * r / std::max(1, rows - 1))});
             }
         }
         pw = std::max(4, W / 8);
@@ -69,7 +69,7 @@ public:
             }
             // A rainbow trail behind the ball.
             if (s.rnd() < dt * 40.0f) {
-                s.sparks.push_back({bx, by, 0, 0, 0, 0.3f, ArcadeShow::hue((float)(ms / 300.0)), 0, 0});
+                s.sparks.push_back({bx, by, 0, 0, 0, 0.3f, s.accent((float)(ms / 300.0)), 0, 0});
             }
         }
 
@@ -87,7 +87,7 @@ public:
             c.set((int)topX + i, 0, BLUE, (topWins ? flash : 0.8f) * k);
         }
         if (!popped) {
-            c.set((int)std::floor(bx), (int)std::floor(by), ArcadeShow::hue((float)(ms / 400.0)), k);
+            c.set((int)std::floor(bx), (int)std::floor(by), s.accent((float)(ms / 400.0)), k);
         }
         s.drawFireworks(c, k);
     }

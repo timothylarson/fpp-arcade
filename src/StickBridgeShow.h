@@ -8,6 +8,11 @@
 // hops for joy under it as the star on top lights and the fireworks go up.
 // The hill and the pole stand behind the credits and GAME OVER.
 //
+// At Halloween the bridges are candy-corn sticks across treat boxes, and the
+// last reaches a dark hill with a haunted castle whose windows light up; the
+// elf wears a witch's hat. On an everyday show they're rainbow sticks to a
+// grassy hill with a flag flying, and the elf wears a party hat.
+//
 // After a two-player game the headline names the winner, both scores count
 // up in their elves' colours, and the blue elf follows the green one over.
 
@@ -29,6 +34,7 @@ public:
 
     void begin(ArcadeShow &s) override {
         const int W = s.W, H = s.H;
+        theme = s.theme();
         // The game's own sizes: boxes a quarter of the height, the elf's
         // edge where the game keeps it.
         boxH = std::clamp(H / 4, 3, 8);
@@ -159,7 +165,17 @@ private:
         const Box &n = boxes[i + 1];
         return n.colour < 0 ? poleX - 2 : n.x + (n.w - 1) / 2;
     }
-    static RGB cane(int k) { return (k / 2) % 2 ? RGB{0.75f, 0.75f, 0.75f} : RGB{1.0f, 0.08f, 0.06f}; }
+    // A candy cane's stripes; candy corn's bands; or a rainbow.
+    RGB cane(int k) const {
+        if (theme == ShowTheme::Halloween) {
+            static const RGB CORN[3] = {{1, 1, 0.9f}, {1, 0.45f, 0}, {1, 0.85f, 0.25f}};
+            return CORN[(k / 2) % 3];
+        }
+        if (theme == ShowTheme::Everyday) {
+            return ArcadeShow::hue(k / 12.0f);
+        }
+        return (k / 2) % 2 ? RGB{0.75f, 0.75f, 0.75f} : RGB{1.0f, 0.08f, 0.06f};
+    }
 
     void sparkle(ArcadeShow &s, float x, float y) {
         for (int k = 0; k < 16; ++k) {
@@ -172,16 +188,23 @@ private:
     // The boxes, the bridges already crossed (up to box upTo), the hill and
     // the North Pole, seen from cam.
     void drawWorld(ArcadeShow &s, ArcadeCanvas::Canvas &c, float camX, int upTo, float k, bool lit) {
-        static const RGB PAPER[] = {{0.1f, 0.75f, 0.2f}, {0.15f, 0.35f, 1.0f}, {0.6f, 0.2f, 0.9f}, {1.0f, 0.65f, 0.05f},
-                                    {0.05f, 0.75f, 0.7f}};
+        static const RGB XMAS[] = {{0.1f, 0.75f, 0.2f}, {0.15f, 0.35f, 1.0f}, {0.6f, 0.2f, 0.9f}, {1.0f, 0.65f, 0.05f},
+                                   {0.05f, 0.75f, 0.7f}};
+        static const RGB SPOOKY[] = {{1.0f, 0.45f, 0.0f}, {0.6f, 0.2f, 0.9f}, {0.3f, 0.9f, 0.15f}, {1.0f, 0.45f, 0.0f},
+                                     {0.6f, 0.2f, 0.9f}};
+        const RGB *PAPER = theme == ShowTheme::Halloween ? SPOOKY : XMAS;
         const int ci = (int)std::lround(camX), H = s.H;
         for (size_t i = 0; i < boxes.size(); ++i) {
             const Box &b = boxes[i];
             if (b.colour < 0) {
-                // The hill: snow, a little brighter along the top.
+                // The hill: snow, a little brighter along the top (a dark
+                // hill at Halloween, grass otherwise).
+                const RGB ground = theme == ShowTheme::Halloween ? RGB{0.45f, 0.2f, 0.5f}
+                                 : theme == ShowTheme::Everyday ? RGB{0.15f, 0.7f, 0.15f} : RGB{0.75f, 0.8f, 1.0f};
+                const float fill = theme == ShowTheme::Christmas ? 0.22f : 0.08f;
                 for (int x = b.x; x < b.x + b.w + s.W; ++x) {
                     for (int y = topY; y < H; ++y) {
-                        c.set(x - ci, y, {0.75f, 0.8f, 1.0f}, (y == topY ? 0.45f : 0.22f) * k);
+                        c.set(x - ci, y, ground, (y == topY ? 0.45f : fill) * k);
                     }
                 }
                 continue;
@@ -191,7 +214,7 @@ private:
             for (int x = b.x; x < b.x + b.w; ++x) {
                 for (int y = topY; y < H; ++y) {
                     if (x == mid && y == topY) {
-                        c.set(x - ci, y, {1.0f, 0.03f, 0.03f}, k);
+                        c.set(x - ci, y, theme == ShowTheme::Halloween ? RGB{0.3f, 0.9f, 0.15f} : RGB{1.0f, 0.03f, 0.03f}, k);
                     } else if (x == mid || y == band) {
                         c.set(x - ci, y, ribbon, (y == topY ? 0.7f : 0.45f) * k);
                     } else {
@@ -208,8 +231,27 @@ private:
             }
         }
         // The North Pole: red and white stripes, two wide, up most of the
-        // sky, with a star on top that lights when the elf gets there.
+        // sky, with a star on top that lights when the elf gets there. At
+        // Halloween a haunted castle whose windows light up; on an everyday
+        // show a flagpole with its flag waving.
         const int top = std::max(4, topY / 4);
+        if (theme == ShowTheme::Halloween) {
+            const int w = std::min(17, std::max(9, s.W / 4));
+            ShowArt::castle(c, poleX - ci - w / 3, topY, w, (lit ? 1.0f : 0.6f) * k);
+            return;
+        }
+        if (theme == ShowTheme::Everyday) {
+            for (int y = top; y < topY; ++y) {
+                c.set(poleX - ci, y, {0.7f, 0.7f, 0.7f}, 0.6f * k);
+            }
+            for (int fy = 0; fy < 4; ++fy) {
+                for (int fx = 1; fx <= 6; ++fx) {
+                    const int wave = (int)std::lround(std::sin((float)s.t / 200.0f + fx * 0.9f) * 0.6f);
+                    c.set(poleX - ci + fx, top + fy + wave, ArcadeShow::hue((float)s.t / 3000.0f + fy * 0.08f), 0.8f * k);
+                }
+            }
+            return;
+        }
         for (int y = top; y < topY; ++y) {
             for (int dx = 0; dx < 2; ++dx) {
                 c.set(poleX + dx - ci, y, ((y + dx) / 2) % 2 ? RGB{0.8f, 0.8f, 0.8f} : RGB{1.0f, 0.06f, 0.05f}, 0.75f * k);
@@ -233,13 +275,24 @@ private:
         const int fx = (int)std::floor(x + 0.5f);
         c.set(fx, feetY, tunic, 0.9f * k);
         c.set(fx, feetY - 1, {0.85f, 0.5f, 0.32f}, 0.8f * k);
-        c.set(fx, feetY - 2, {1.0f, 0.08f, 0.05f}, k);
-        c.set(fx - 1, feetY - 2, {0.8f, 0.8f, 0.8f}, 0.7f * k);
+        if (theme == ShowTheme::Halloween) {
+            c.set(fx - 1, feetY - 2, ShowArt::HAT, k);   // the witch's hat: a brim,
+            c.set(fx, feetY - 2, ShowArt::HAT, k);
+            c.set(fx + 1, feetY - 2, ShowArt::HAT, k);
+            c.set(fx, feetY - 3, ShowArt::HAT, k);       // and its point
+        } else if (theme == ShowTheme::Everyday) {
+            c.set(fx, feetY - 2, {0.2f, 0.8f, 1.0f}, k);   // a party hat and its pompom
+            c.set(fx, feetY - 3, {1.0f, 0.85f, 0.1f}, 0.8f * k);
+        } else {
+            c.set(fx, feetY - 2, {1.0f, 0.08f, 0.05f}, k);
+            c.set(fx - 1, feetY - 2, {0.8f, 0.8f, 0.8f}, 0.7f * k);
+        }
         if (walking && (fx & 1)) {
             c.set(fx - 1, feetY, tunic, 0.5f * k);
         }
     }
 
+    ShowTheme theme = ShowTheme::Christmas;
     std::vector<Box> boxes;
     std::vector<double> landedAt;   // when each box's bridge landed, so it sparkles once
     int boxH = 6, topY = 19, edgeX = 20, poleX = 0;
@@ -250,6 +303,14 @@ private:
 
 // score and perfects: the final score and the perfect landings in it;
 // previousBest the best before this game.
+// The roll's bridges and where they led, for the theme.
+inline std::string sticks(ShowTheme t) {
+    return t == ShowTheme::Halloween ? " CANDY CORN STICKS" : t == ShowTheme::Everyday ? " RAINBOW STICKS" : " CANDY CANES";
+}
+inline std::string dest(ShowTheme t) {
+    return t == ShowTheme::Halloween ? "THE HAUNTED CASTLE" : t == ShowTheme::Everyday ? "THE FINISH LINE" : "THE NORTH POLE";
+}
+
 inline ShowConfig config(int score, int perfects, bool newBest, int previousBest) {
     using namespace ShowColours;
     ShowConfig cfg;
@@ -262,8 +323,8 @@ inline ShowConfig config(int score, int perfects, bool newBest, int previousBest
         cfg.stats.push_back({"BEST", previousBest, false, GREEN});
     }
     cfg.roll = {{"STICK BRIDGE", HEAD}, {"", WHITE}, {"CAST", HEAD}, {"THE ELF", GREEN}, {"AND", HEAD},
-                {std::to_string(score) + " CANDY CANES", RED}, {"", WHITE}, {"NEXT STOP", HEAD},
-                {"THE NORTH POLE", WHITE}, {"", WHITE}, {"THANKS FOR PLAYING", WHITE}};
+                {std::to_string(score) + sticks(cfg.theme), RED}, {"", WHITE}, {"NEXT STOP", HEAD},
+                {dest(cfg.theme), WHITE}, {"", WHITE}, {"THANKS FOR PLAYING", WHITE}};
     cfg.ending = "GAME OVER";
     return cfg;
 }
@@ -287,8 +348,8 @@ inline ShowConfig config2(int left, int right, bool newBest, int previousBest) {
         cfg.stats.push_back({"BEST", previousBest, false, GOLD});
     }
     cfg.roll = {{"STICK BRIDGE", HEAD}, {"", WHITE}, {"CAST", HEAD}, {"THE GREEN ELF", LEFT}, {"THE BLUE ELF", RIGHT},
-                {"AND", HEAD}, {std::to_string(left + right) + " CANDY CANES", RED}, {"", WHITE}, {"NEXT STOP", HEAD},
-                {"THE NORTH POLE", WHITE}, {"", WHITE}, {"THANKS FOR PLAYING", WHITE}};
+                {"AND", HEAD}, {std::to_string(left + right) + sticks(cfg.theme), RED}, {"", WHITE}, {"NEXT STOP", HEAD},
+                {dest(cfg.theme), WHITE}, {"", WHITE}, {"THANKS FOR PLAYING", WHITE}};
     cfg.ending = "GAME OVER";
     return cfg;
 }

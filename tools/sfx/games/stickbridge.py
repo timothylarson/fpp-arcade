@@ -55,6 +55,31 @@ SOUNDS = {
     "GameOver": lambda: mix(
         melody([("G5", 1), ("E5", 1), ("C5", 1), ("-", 1), ("D5", 1), ("B4", 1), ("G4", 1), ("C5", 3)], 0.12, duty=0.125),
         melody([("C3", 4), ("G2", 3), ("C3", 3)], 0.12, wave="triangle", vol=0.45)),
+    # Halloween's: the stick growing, the knock, then a creeping tiptoe
+    # tune in D minor (staccato, up to the castle door) with a bony click on
+    # every beat, ending on a low D.
+    "EndShowHalloween": lambda: seq(
+        seq(*[grow(n) for n in GROW[::2]]),
+        knock("G4"),
+        silence(0.06),
+        mix(melody([("D5", 1), ("E5", 1), ("F5", 1), ("E5", 1), ("D5", 1), ("C#5", 1), ("D5", 2),
+                    ("A4", 1), ("Bb4", 1), ("A4", 1), ("G#4", 1), ("A4", 2), ("-", 2),
+                    ("F5", 1), ("G5", 1), ("A5", 1), ("G5", 1), ("F5", 1), ("E5", 1), ("D5", 1), ("C#5", 1),
+                    ("D5", 4)], 0.14, duty=0.25, legato=0.45),
+            melody([("D3", 2), ("A2", 2), ("D3", 2), ("A2", 2), ("D3", 2), ("E3", 2), ("A2", 4),
+                    ("D3", 2), ("A2", 2), ("Bb2", 2), ("A2", 2), ("D3", 4)], 0.14,
+                   wave="triangle", vol=0.4, legato=0.5),
+            seq(*[seq(knock("C6", 0.25), silence(0.24)) for _ in range(15)]))),
+    # Everyday's: the stick growing, the knock, and a bright march to the flag.
+    "EndShowEveryday": lambda: seq(
+        seq(*[grow(n) for n in GROW[::2]]),
+        knock("G4"),
+        silence(0.06),
+        mix(melody([("C5", 1), ("E5", 1), ("G5", 2), ("E5", 1), ("G5", 1), ("C6", 2),
+                    ("A5", 1), ("G5", 1), ("E5", 1), ("G5", 1), ("D5", 4),
+                    ("E5", 1), ("G5", 1), ("C6", 2), ("B5", 1), ("D6", 1), ("C6", 4)], 0.15, duty=0.25),
+            melody([("C3", 2), ("G3", 2), ("C3", 2), ("G3", 2), ("F3", 2), ("C3", 2), ("G2", 2), ("G3", 2),
+                    ("C3", 2), ("G3", 2), ("G2", 2), ("C3", 2)], 0.15, wave="triangle", vol=0.4, legato=0.7))),
     # The end show: the stick growing all the way up, a knock as it lands,
     # then the chorus of Jingle Bells with a bell on every beat.
     "EndShow": lambda: seq(

@@ -27,6 +27,15 @@ SOUNDS = {
                                                                          release=0.08)),
     "NewWall": lambda: seq(*[blip(n, 0.04) for n in ["E5", "G5", "B5", "E6", "G6"]]),
     "GameOver": lambda: melody([("E6", 1), ("B5", 1), ("G5", 1), ("E5", 3)], 0.13, legato=0.85),
+    # Halloween's: the rally speeding up, then a creeping minor run, a
+    # spooky trill and a slide down to a low E.
+    "EndShowHalloween": lambda: mix(
+        seq(seq(*[seq(blip(PING if i % 2 else TICK, 0.03), silence(max(0.04, 0.22 * 0.85 ** i))) for i in range(14)]),
+            silence(0.1),
+            melody([("E5", 1), ("G5", 1), ("B5", 1), ("Bb5", 1), ("A5", 1), ("C6", 1), ("B5", 1), ("C6", 1),
+                    ("B5", 1), ("C6", 1), ("B5", 2), ("E5", 6)], 0.12, wave="square", duty=0.25)),
+        seq(silence(1.3), melody([("E3", 1), ("B2", 1), ("E3", 1), ("Bb2", 1), ("A2", 1), ("B2", 1), ("E2", 6)],
+                                 0.24, wave="triangle", vol=0.45))),
     # The end show for a clear win: a rally that speeds up, then a fanfare
     # climbing to a long top E over a bouncing bass.
     "EndShow": lambda: mix(

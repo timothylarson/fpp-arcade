@@ -55,6 +55,22 @@ SOUNDS = {
     "GameOver": lambda: mix(
         melody([("G5", 1), ("E5", 1), ("C5", 1), ("-", 1), ("D5", 1), ("B4", 1), ("G4", 1), ("C5", 3)], 0.12, duty=0.25),
         melody([("C3", 4), ("G2", 3), ("C3", 3)], 0.12, wave="triangle", vol=0.45)),
+    # Halloween's: blast-off, then a spooky broomstick waltz in E minor,
+    # chimed high over a swaying bass, ending on a long E.
+    "EndShowHalloween": lambda: seq(
+        whoosh(0.5, "C3", "C6", seed=9),
+        mix(melody([("E6", 1), ("B5", 1), ("G5", 1), ("E5", 3), ("F#5", 1), ("G5", 1), ("A5", 1), ("B5", 3),
+                    ("C6", 1), ("B5", 1), ("A5", 1), ("G5", 1), ("F#5", 1), ("D#5", 1), ("E5", 1), ("B5", 1), ("E6", 4)],
+                   0.16, duty=0.125, vol=0.45),
+            melody([("E3", 3), ("B2", 3), ("E3", 3), ("D#3", 3), ("C3", 3), ("B2", 3), ("E3", 4)], 0.16,
+                   wave="triangle", vol=0.45, legato=0.7))),
+    # Everyday's: blast-off, then a bright fanfare climbing to a high C.
+    "EndShowEveryday": lambda: seq(
+        whoosh(0.5, "C3", "C6", seed=9),
+        mix(melody([("C6", 1), ("E6", 1), ("G6", 2), ("E6", 1), ("G6", 1), ("C7", 2), ("A6", 1), ("G6", 1), ("E6", 2),
+                    ("F6", 1), ("A6", 1), ("G6", 1), ("E6", 1), ("D6", 1), ("G6", 1), ("C7", 4)], 0.15, duty=0.125, vol=0.45),
+            melody([("C3", 4), ("C3", 4), ("F2", 4), ("F2", 2), ("G2", 2), ("C3", 4)], 0.15,
+                   wave="triangle", vol=0.45, legato=0.7))),
     # The end show: blast-off, then Jolly Old Saint Nicholas, chimed high, over a bass.
     "EndShow": lambda: seq(
         whoosh(0.5, "C3", "C6", seed=9),

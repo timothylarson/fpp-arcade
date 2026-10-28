@@ -32,6 +32,7 @@ public:
     explicit Story(bool twoElves = false, bool leftWon = true) : two(twoElves), greenLeads(leftWon) {}
 
     void begin(ArcadeShow &s) override {
+        theme = s.theme();
         const int W = s.W, H = s.H;
         anchor = (H - 1) * 0.4f;
         climb = std::max(90.0f, H * 4.5f);
@@ -86,13 +87,21 @@ public:
         if (ground - 5 < H) {
             for (int y = std::max(0, ground); y < H; ++y) {
                 for (int x = 0; x < W; ++x) {
-                    c.add(x, y, {0.85f, 0.9f, 1.0f}, (y == ground ? 0.35f : 0.12f) * k);
+                    // Snow; dark ground at Halloween; grass otherwise.
+                    const RGB g = theme == ShowTheme::Halloween ? RGB{0.45f, 0.2f, 0.5f}
+                                : theme == ShowTheme::Everyday ? RGB{0.15f, 0.7f, 0.15f} : RGB{0.85f, 0.9f, 1.0f};
+                    c.add(x, y, g, (y == ground ? 0.35f : theme == ShowTheme::Christmas ? 0.12f : 0.06f) * k);
                 }
             }
             house(c, 3, ground, k);
             house(c, W - 9, ground, k);
-            tree(c, W / 4, ground, ms, k);
-            tree(c, W * 3 / 4, ground, ms, k);
+            if (theme == ShowTheme::Halloween) {
+                ShowArt::pumpkin(c, W / 4 - 2, ground - 5, k);
+                ShowArt::pumpkin(c, W * 3 / 4 - 2, ground - 5, k);
+            } else {
+                tree(c, W / 4, ground, ms, k);
+                tree(c, W * 3 / 4, ground, ms, k);
+            }
         }
 
         // The coins on the way, each gone in a sparkle as the elf gets it.
@@ -228,13 +237,15 @@ private:
                 const float d = std::hypot(x + 0.5f - mx, y + 0.5f - my);
                 const float in = ArcadeCanvas::clamp01(r - d + 0.5f);
                 const float spot = std::hypot(x + 0.5f - (mx - r * 0.3f), y + 0.5f - (my - r * 0.2f)) < r * 0.3f ? 0.75f : 1.0f;
-                c.add(x, y, {1.0f, 0.93f, 0.7f}, 0.22f * in * spot * k);
+                c.add(x, y, theme == ShowTheme::Halloween ? RGB{1.0f, 0.5f, 0.08f} : RGB{1.0f, 0.93f, 0.7f},
+                      (theme == ShowTheme::Halloween ? 0.5f : 0.22f) * in * spot * k);
             }
         }
     }
 
     void house(ArcadeCanvas::Canvas &c, int x, int ground, float k) {
-        const RGB WALL = {0.6f, 0.35f, 0.2f}, ROOF = {0.75f, 0.1f, 0.08f}, WINDOW = {1.0f, 0.8f, 0.3f};
+        const RGB WALL = {0.6f, 0.35f, 0.2f}, ROOF = theme == ShowTheme::Halloween ? RGB{0.45f, 0.15f, 0.55f} : RGB{0.75f, 0.1f, 0.08f},
+                  WINDOW = theme == ShowTheme::Halloween ? RGB{1.0f, 0.45f, 0.0f} : RGB{1.0f, 0.8f, 0.3f};
         for (int dx = 1; dx < 5; ++dx) c.add(x + dx, ground - 4, ROOF, 0.45f * k);
         for (int dx = 0; dx < 6; ++dx) c.add(x + dx, ground - 3, ROOF, 0.45f * k);
         for (int dx = 0; dx < 6; ++dx) {
@@ -256,7 +267,23 @@ private:
 
     // Santa's sleigh, facing right: Santa, the sleigh's runner, and two
     // reindeer on a harness, the lead one with a red nose. 14 x 4.
+    // At Halloween a cartoon witch on her broomstick instead, cape flapping;
+    // on an everyday show a bunch of balloons drifting by.
     void drawSleigh(ArcadeCanvas::Canvas &c, int sx, int sy, double ms, float k) {
+        if (theme == ShowTheme::Halloween) {
+            static const char *const W0[] = {"...h........", "..hh........", ".hhhhh......", "..gcc.......", "bbbbbbbbyyy."};
+            static const char *const W1[] = {"...h........", "..hh........", ".hhhhh......", "..gccc......", "bbbbbbbbyyy."};
+            ShowArt::sprite(c, std::fmod(ms, 400.0) < 200.0 ? W0 : W1, 5, sx + 2, sy, {{'h', ShowArt::HAT},
+                            {'g', {0.35f, 0.9f, 0.2f}}, {'c', {0.5f, 0.1f, 0.6f}}, {'b', {0.55f, 0.28f, 0.1f}},
+                            {'y', ShowArt::CANDLE}}, 0.9f * k, true);
+            return;
+        }
+        if (theme == ShowTheme::Everyday) {
+            ShowArt::balloon(c, sx + 4, sy, {1, 0.2f, 0.2f}, 0.9f * k);
+            ShowArt::balloon(c, sx + 7, sy - 1, {0.2f, 0.6f, 1}, 0.9f * k);
+            ShowArt::balloon(c, sx + 10, sy + 1, {1, 0.85f, 0.1f}, 0.9f * k);
+            return;
+        }
         static const char *ROWS[4] = {
             ".RW.......A..A",
             "RKW.....B..B.N",
@@ -291,6 +318,7 @@ private:
         }
     }
 
+    ShowTheme theme = ShowTheme::Christmas;
     bool two = false, greenLeads = true;
     float anchor = 9, climb = 110, starH = 130, lastCam = 0;
     int starRow = 5;
@@ -298,6 +326,11 @@ private:
     std::vector<Coin> coins;
     std::vector<Streak> streaks;
 };
+
+// Who crosses the sky, for the roll.
+inline std::string santa(ShowTheme t) {
+    return t == ShowTheme::Halloween ? "THE WITCH" : t == ShowTheme::Everyday ? "THE BALLOONS" : "SANTA";
+}
 
 inline void timing(ShowConfig &cfg) {
     // A longer story than most: the climb needs room.
@@ -319,7 +352,7 @@ inline ShowConfig config(int score, int height, int coins, bool newBest, int pre
     if (!newBest && previousBest > 0) {
         cfg.stats.push_back({"BEST", previousBest, false, GOLD});
     }
-    cfg.roll = {{"SKY JUMP", HEAD}, {"", WHITE}, {"CAST", HEAD}, {"THE ELF", GREEN}, {"SANTA", RED},
+    cfg.roll = {{"SKY JUMP", HEAD}, {"", WHITE}, {"CAST", HEAD}, {"THE ELF", GREEN}, {santa(cfg.theme), RED},
                 {"THE NORTH STAR", GOLD}, {"AND", HEAD}, {std::to_string(coins) + " COINS", GOLD}, {"", WHITE},
                 {"THANKS FOR PLAYING", WHITE}};
     cfg.ending = "GAME OVER";
@@ -345,7 +378,7 @@ inline ShowConfig config2(int left, int right, bool newBest, int previousBest) {
         cfg.stats.push_back({"BEST", previousBest, false, GOLD});
     }
     cfg.roll = {{"SKY JUMP", HEAD}, {"", WHITE}, {"CAST", HEAD}, {"THE GREEN ELF", GREEN_SUIT},
-                {"THE BLUE ELF", BLUE_SUIT}, {"SANTA", RED}, {"THE NORTH STAR", GOLD}, {"", WHITE},
+                {"THE BLUE ELF", BLUE_SUIT}, {santa(cfg.theme), RED}, {"THE NORTH STAR", GOLD}, {"", WHITE},
                 {"THANKS FOR PLAYING", WHITE}};
     cfg.ending = "GAME OVER";
     return cfg;

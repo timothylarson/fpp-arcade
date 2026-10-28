@@ -169,7 +169,12 @@ the speaker either way.
 - Firmware 1.0 kept 16-bit sounds, and they no longer all fit. Firmware 1.1 and later clear them out the
   first time it starts and fetches them again as mu-law; it needs a plugin version that offers
   mu-law (with an older one it still works, fetching 16-bit).
-- If it can't reach the Wi-Fi it keeps trying and offers its set-up network meanwhile.
+- Somewhere new (a different Wi-Fi), switch it on and it opens its set-up network,
+  **ArcadeSpeaker-xxxx**, within 20 seconds: join it, enter the Wi-Fi there, save. It only does
+  that when it's switched on and can't reach its Wi-Fi. Meanwhile it tries the saved network every
+  30 seconds (not while a phone is on the set-up network), in case the router was just slow to
+  start, and closes the set-up network a minute after it gets on. A speaker that has been on its
+  Wi-Fi and loses it just keeps trying; it doesn't open the set-up network mid-show.
 - Wi-Fi now and then holds a packet up for a few hundred milliseconds. FPP stamps every sound
   with its own clock, and the speaker skips a short sound (under a second) that arrives more
   than 150 ms later than usual, since a bounce heard after the bounce is worse than none; music

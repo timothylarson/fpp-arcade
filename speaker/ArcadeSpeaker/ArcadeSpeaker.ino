@@ -13,7 +13,8 @@
 //     when it starts, when told to, and when the list changes (checked every
 //     minute), and keeps them in PSRAM to play.
 //   - Serves a settings page on port 80. With no Wi-Fi set up, or none it can
-//     reach, it makes its own network "ArcadeSpeaker-XXXX" with that page.
+//     reach when it's switched on, it makes its own network
+//     "ArcadeSpeaker-XXXX" with that page (see wifiPoll()).
 //   - Shows what it's doing on the board's RGB light (see README.md).
 //   - Takes new firmware over Wi-Fi: POST the .bin to /update (the page has a
 //     button). It goes into the spare app slot and is only switched to once
@@ -41,7 +42,7 @@
 
 #include "page.h"
 
-#define FIRMWARE "1.6"
+#define FIRMWARE "1.7"
 
 // Pins for an ESP32-S3-DevKitC-1; any free GPIOs will do.
 constexpr int PIN_BCLK = 5;    // MAX98357A BCLK
@@ -514,10 +515,56 @@ String hostInUse() {
 void startAccessPoint() {
     const String ssid = "ArcadeSpeaker-" + boardId();
     WiFi.mode(WIFI_AP_STA);
+    // Hunting for the saved network non-stop hops the radio from channel to
+    // channel, and the set-up network has to hop with it, which knocks phones
+    // off it. While it's open, wifiPoll() tries the saved network now and then.
+    WiFi.setAutoReconnect(false);
+    WiFi.disconnect(false, false);
     WiFi.softAP(ssid.c_str());
     dns.start(53, "*", WiFi.softAPIP());
     apMode = true;
     Serial.printf("Set-up network %s at %s\n", ssid.c_str(), WiFi.softAPIP().toString().c_str());
+}
+
+void stopAccessPoint() {
+    dns.stop();
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_STA);
+    esp_wifi_set_ps(WIFI_PS_NONE);   // the mode change mustn't bring power saving back
+    apMode = false;
+    Serial.println("Set-up network closed");
+}
+
+// The set-up network opens only when the speaker is switched on and can't
+// reach its Wi-Fi (moved somewhere new, or the password changed). While it's
+// open, the saved network is tried every 30 s - not while a phone is on the
+// set-up network, so setting it up isn't interrupted - in case the router
+// was only slow to start; and once it's joined, the set-up network closes a
+// minute later (when no phone is on it). A speaker that has joined its Wi-Fi
+// and then loses it just keeps trying: a dropout mid-show doesn't open a
+// network in the yard.
+void wifiPoll() {
+    if (!apMode) {
+        return;
+    }
+    static uint32_t lastTry = millis(), joinedAt = 0;
+    const uint32_t now = millis();
+    const bool phone = WiFi.softAPgetStationNum() > 0;
+    if (WiFi.status() == WL_CONNECTED) {
+        if (!joinedAt) {
+            joinedAt = now ? now : 1;
+            WiFi.setAutoReconnect(true);
+        }
+        if (now - joinedAt > 60000 && !phone) {
+            stopAccessPoint();
+        }
+        return;
+    }
+    joinedAt = 0;
+    if (!cfg.ssid.isEmpty() && !phone && now - lastTry > 30000) {
+        lastTry = now;
+        WiFi.begin(cfg.ssid.c_str(), cfg.pass.c_str());
+    }
 }
 
 // FPP stamps each PLAY with its own clock in ms. The gap between that and
@@ -819,7 +866,7 @@ void setup() {
             delay(200);
         }
         if (WiFi.status() != WL_CONNECTED) {
-            startAccessPoint();   // keep trying the network, and offer set-up meanwhile
+            startAccessPoint();   // offer set-up, and try the network now and then meanwhile
         }
     }
     if (MDNS.begin(hostName().c_str())) {   // http://<name>.local
@@ -898,6 +945,7 @@ void loop() {
     if (apMode) {
         dns.processNextRequest();
     }
+    wifiPoll();
     char buf[256];
     while (int n = udp.parsePacket()) {
         n = udp.read(buf, sizeof(buf) - 1);

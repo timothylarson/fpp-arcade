@@ -178,7 +178,7 @@ const STATES = {
   joining: ['Joining Wi-Fi', s => 'Joining ' + s.ssid + '...'],
   nofpp: ['Can\'t reach FPP', s => s.fpp ? 'FPP at ' + s.fpp + ' doesn\'t answer. Check the address below, and that the player is up.'
                                          : 'Enter the FPP player\'s address below.'],
-  setup: ['Set-up mode', s => s.ssid ? 'Can\'t reach ' + s.ssid + '. Check the Wi-Fi settings below; it keeps trying meanwhile.'
+  setup: ['Set-up mode', s => s.ssid ? 'Can\'t reach ' + s.ssid + '. Enter this place\'s Wi-Fi below; it tries the old one again every 30 seconds meanwhile.'
                                      : 'Enter the Wi-Fi network and FPP player below, then Save.'],
   fault: ['Fault', s => s.fault],
   offline: ['Not answering', () => 'The speaker isn\'t answering. It may be restarting, or out of range.']

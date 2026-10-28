@@ -810,7 +810,7 @@ private:
         const bool newBest = arcadeRecordBest(model->getName(), "Road Race", score, &best);
         winner = !duo ? 0 : (s0 == s1 ? 0 : (s0 > s1 ? 1 : 2));
         if (arcadeWantShow(endShow, metres >= goodGame, newBest)) {
-            sound("EndShow");
+            sfxEndShow("roadrace");
             if (duo) {
                 show.start(model, RoadRaceShow::config2(s0, s1, winner, newBest, best),
                            std::make_unique<RoadRaceShow::Story>(2, winner));

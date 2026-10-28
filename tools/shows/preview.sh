@@ -3,6 +3,7 @@
 # or the wall:
 #
 #     tools/shows/preview.sh SnakeShow [width height every_ms out.png start_ms]
+#     THEME=halloween tools/shows/preview.sh SnakeShow ...   (or THEME=everyday)
 #
 # The header must define  void preview(ShowConfig &cfg, std::unique_ptr<ShowStory> &story)
 # inside  namespace <Game>Show  (made up numbers are fine). Needs clang++ and
@@ -13,13 +14,18 @@ SRC="$HERE/../../src"
 NAME=$1; W=${2:-60}; H=${3:-25}; EVERY=${4:-1000}; OUT=${5:-$NAME.png}; FROM=${6:-0}
 WORK=$(mktemp -d)
 mkdir -p "$WORK/overlays"
-cp "$SRC/ArcadeShow.h" "$SRC/ArcadeCanvas.h" "$SRC/$NAME.h" "$WORK/"
+cp "$SRC/ArcadeShow.h" "$SRC/ArcadeCanvas.h" "$SRC/ShowTheme.h" "$SRC/$NAME.h" "$WORK/"
 cp "$HERE/stub_model.h" "$WORK/overlays/PixelOverlayModel.h"
 cp "$HERE/stub_arcade.h" "$WORK/FPPArcade.h"
 # The real font, taken from FPPArcade.cpp.
 { echo '#include "FPPArcade.h"'; echo '#include <array>'; echo '#include <cstring>'; echo '#include <map>'
   awk '/^static const std::map<uint8_t, std::vector<uint8_t>> LETTERS/,/^bool arcadeGlyph\(char c, int x, int y\) \{/' "$SRC/FPPArcade.cpp"
   awk '/^bool arcadeGlyph\(char c, int x, int y\) \{/{f=1} f{print} f&&/^}$/{exit}' "$SRC/FPPArcade.cpp" | tail -n +2
+  # The theme from THEME (christmas, halloween or everyday), as the setting would give it.
+  echo '#include <cstdlib>'
+  echo 'ShowTheme arcadeShowTheme() { const char *t = std::getenv("THEME"); std::string s = t ? t : "";'
+  echo '    return s == "halloween" ? ShowTheme::Halloween : s == "everyday" ? ShowTheme::Everyday : ShowTheme::Christmas; }'
+  echo 'void arcadeSetShowTheme(const std::string &) {}'
 } > "$WORK/glyph.cpp"
 cat > "$WORK/main.cpp" <<CPP
 #include "$NAME.h"

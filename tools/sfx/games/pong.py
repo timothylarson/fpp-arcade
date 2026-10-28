@@ -35,6 +35,18 @@ SOUNDS = {
                     (PADDLE * 2, 1), (PADDLE * 3, 8)], 0.12, wave="square", vol=0.45),
             melody([(WALL / 2, 4), (WALL * 0.75, 4), (WALL * 0.625, 4), (WALL, 12)], 0.12,
                    wave="triangle", vol=0.5, legato=0.95))),
+    # Halloween's: the same rally speeding up, then Chopin's funeral march
+    # (Piano Sonata No. 2) in blips over a rocking bass - played straight,
+    # with a wink - landing on a low Bb.
+    "EndShowHalloween": lambda: seq(
+        seq(*[seq(blip(PADDLE if i % 2 else WALL, 0.035), silence(max(0.04, 0.3 * 0.82 ** i)))
+              for i in range(16)]),
+        silence(0.12),
+        mix(melody([("Bb4", 1.5), ("Bb4", 1.125), ("Bb4", 0.375), ("Bb4", 1.5), ("Db5", 1.125), ("C5", 0.375),
+                    ("C5", 1.125), ("Bb4", 0.375), ("Bb4", 1.125), ("A4", 0.375), ("Bb4", 3)], 0.22,
+                   wave="square", vol=0.45),
+            melody([("Bb2", 1.5), ("F2", 1.5)] * 4, 0.22, wave="triangle", vol=0.5, legato=0.6)),
+        mix(blip("Bb5", 0.06), tone("Bb2", 0.4, wave="triangle", vol=0.5, release=0.2))),
     "GameOver": lambda: mix(
         melody([(PADDLE, 1), (PADDLE * 1.25, 1), (PADDLE * 1.5, 1), (PADDLE * 2, 2),
                 (PADDLE * 1.5, 1), (PADDLE * 2, 4)], 0.1, wave="square", vol=0.45),

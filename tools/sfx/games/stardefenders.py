@@ -82,6 +82,21 @@ SOUNDS = {
         melody([("C5", 1), ("E5", 1), ("G5", 1), ("C6", 2), ("G5", 1), ("C6", 4)], 0.09, wave="square", duty=0.25, vol=0.4),
         melody([("C4", 1), ("G4", 1), ("E4", 1), ("A4", 2), ("F4", 1), ("G4", 4)], 0.09, wave="triangle", vol=0.4),
     ),
+    # Halloween's: the march's four thumps falling slow and heavy, an eerie
+    # minor tune on a wobbling "theremin" (a sine with deep vibrato) over the
+    # bass, gliding up to a long high A as the jack-o'-lantern lights.
+    "EndShowHalloween": lambda: mix(
+        seq(thump("C3"), silence(0.2), thump("B2"), silence(0.2), thump("Bb2"), silence(0.2), thump("A2"),
+            silence(0.2),
+            melody([("A5", 2), ("E5", 1), ("F5", 1), ("E5", 2), ("C5", 2), ("D5", 1), ("E5", 1), ("F5", 2),
+                    ("E5", 2), ("D#5", 2), ("E5", 4)], 0.13, wave="sine", vol=0.5, vibrato=0.5, vib_rate=6,
+                   legato=1.0),
+            tone("E5", 0.9, wave="sine", freq_end="A6", vol=0.45, vibrato=0.6, vib_rate=6, release=0.35)),
+        seq(silence(1.2),
+            melody([("A2", 2), ("E2", 2), ("A2", 2), ("F2", 2), ("D2", 2), ("E2", 2), ("A2", 4), ("E2", 4)], 0.13,
+                   wave="triangle", vol=0.5),
+            tone("A2", 0.9, wave="triangle", vol=0.5, release=0.4)),
+    ),
     # The end show (about 5 s): the march's four thumps turned round to climb
     # instead of fall - the invaders giving up - then a square-wave fanfare
     # over a bouncing bass, and a run up to a long high C as the star lights.

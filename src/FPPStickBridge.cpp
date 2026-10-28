@@ -173,7 +173,7 @@ public:
                 // GAME OVER box would be, once the fall has had its second.
                 if (showDue) {
                     showDue = false;
-                    sfx("stickbridge", "EndShow");
+                    sfxEndShow("stickbridge");
                     show.start(model, std::move(showConfig), std::move(showStory));
                     resetFrameTimer();
                     return FRAME_MS;

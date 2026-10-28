@@ -332,7 +332,7 @@ private:
                     int best = 0;
                     const bool newBest = arcadeRecordBest(model->getName(), "Star Defenders", score, &best);
                     if (arcadeWantShow(endShow, wave >= goodGame, newBest)) {
-                        sfx("stardefenders", "EndShow");
+                        sfxEndShow("stardefenders");
                         show.start(model, StarDefendersShow::config(score, wave, newBest, W),
                                    std::make_unique<StarDefendersShow::Story>());
                         return;

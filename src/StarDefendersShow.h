@@ -6,6 +6,9 @@
 // catch; the cannon fires a spray of fireworks, the last of which becomes a
 // Christmas star, and the aliens come back to dance under it - the credits,
 // and GAME OVER.
+//
+// At Halloween the saucer drops a pumpkin, and the last firework becomes a
+// big jack-o'-lantern glowing in the sky.
 
 #include <algorithm>
 #include <cmath>
@@ -85,6 +88,7 @@ public:
         caughtMs = 0;
         shots.clear();
         fired = 0;
+        hallow = s.halloween();
         starOn = false;
         starMs = 0;
         starX = W / 2;
@@ -255,7 +259,17 @@ private:
     }
 
     // A red box with a gold ribbon and a bow; (x, y) is the top of the box.
+    // At Halloween a pumpkin with its stem.
     void present(ArcadeCanvas::Canvas &c, int x, int y, float k) {
+        if (hallow) {
+            c.set(x, y - 1, ShowArt::STEM, k);
+            for (int dy = 0; dy < 3; ++dy) {
+                for (int dx = -1; dx <= 1; ++dx) {
+                    c.set(x + dx, y + dy, ShowArt::ORANGE, (dy == 1 || dx == 0 ? 1.0f : 0.75f) * k);
+                }
+            }
+            return;
+        }
         c.set(x - 1, y - 1, GOLD, 0.9f * k);
         c.set(x + 1, y - 1, GOLD, 0.9f * k);
         for (int dy = 0; dy < 3; ++dy) {
@@ -312,6 +326,22 @@ private:
         if (!starOn) {
             return;
         }
+        if (hallow) {
+            // A jack-o'-lantern, growing in with an orange glow round it.
+            const float grow = std::clamp((float)((ms - starMs) / 400.0), 0.0f, 1.0f);
+            for (int y = -4; y <= 4; ++y) {
+                for (int x = -5; x <= 5; ++x) {
+                    const float d = std::hypot((float)x, (float)y);
+                    c.add(starX + x, starY + y, ShowArt::ORANGE, std::max(0.0f, 0.2f - 0.035f * d) * grow * k);
+                }
+            }
+            ShowArt::pumpkin(c, starX - 2, starY - 2, grow * k, grow >= 1.0f);
+            if (s.rnd() < dt * 6.0f * grow) {
+                s.sparks.push_back({starX + (s.rnd() - 0.5f) * 6, starY + (s.rnd() - 0.5f) * 4, (s.rnd() - 0.5f) * 2, 1.0f, 0,
+                                    1.2f + s.rnd(), ShowArt::ORANGE, 20, 1.5f});
+            }
+            return;
+        }
         const float grow = std::clamp((float)((ms - starMs) / 400.0), 0.0f, 1.0f);
         const float r = std::max(1.0f, starR * grow);
         const float shimmer = (float)(ms / 180.0);
@@ -332,6 +362,7 @@ private:
         }
     }
 
+    bool hallow = false;
     std::vector<Alien> aliens;
     std::vector<SkyStar> stars;
     std::vector<int> shields;

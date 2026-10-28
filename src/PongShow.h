@@ -59,6 +59,7 @@ public:
         scaled = false;
         hitsShown = 0;
         burstDone = metDone = hatDone = false;
+        theme = s.theme();
         flakes.clear();
         const int f = std::max(8, W * H / 45);
         for (int i = 0; i < f; ++i) {
@@ -122,7 +123,7 @@ public:
                 lastX = px;
                 lastY = py;
                 const float f = 1.0f - (float)j / (samples + 1);
-                c.add(px, py, ArcadeShow::hue((float)(ms / 700.0) + j * 0.05f), 0.75f * f * f * k);
+                c.add(px, py, s.accent((float)(ms / 700.0) + j * 0.05f), 0.75f * f * f * k);
             }
             float bx, by;
             ballAt(ms, bx, by);
@@ -276,14 +277,49 @@ private:
                 f.y -= s.H + 1;
                 f.x = s.rnd() * s.W;
             }
-            c.add((int)f.x, (int)std::floor(f.y), {1, 1, 1}, 0.4f * k);
+            // Snow; at Halloween falling leaves, drifting further; on an
+            // everyday show confetti.
+            static const RGB LEAF[3] = {{1.0f, 0.4f, 0.0f}, {0.85f, 0.12f, 0.05f}, {0.55f, 0.3f, 0.05f}};
+            const int i = (int)(&f - flakes.data());
+            if (theme == ShowTheme::Halloween) {
+                f.x += std::sin((float)(s.t / 500.0) + f.phase) * 1.8f * dt;
+                c.add((int)f.x, (int)std::floor(f.y), LEAF[i % 3], 0.5f * k);
+            } else if (theme == ShowTheme::Everyday) {
+                c.add((int)f.x, (int)std::floor(f.y), ArcadeShow::hue(f.phase / 6.28f), 0.55f * k);
+            } else {
+                c.add((int)f.x, (int)std::floor(f.y), {1, 1, 1}, 0.4f * k);
+            }
         }
     }
 
     // A Santa hat sitting on a paddle whose top is at (x, top): a white brim,
     // a red crown narrowing to a tip that flops over to dir, and a white
-    // bobble hanging off the end. Five rows tall.
-    static void drawHat(ArcadeCanvas::Canvas &c, int x, int top, int dir, float k) {
+    // bobble hanging off the end. Five rows tall. At Halloween a witch's hat
+    // (a wide purple brim, an orange band, a tall crown bent over at the
+    // tip); on an everyday show a striped party hat with a pompom.
+    void drawHat(ArcadeCanvas::Canvas &c, int x, int top, int dir, float k) {
+        if (theme == ShowTheme::Halloween) {
+            for (int dx = -2; dx <= 2; ++dx) {
+                c.set(x + dx, top - 1, ShowArt::HAT, k);
+            }
+            for (int dx = -1; dx <= 1; ++dx) {
+                c.set(x + dx, top - 2, ShowArt::ORANGE, k);
+            }
+            c.set(x, top - 3, ShowArt::HAT, k);
+            c.set(x, top - 4, ShowArt::HAT, k);
+            c.set(x + dir, top - 5, ShowArt::HAT, k);
+            return;
+        }
+        if (theme == ShowTheme::Everyday) {
+            const RGB A = {0.2f, 0.8f, 1.0f}, B = {1.0f, 0.3f, 0.8f};
+            for (int dx = -1; dx <= 1; ++dx) {
+                c.set(x + dx, top - 1, A, k);
+            }
+            c.set(x, top - 2, B, k);
+            c.set(x, top - 3, A, k);
+            c.set(x, top - 4, {1.0f, 0.85f, 0.1f}, k);   // the pompom
+            return;
+        }
         const RGB RED = {1, 0.1f, 0.08f}, WHITE = {1, 1, 1};
         for (int dx = -1; dx <= 1; ++dx) {
             c.set(x + dx, top - 1, WHITE, 0.9f * k);
@@ -304,6 +340,7 @@ private:
     bool scaled = false;
     int hitsShown = 0;
     bool burstDone = false, metDone = false, hatDone = false;
+    ShowTheme theme = ShowTheme::Christmas;
     std::vector<Flake> flakes;
 };
 
@@ -318,7 +355,9 @@ inline ShowConfig config(int p1, int p2, int w) {
     cfg.stats.push_back({roomy ? "PLAYER 1" : "P1", p1, false, leftWon ? GOLD : LABEL});
     cfg.stats.push_back({roomy ? "PLAYER 2" : "P2", p2, false, leftWon ? LABEL : GOLD});
     cfg.roll = {{"PONG", HEAD},       {"", WHITE},          {"CAST", HEAD}, {"THE BALL", WHITE},
-                {"TWO PADDLES", WHITE}, {"AND", HEAD},      {"A SANTA HAT", RED}, {"", WHITE},
+                {"TWO PADDLES", WHITE}, {"AND", HEAD},
+                {cfg.theme == ShowTheme::Halloween ? "A WITCH'S HAT" : cfg.theme == ShowTheme::Everyday ? "A PARTY HAT" : "A SANTA HAT", RED},
+                {"", WHITE},
                 {"THANKS FOR PLAYING", GREEN}};
     cfg.ending = "GAME OVER";
     return cfg;

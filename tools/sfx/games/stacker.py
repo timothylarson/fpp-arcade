@@ -3,6 +3,10 @@ one step higher up a pentatonic scale as the tower nears the top."""
 
 from synth import *
 
+# The opening of Bach's Toccata and Fugue in D minor: the mordent, a rest,
+# the run down and the held D (23 beats).
+TOCCATA = [("A5", 1), ("G5", 1), ("A5", 6), ("-", 2), ("G5", 1), ("F5", 1), ("E5", 1), ("D5", 1), ("C#5", 3), ("D5", 6)]
+
 # Two octaves and a bit of C major pentatonic, for Drop1..Drop16.
 SCALE = ["C4", "D4", "E4", "G4", "A4", "C5", "D5", "E5", "G5", "A5", "C6", "D6", "E6", "G6", "A6", "C7"]
 
@@ -41,5 +45,26 @@ SOUNDS = {
                     ("B5", 1), ("A5", 1), ("B5", 1), ("C6", 2), ("F#5", 1), ("A5", 2), ("G5", 4)], 0.17, duty=0.25),
             seq(silence(0.17), melody([("G3", 6), ("D3", 5), ("G3", 3), ("C3", 2), ("D3", 3), ("G2", 4)], 0.17,
                                       wave="triangle", vol=0.4, legato=0.7)))),
+    # Halloween's, as the tower becomes a witch's hat: the run up the drop
+    # notes, then the opening of Bach's Toccata and Fugue in D minor - the
+    # mordent and the falling run, twice an octave apart - over a low D, and
+    # the rolled diminished chord.
+    "EndShowHalloween": lambda: seq(
+        seq(*[tone(n, 0.045, duty=0.25, vol=0.5, decay=0.03, release=0.01) for n in SCALE]),
+        silence(0.08),
+        mix(seq(melody(TOCCATA, 0.11, duty=0.25),
+                melody([(n.replace("5", "4").replace("6", "5"), d) for n, d in TOCCATA], 0.11, duty=0.25)),
+            tone("D2", 0.11 * 46, wave="triangle", vol=0.4, release=0.3)),
+        mix(seq(*[tone(n, 0.07, duty=0.25, vol=0.45, release=0.01) for n in ("C#4", "E4", "G4", "Bb4", "C#5", "E5")]),
+            tone("C#3", 0.42, wave="triangle", vol=0.4)),
+        mix(tone("D5", 0.7, duty=0.25, vol=0.45, release=0.3), tone("D3", 0.7, wave="triangle", vol=0.45, release=0.3))),
+    # Everyday's: the run up the drop notes, then a bright fanfare.
+    "EndShowEveryday": lambda: seq(
+        seq(*[tone(n, 0.045, duty=0.25, vol=0.5, decay=0.03, release=0.01) for n in SCALE]),
+        silence(0.08),
+        mix(melody([("C5", 1), ("E5", 1), ("G5", 1), ("C6", 2), ("A5", 1), ("C6", 1), ("E6", 3),
+                    ("D6", 1), ("C6", 1), ("A5", 1), ("G5", 1), ("A5", 1), ("C6", 4)], 0.17, duty=0.25),
+            melody([("C3", 2), ("G3", 2), ("C3", 2), ("E3", 2), ("F3", 2), ("G3", 2), ("C3", 4)], 0.17,
+                   wave="triangle", vol=0.4, legato=0.7))),
 }
 SOUNDS.update({f"Drop{i + 1}": (lambda n=n: drop(n)) for i, n in enumerate(SCALE)})

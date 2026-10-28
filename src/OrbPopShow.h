@@ -36,6 +36,7 @@ public:
     explicit Story(const Look &l) : look(l) {}
 
     void begin(ArcadeShow &s) override {
+        theme = s.theme();
         const int W = s.W, H = s.H;
         unit = std::min((float)W, H * 2.4f) / 60.0f;   // the game's sizes are tuned on a 60x25 wall
         glyph.assign(W * H, 0.0f);
@@ -220,7 +221,11 @@ private:
                 f.y -= s.H + 1;
                 f.x = s.rnd() * s.W;
             }
-            c.add((int)f.x, (int)f.y, ArcadeCanvas::WHITE, 0.4f * k);
+            // Snow; leaves at Halloween; confetti on an everyday show.
+            static const RGB LEAF[3] = {{1.0f, 0.4f, 0.0f}, {0.85f, 0.12f, 0.05f}, {0.55f, 0.3f, 0.05f}};
+            const RGB col = theme == ShowTheme::Halloween ? LEAF[(int)(f.phase * 10) % 3]
+                          : theme == ShowTheme::Everyday ? ArcadeShow::hue(f.phase / 6.28f) : ArcadeCanvas::WHITE;
+            c.add((int)f.x, (int)f.y, col, (theme == ShowTheme::Christmas ? 0.4f : 0.5f) * k);
         }
     }
 
@@ -286,6 +291,11 @@ private:
         l.age = 0;
         l.gold = s.rnd() < 0.15f;
         l.col = l.gold ? GOLD : look.orbs[i % 4];
+        if (theme == ShowTheme::Halloween) {
+            // Orange, purple and green lanterns, and a candle-yellow gold one.
+            static const RGB SPOOKY[3] = {{1, 0.45f, 0}, {0.65f, 0.2f, 1}, {0.35f, 1, 0.15f}};
+            l.col = l.gold ? ShowArt::CANDLE : SPOOKY[i % 3];
+        }
         return l;
     }
 
@@ -319,6 +329,7 @@ private:
     }
 
     Look look;
+    ShowTheme theme = ShowTheme::Christmas;
     float unit = 1;
     std::vector<float> glyph;
     std::vector<double> glyphNext;

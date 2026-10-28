@@ -5,6 +5,11 @@
 // narrower - and turns into a Christmas tree: the rows go green from the
 // bottom up, the night comes in, the lights come on and a star drops onto
 // the top. The tree stays lit behind the credits and GAME OVER.
+//
+// At Halloween it becomes a giant witch's hat instead - a wide brim, purple
+// rows with an orange band and a gold buckle, a bent tip, and a bat that
+// flutters down onto it. On an everyday show the rows keep the game's
+// rainbow, twinkle white, and the star still lands on top.
 
 #include <algorithm>
 #include <cmath>
@@ -22,6 +27,7 @@ public:
 
     void begin(ArcadeShow &s) override {
         const int W = s.W, H = s.H;
+        theme = s.theme();
         // Rows the game's height: two LEDs on a tall panel, else one.
         lh = H >= 20 ? 2 : 1;
         starH = lh == 2 ? 5 : 3;
@@ -32,6 +38,9 @@ public:
         rows.push_back({std::max(3, (W / 12) | 1), 0});   // the trunk
         for (int i = n - 1; i >= 0; --i) {
             rows.push_back({std::min(W - 2, 3 + 2 * i), 0});
+        }
+        if (theme == ShowTheme::Halloween) {
+            rows[0].w = std::min(W - 2, rows[1].w + 6);   // the hat's brim, not a trunk
         }
         for (size_t j = 0; j < rows.size(); ++j) {
             rows[j].side = j % 2 ? 1 : -1;
@@ -130,7 +139,12 @@ public:
             const int drop = (int)std::lround((1.0f - ArcadeShow::easeOutBounce(f)) * (starH + 3));
             if (f >= 1.0f && !starDown) {
                 starDown = true;
-                s.burst(W / 2.0f, starH / 2.0f, {1, 0.85f, 0.3f}, 36, true);
+                if (theme == ShowTheme::Halloween) {
+                    s.burst(W / 2.0f + tipShift(), starH / 2.0f, ShowArt::ORANGE, 20, false);
+                    s.burst(W / 2.0f + tipShift(), starH / 2.0f, {0.65f, 0.2f, 1.0f}, 16, false);
+                } else {
+                    s.burst(W / 2.0f, starH / 2.0f, {1, 0.85f, 0.3f}, 36, true);
+                }
                 nextBurst = ms + 1400.0;
             }
             drawStar(s, c, -drop, ms, k);
@@ -139,7 +153,9 @@ public:
         if (starDown && ms >= nextBurst) {
             nextBurst = ms + 1300.0 + s.rnd() * 600.0;
             static const RGB COLS[] = {{1, 0.2f, 0.15f}, {0.3f, 1, 0.4f}, {1, 0.85f, 0.3f}, {0.5f, 0.6f, 1}};
-            s.burst(W / 2.0f + (s.rnd() - 0.5f) * W * 0.6f, s.H * (0.15f + 0.2f * s.rnd()), COLS[(int)(s.rnd() * 4) % 4], 22, false);
+            static const RGB SPOOKY[] = {{1, 0.45f, 0}, {0.65f, 0.2f, 1}, {0.35f, 1, 0.15f}, {1, 0.6f, 0.1f}};
+            const RGB col = (theme == ShowTheme::Halloween ? SPOOKY : COLS)[(int)(s.rnd() * 4) % 4];
+            s.burst(W / 2.0f + (s.rnd() - 0.5f) * W * 0.6f, s.H * (0.15f + 0.2f * s.rnd()), col, 22, false);
         }
         s.drawFireworks(c, k);
     }
@@ -158,6 +174,31 @@ private:
     int rowY(const ArcadeShow &s, int j) const { return s.H - (j + 1) * lh; }
     // The game's rainbow, bottom to top.
     RGB rowColour(int j) const { return ArcadeShow::hue(j / (float)(rows.size() + 1) * 0.85f); }
+    // The witch's hat leans: its top rows shift over, one LED, then two.
+    int tipShift() const { return theme == ShowTheme::Halloween ? 2 : 0; }
+    int rowShift(int j) const {
+        if (theme != ShowTheme::Halloween) {
+            return 0;
+        }
+        const int top = (int)rows.size() - 1;
+        return j >= top ? 2 : j >= top - 2 ? 1 : 0;
+    }
+    // What a row turns into: the tree's green (the trunk brown), the hat's
+    // purple with an orange band (the third row up) and gold buckle, or on
+    // an everyday show the game's own rainbow.
+    RGB finalColour(int j, int x, int x0, int w) const {
+        if (theme == ShowTheme::Halloween) {
+            if (j == 1) {
+                const int mid = x - x0 - w / 2;
+                return std::abs(mid) <= 1 ? ShowArt::CANDLE : ShowArt::ORANGE;   // the band and its buckle
+            }
+            return ShowArt::HAT;
+        }
+        if (theme == ShowTheme::Everyday) {
+            return rowColour(j);
+        }
+        return j == 0 ? RGB{0.55f, 0.25f, 0.08f} : RGB{0.05f, 0.75f, 0.15f};
+    }
 
     // The first `count` rows: the game's colours turning to tree green (and
     // the trunk to brown) by `green`, a wave from the bottom up; then the
@@ -167,33 +208,43 @@ private:
         const int total = (int)rows.size();
         for (int j = 0; j < count; ++j) {
             const Row &r = rows[j];
-            const int x0 = (W - r.w) / 2, y = rowY(s, j);
+            const int x0 = (W - r.w) / 2 + (int)std::lround(rowShift(j) * green), y = rowY(s, j);
             const float g = std::clamp(green * 1.6f - 0.6f * j / total, 0.0f, 1.0f);
-            const RGB to = j == 0 ? RGB{0.55f, 0.25f, 0.08f} : RGB{0.05f, 0.75f, 0.15f};
-            const RGB col = ArcadeCanvas::mix(rowColour(j), to, g);
             for (int x = x0; x < x0 + r.w; ++x) {
+                const RGB col = ArcadeCanvas::mix(rowColour(j), finalColour(j, x, x0, r.w), g);
                 for (int dy = 0; dy < lh; ++dy) {
                     // Snow along the top of each branch, at its tips.
-                    const bool snow = j > 0 && dy == 0 && (x == x0 || x == x0 + r.w - 1);
+                    const bool snow = theme == ShowTheme::Christmas && j > 0 && dy == 0 && (x == x0 || x == x0 + r.w - 1);
                     c.set(x, y + dy, snow ? ArcadeCanvas::mix(col, {0.9f, 0.95f, 1}, 0.6f * g) : col,
                           (0.7f - 0.15f * g * (dy == lh - 1 && lh > 1)) * k);
                 }
             }
         }
+        // The lights: coloured bulbs; magic glints of green and orange on the
+        // hat (not on its band); white twinkles on the rainbow.
         static const RGB BULB[5] = {{1, 0.12f, 0.1f}, {1, 0.75f, 0.15f}, {0.25f, 0.45f, 1}, {1, 0.3f, 0.9f}, {1, 1, 1}};
+        static const RGB GLINT[2] = {{0.35f, 1, 0.15f}, {1, 0.5f, 0.05f}};
         for (const auto &b : bulbs) {
-            if (b.row >= count || lights * total * 1.1f < b.row) {
+            if (b.row >= count || lights * total * 1.1f < b.row || (theme == ShowTheme::Halloween && b.row == 1)) {
                 continue;
             }
-            const int x0 = (W - rows[b.row].w) / 2, y = rowY(s, b.row);
+            const int x0 = (W - rows[b.row].w) / 2 + rowShift(b.row), y = rowY(s, b.row);
             const float tw = 0.7f + 0.3f * std::sin((float)(ms / 260.0) + b.phase);
-            c.set(x0 + b.x, y + (lh > 1 ? (b.x & 1) : 0), BULB[b.colour], tw * k);
+            const RGB col = theme == ShowTheme::Halloween ? GLINT[b.colour & 1] : theme == ShowTheme::Everyday ? RGB{1, 1, 1} : BULB[b.colour];
+            c.set(x0 + b.x, y + (lh > 1 ? (b.x & 1) : 0), col, (theme == ShowTheme::Christmas ? tw : tw * tw * 0.8f) * k);
         }
     }
 
     // The star on top, raised by `up` LEDs (negative while it drops in),
     // twinkling, with a soft glow round it.
     void drawStar(ArcadeShow &s, ArcadeCanvas::Canvas &c, int up, double ms, float k) {
+        if (theme == ShowTheme::Halloween) {
+            // A bat flutters down onto the tip, then sits flapping now and then.
+            const int x = s.W / 2 - 2 + tipShift(), y = up + starH - 3;
+            const bool flap = up != 0 || std::fmod(ms, 1800.0) < 400.0;
+            ShowArt::bat(c, x, y, flap ? (int)(ms / 110.0) % 2 : 1, false, k);
+            return;
+        }
         static const char *BIG[5] = {"..#..", "..#..", "#####", ".###.", ".#.#."};
         static const char *SMALL[3] = {".#.", "###", ".#."};
         const int sz = starH, cx = s.W / 2, x0 = cx - sz / 2, y0 = up;
@@ -214,6 +265,7 @@ private:
         c.set(cx, y0 + sz / 2, {1, 1, 0.85f}, k);   // a bright heart
     }
 
+    ShowTheme theme = ShowTheme::Christmas;
     std::vector<Row> rows;   // bottom (the trunk) to top
     std::vector<Bulb> bulbs;
     int lh = 2, starH = 5, n = 9, landed = 0;
@@ -228,8 +280,9 @@ inline ShowConfig config(int score, int level, bool newBest) {
     cfg.headline = newBest ? std::vector<std::string>{"NEW", "BEST!"} : std::vector<std::string>{"GREAT", "GAME!"};
     cfg.stats.push_back({"SCORE", score, false, GOLD});
     cfg.stats.push_back({"LEVEL", level, false, GREEN});
-    cfg.roll = {{"STACKER", HEAD}, {"", WHITE}, {"CAST", HEAD}, {"THE TOWER", GREEN}, {"AND", HEAD},
-                {"THE STAR", GOLD}, {"", WHITE}, {"THANKS FOR PLAYING", WHITE}};
+    const bool bat = cfg.theme == ShowTheme::Halloween;
+    cfg.roll = {{"STACKER", HEAD}, {"", WHITE}, {"CAST", HEAD}, {bat ? "THE WITCH'S HAT" : "THE TOWER", GREEN}, {"AND", HEAD},
+                {bat ? "THE BAT" : "THE STAR", GOLD}, {"", WHITE}, {"THANKS FOR PLAYING", WHITE}};
     cfg.ending = "GAME OVER";
     return cfg;
 }
@@ -250,7 +303,8 @@ inline ShowConfig config2(int leftWins, int rightWins, int leftScore, int rightS
     }
     cfg.roll = {{"STACKER", HEAD}, {"", WHITE}, {"THE RACE", HEAD},
                 {"LEFT " + std::to_string(leftWins) + " - " + std::to_string(rightWins) + " RIGHT", WHITE}, {"", WHITE},
-                {"CAST", HEAD}, {"TWO TOWERS", GREEN}, {"AND", HEAD}, {"THE STAR", GOLD}, {"", WHITE},
+                {"CAST", HEAD}, {"TWO TOWERS", GREEN}, {"AND", HEAD},
+                {cfg.theme == ShowTheme::Halloween ? "THE BAT" : "THE STAR", GOLD}, {"", WHITE},
                 {"THANKS FOR PLAYING", WHITE}};
     cfg.ending = "GAME OVER";
     return cfg;

@@ -6,6 +6,10 @@
 // faster through every colour, they flash Christmas red and green, and the
 // dark lines between them light up gold as the rays of a starburst. Slowly
 // turning colours stay behind the credits and GAME OVER.
+//
+// At Halloween they chime midnight instead - the Westminster quarters, which
+// use the game's own four notes, and the hour tolling - and flash orange and
+// purple; on an everyday show they play a cheerful run and flash rainbow.
 
 #include <algorithm>
 #include <cmath>
@@ -23,6 +27,7 @@ public:
 
     void begin(ArcadeShow &s) override {
         const int W = s.W, H = s.H;
+        theme = s.theme();
         // Which triangle each LED belongs to, exactly as the game lays them
         // out: up, right, down, left - or -1 on the dark lines between them.
         // ray is how near an LED is to those lines, for the starburst.
@@ -74,17 +79,30 @@ public:
             // C up, D right, E down and G left - the game's notes go up that way.
             static const int NOTES[] = {2, 2, 2, 2, 2, 2, 2, 3, 0, 1, 2};
             static const float BEATS[] = {1, 1, 2, 1, 1, 2, 1, 1, 1.5f, 0.5f, 4};
+            // Midnight: E C D G, G D E C, then the hour tolling (all four at once).
+            static const int CHIME[] = {2, 0, 1, 3, 3, 1, 2, 0, 4, 4, 4};
+            static const float CHIME_BEATS[] = {1, 1, 1, 2, 1, 1, 1, 2, 2, 2, 2};
+            // A cheerful run: C E G E, C E G C, D E G C.
+            static const int RUN[] = {0, 2, 3, 2, 0, 2, 3, 0, 1, 2, 3};
+            static const float RUN_BEATS[] = {1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 4};
+            const int *notes = theme == ShowTheme::Halloween ? CHIME : theme == ShowTheme::Everyday ? RUN : NOTES;
+            const float *beats = theme == ShowTheme::Halloween ? CHIME_BEATS : theme == ShowTheme::Everyday ? RUN_BEATS : BEATS;
             const double beat = song / 16.0;
             double at = 0;
             for (int i = 0; i < 11; ++i) {
-                const double d = BEATS[i] * beat;
+                const double d = beats[i] * beat;
                 if (ms >= at && ms < at + d) {
                     if (ms < at + d * 0.8) {
-                        lit[NOTES[i]] = 0.95f;
+                        for (int r = 0; r < 4; ++r) {
+                            if (notes[i] == r || notes[i] == 4) {
+                                lit[r] = 0.95f;
+                            }
+                        }
                     }
                     if (lastNote != i) {
                         lastNote = i;
-                        pop(s, NOTES[i], col[NOTES[i]], 5);
+                        const int r = notes[i] == 4 ? i % 4 : notes[i];
+                        pop(s, r, col[r], notes[i] == 4 ? 10 : 5);
                     }
                 }
                 at += d;
@@ -105,10 +123,18 @@ public:
                 lit[i] = std::max(lit[i], 0.95f * glow[i]);
             }
         } else if (ms < flash) {
-            // Christmas colours: red and green, swapping on the beat.
+            // Christmas colours: red and green, swapping on the beat - or
+            // orange and purple, or the rainbow going round.
             const bool swap = std::fmod(ms - spin, 400.0) < 200.0;
             for (int i = 0; i < 4; ++i) {
-                col[i] = (i % 2 == 0) == swap ? RGB{1, 0.1f, 0.08f} : RGB{0.1f, 1, 0.2f};
+                const bool a = (i % 2 == 0) == swap;
+                if (theme == ShowTheme::Halloween) {
+                    col[i] = a ? ShowArt::ORANGE : RGB{0.65f, 0.2f, 1.0f};
+                } else if (theme == ShowTheme::Everyday) {
+                    col[i] = ArcadeShow::hue((float)((ms - spin) / 800.0) + i * 0.25f);
+                } else {
+                    col[i] = a ? RGB{1, 0.1f, 0.08f} : RGB{0.1f, 1, 0.2f};
+                }
                 lit[i] = 0.85f;
             }
         } else {
@@ -118,8 +144,9 @@ public:
             if (!burstDone) {
                 burstDone = true;
                 s.burst(W / 2.0f, H / 2.0f, {1, 0.85f, 0.3f}, 60, true);
-                s.burst(W * 0.25f, H * 0.3f, {1, 0.1f, 0.1f}, 24, false);
-                s.burst(W * 0.75f, H * 0.3f, {0.2f, 1, 0.3f}, 24, false);
+                const bool hallow = theme == ShowTheme::Halloween;
+                s.burst(W * 0.25f, H * 0.3f, hallow ? ShowArt::ORANGE : RGB{1, 0.1f, 0.1f}, 24, theme == ShowTheme::Everyday);
+                s.burst(W * 0.75f, H * 0.3f, hallow ? RGB{0.65f, 0.2f, 1.0f} : RGB{0.2f, 1, 0.3f}, 24, theme == ShowTheme::Everyday);
             }
             for (int i = 0; i < 4; ++i) {
                 col[i] = ArcadeCanvas::mix({1, 0.85f, 0.35f}, COLOURS[i], std::min(1.0f, f * 1.5f));
@@ -178,6 +205,7 @@ private:
     std::vector<int> region;
     std::vector<float> ray, radius;
     float glow[4] = {0, 0, 0, 0};   // the spin's trail
+    ShowTheme theme = ShowTheme::Christmas;
     int lastNote = -1, lastSpin = -1;
     bool burstDone = false;
 };

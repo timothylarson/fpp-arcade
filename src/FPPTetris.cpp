@@ -463,7 +463,7 @@ public:
         }
         delete currentShape;
         currentShape = nullptr;
-        sfx("tetris", "EndShow");
+        sfxEndShow("tetris");
         show.start(model, TetrisShow::config(score, lines, newBest, best), std::make_unique<TetrisShow::Story>());
         resetFrameTimer();
         return true;

@@ -238,7 +238,7 @@ public:
             int best = 0;
             const bool newBest = arcadeRecordBest(model->getName(), "Snake", length, &best);
             if (arcadeWantShow(endShow, length >= goodGame, newBest)) {
-                sfx("snake", "EndShow");
+                sfxEndShow("snake");
                 if (duel) {
                     show.start(model, SnakeShow::config2((int)snake.size(), (int)snake2.size(), winner, newBest, best),
                                std::make_unique<SnakeShow::Story>(true));

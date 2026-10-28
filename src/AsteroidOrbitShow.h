@@ -6,6 +6,9 @@
 // ship is pulled round and in. It warps through in a flash of light that
 // becomes a Christmas star, and pops out of the star and away - the credits,
 // and GAME OVER.
+//
+// At Halloween the light gathers into a big orange harvest moon instead,
+// and the ship pops out of that.
 
 #include <algorithm>
 #include <cmath>
@@ -40,6 +43,7 @@ public:
     explicit Story(int sector) : rockCol(rockColour(sector)) {}
 
     void begin(ArcadeShow &s) override {
+        hallow = s.halloween();
         W = s.W;
         H = s.H;
         stars.clear();
@@ -230,7 +234,8 @@ public:
                 drawStar(c, x, y, starR * backOut(g), k);
                 if (s.rnd() < dt * 6.0f) {
                     const float a = s.rnd() * 6.2832f, d = starR * (0.9f + s.rnd() * 0.8f);
-                    s.sparks.push_back({x + std::cos(a) * d, y + std::sin(a) * d, 0, 0, 0, 0.6f + s.rnd() * 0.5f, STAR,
+                    s.sparks.push_back({x + std::cos(a) * d, y + std::sin(a) * d, 0, 0, 0, 0.6f + s.rnd() * 0.5f,
+                                        hallow ? RGB{1.0f, 0.5f, 0.08f} : STAR,
                                         30.0f, 0});
                 }
             }
@@ -482,6 +487,22 @@ private:
         if (r < 0.3f) {
             return;
         }
+        if (hallow) {
+            // The harvest moon: a soft-edged orange disc with darker craters.
+            for (int py = (int)std::floor(y - r - 1); py <= (int)std::ceil(y + r + 1); ++py) {
+                for (int px = (int)std::floor(x - r - 1); px <= (int)std::ceil(x + r + 1); ++px) {
+                    const float d = std::hypot(px + 0.5f - x, py + 0.5f - y);
+                    const float in = ArcadeCanvas::clamp01(r - d + 0.5f);
+                    if (in <= 0) {
+                        continue;
+                    }
+                    const bool crater = std::hypot(px + 0.5f - (x - r * 0.35f), py + 0.5f - (y - r * 0.2f)) < r * 0.3f ||
+                                        std::hypot(px + 0.5f - (x + r * 0.3f), py + 0.5f - (y + r * 0.35f)) < r * 0.2f;
+                    c.set(px, py, {1.0f, 0.5f, 0.08f}, (crater ? 0.55f : 0.85f) * in * k);
+                }
+            }
+            return;
+        }
         float vx[10], vy[10];
         for (int i = 0; i < 10; ++i) {
             const float a = -1.5708f + i * 0.62832f, rr = i % 2 ? r * 0.45f : r;
@@ -520,6 +541,7 @@ private:
     int W = 60, H = 25;
     float cx = 0, cy = 0, R = 0, hx = 0, hy = 0, r0 = 0, starX = 0, starY = 0, starR = 0, fireDist = 7;
     float lenS = 8, clock = 0, trailAcc = 0;
+    bool hallow = false;
     bool ready = false, warped = false;
     int nextId = 1, nextCapture = 0;
     std::vector<BgStar> stars;

@@ -130,7 +130,7 @@ public:
             const int margin = std::abs(p1Score - p2Score);
             if (arcadeWantShow(endShow, margin >= goodGame, false)) {
                 sfxStop("pong");
-                sfx("pong", "EndShow");
+                sfxEndShow("pong");
                 show.start(model, PongShow::config(p1Score, p2Score, model->getWidth()),
                            std::make_unique<PongShow::Story>(p1Score > p2Score, p1Score, p2Score));
                 resetFrameTimer();

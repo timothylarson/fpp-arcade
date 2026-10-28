@@ -828,6 +828,36 @@ void FPPArcadeGameEffect::sfx(const std::string &game, const std::string &name, 
     ArcadeSound::play(game, name, gain, model->getName());
 }
 
+void FPPArcadeGameEffect::sfxEndShow(const std::string &game, float gain) {
+    const char *themed = showThemeSound(arcadeShowTheme());
+    sfx(game, ArcadeSound::lengthMs(game, themed) > 0 ? themed : "EndShow", gain);
+}
+
+// The end-show theme (ShowTheme.h): 0 Christmas, 1 Halloween, 2 Everyday, 3 by date.
+static std::atomic<int> showThemeSetting{3};
+
+void arcadeSetShowTheme(const std::string &s) {
+    showThemeSetting = s == "christmas" ? 0 : s == "halloween" ? 1 : s == "everyday" ? 2 : 3;
+}
+
+ShowTheme arcadeShowTheme() {
+    const int s = showThemeSetting.load();
+    if (s < 3) {
+        return (ShowTheme)s;
+    }
+    const time_t now = time(nullptr);
+    struct tm lt {};
+    localtime_r(&now, &lt);
+    const int month = lt.tm_mon + 1, day = lt.tm_mday;
+    if (month == 10) {
+        return ShowTheme::Halloween;
+    }
+    if ((month == 11 && day >= 15) || month == 12 || (month == 1 && day <= 6)) {
+        return ShowTheme::Christmas;
+    }
+    return ShowTheme::Everyday;
+}
+
 void FPPArcadeGameEffect::sfxStop(const std::string &game) {
     ArcadeSound::stopAll(game, model->getName());
 }
@@ -985,6 +1015,8 @@ public:
             && LoadJsonFromFile(FPP_DIR_CONFIG("/plugin.fpp-arcade.json"), root);
         // Sound settings live beside the games, so saving the page applies them too.
         ArcadeSound::configure(haveConfig ? root["sound"] : Json::Value());
+        // And the end shows' theme.
+        arcadeSetShowTheme(haveConfig && root.isMember("shows") ? root["shows"]["theme"].asString() : "date");
         {
             if (haveConfig && root.isMember("games")) {
                 for (int x = 0; x < root["games"].size(); x++) {

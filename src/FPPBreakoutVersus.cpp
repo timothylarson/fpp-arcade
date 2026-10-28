@@ -259,7 +259,7 @@ private:
         // A clear win gets the end show; there's no best score here, as in Pong.
         const bool good = std::abs(score[0] - score[1]) >= goodGame;
         if (arcadeWantShow(endShow, good, false)) {
-            sound("EndShow");
+            sfxEndShow("breakoutversus");
             show.start(model, BreakoutVersusShow::config(score[0], score[1]),
                        std::make_unique<BreakoutVersusShow::Story>(score[1] > score[0]));
             return;

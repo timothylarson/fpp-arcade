@@ -59,6 +59,23 @@ SOUNDS = {
             tone("C3", 0.9, "triangle", vol=0.5, decay=0.45),
         ),
     ),
+    # Halloween's: the same conga, but creeping in a minor key (step, step,
+    # step, kick) over the walking bass, the woodblock roll rattling like
+    # bones, and a held diminished chord with a ghostly wobble.
+    "EndShowHalloween": lambda: seq(
+        mix(
+            melody([("A4", 1), ("C5", 1), ("E5", 1), ("A5", 2), ("-", 1),
+                    ("Bb4", 1), ("D5", 1), ("F5", 1), ("Bb5", 2), ("-", 1),
+                    ("G#4", 1), ("B4", 1), ("E5", 1), ("G#5", 2), ("-", 1)], 0.13, "pulse", duty=0.25, vol=0.4),
+            melody([("A2", 2), ("E3", 2), ("A2", 2), ("Bb2", 2), ("F3", 2), ("Bb2", 2),
+                    ("E2", 2), ("B2", 2), ("E3", 2)], 0.13, "triangle", vol=0.5),
+        ),
+        seq(*[click("C6" if k % 2 else "F#5", 0.3 + 0.03 * k) for k in range(10)]),
+        mix(
+            chord(["A4", "C5", "Eb5", "F#5", "A5"], 1.8, "pulse", duty=0.25, vol=0.22, decay=0.9, vibrato=0.5),
+            tone("A2", 1.8, "triangle", vol=0.5, decay=0.9),
+        ),
+    ),
     # The end show after a good game: the game-show band's big finish. A
     # bouncy conga riff (step, step, step, kick) over a walking bass, then a
     # drum-roll of woodblocks into a held major chord with the camera's flash.

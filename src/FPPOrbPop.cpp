@@ -258,7 +258,7 @@ private:
         orbs.clear();
         sparks.clear();
         sfxStop("orbpop");
-        sound("EndShow");
+        sfxEndShow("orbpop");
         skipShow.store(false);
         showCanvas.resize(W, H);
         show.start(W, H, OrbPopShow::config(score, newBest, best, look), std::make_unique<OrbPopShow::Story>(look));

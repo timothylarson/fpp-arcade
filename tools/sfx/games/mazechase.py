@@ -68,6 +68,18 @@ SOUNDS = {
          ("A6", 2)],
         [("A2", 2), ("E3", 2), ("A2", 2), ("E3", 2), ("A2", 4), ("A3", 2)],
         0.1),
+    # Halloween's: the ghosts' siren wailing up and down twice, then a creepy
+    # minor-key phrase over a walking bass, ending on a low A.
+    "EndShowHalloween": lambda: seq(
+        seq(*[tone("A4" if i % 2 == 0 else "E5", 0.22, wave="triangle", freq_end="E5" if i % 2 == 0 else "A4",
+                   vol=0.5, release=0.02) for i in range(4)]),
+        _tune(
+            [("A4", 1), ("C5", 1), ("E5", 1), ("D#5", 1), ("E5", 2), ("-", 1), ("C5", 1),
+             ("F5", 1), ("E5", 1), ("D#5", 1), ("E5", 1), ("B4", 2), ("-", 2),
+             ("C5", 1), ("B4", 1), ("A4", 1), ("G#4", 1), ("A4", 1), ("C5", 1), ("B4", 1), ("G#4", 1), ("A4", 4)],
+            [("A2", 2), ("E3", 2), ("A2", 2), ("E3", 2), ("D3", 2), ("A2", 2), ("E3", 2), ("E2", 2),
+             ("A2", 2), ("E3", 2), ("E2", 2), ("B2", 2), ("A2", 4)],
+            0.14)),
     # The end show for a good game: five seconds of victory lap, up the
     # A major arpeggio and round again, ending on a held A.
     "EndShow": lambda: _tune(

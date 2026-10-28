@@ -58,6 +58,22 @@ SOUNDS = {
         melody([("G5", 1), ("C6", 1), ("D6", 1), ("G6", 3)], 0.1, wave="square", duty=0.25, vol=0.4),
         melody([("C4", 3), ("G4", 3)], 0.1, wave="triangle", vol=0.5),
     ),
+    # Halloween's, for the harvest moon: the warp's sweep, then the opening of
+    # Beethoven's Moonlight Sonata - its rippling triplets on the triangle,
+    # the bass under them and, in the last two bars, the tolling G# on a sine
+    # - coming to rest on C# minor.
+    "EndShowHalloween": lambda: mix(
+        seq(tone("C3", 0.45, wave="triangle", vol=0.45, freq_end="C6", curve=1.6, release=0.05),
+            melody([(n, 1) for n in ["G#3", "C#4", "E4"] * 4 + ["A3", "C#4", "E4"] * 2 + ["A3", "D4", "F#4"] * 2
+                    + ["G#3", "C4", "F#4", "G#3", "C#4", "E4", "G#3", "C#4", "D#4", "F#3", "C4", "D#4"]
+                    + ["E3", "G#3", "C#4"] * 4], 0.11, wave="triangle", vol=0.55, legato=0.9)),
+        seq(silence(0.45),
+            melody([("C#3", 12), ("B2", 12), ("A2", 6), ("F#2", 6), ("G#2", 6), ("C#2", 6)], 0.11,
+                   wave="square", duty=0.25, vol=0.18, legato=0.95)),
+        seq(silence(0.45 + 0.11 * 24),
+            melody([("G#5", 2.25), ("G#5", 0.75), ("G#5", 3), ("G#5", 2.25), ("G#5", 0.75), ("G#5", 3),
+                    ("G#5", 3), ("A5", 3), ("G#5", 3), ("C#6", 3)], 0.11, wave="sine", vol=0.4, legato=0.9)),
+    ),
     # The end show: the warp's rising sweep, then a bright triangle fanfare over
     # a square bass, with a sine shimmer high above, landing on a long C.
     "EndShow": lambda: mix(

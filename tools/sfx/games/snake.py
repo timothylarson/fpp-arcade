@@ -26,6 +26,14 @@ SOUNDS = {
                   ("A5", 1), ("G5", 1), ("F#5", 2), ("D5", 2)], 0.14),
             reed([("D5", 1), ("F#5", 1), ("A5", 1), ("D6", 1), ("F#6", 1), ("A6", 2), ("D7", 5)], 0.11)),
         tone("D3", 5.0, wave="triangle", vol=0.3, release=0.6)),
+    # Halloween's: the Dies Irae chant (the old "day of wrath" plainsong every
+    # spooky film borrows) on the charmer's reed over the drone, low and then
+    # an octave up, and a climb to a long high D.
+    "EndShowHalloween": lambda: mix(
+        seq(reed([("F5", 1), ("E5", 1), ("F5", 1), ("D5", 1), ("E5", 1), ("C5", 1), ("D5", 2), ("D5", 2)], 0.17),
+            reed([("F5", 1), ("F5", 1), ("G5", 1), ("F5", 1), ("E5", 1), ("D5", 1), ("C5", 1), ("D5", 3)], 0.15),
+            reed([("D5", 1), ("F5", 1), ("A5", 1), ("D6", 1), ("F6", 1), ("A6", 2), ("D7", 4)], 0.11)),
+        tone("D3", 5.0, wave="triangle", vol=0.3, release=0.6)),
     # The crunch of hitting something, then the tune sinking away.
     "GameOver": lambda: seq(
         mix(noise(0.18, smooth=0.5, decay=0.06),

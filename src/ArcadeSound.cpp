@@ -1,6 +1,7 @@
 #include <fpp-pch.h>
 
 #include "ArcadeSound.h"
+#include "ShowTheme.h"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -596,6 +597,17 @@ std::string soundListJson() {
             closedir(files);
         }
         closedir(games);
+    }
+    // Of each game's end-show music, only the one the theme plays: a speaker
+    // has room for one set (Christmas, Halloween or Everyday), not all three.
+    // It fetches the other when the theme changes.
+    const std::string themed = showThemeSound(arcadeShowTheme());
+    for (auto it = found.begin(); it != found.end();) {
+        const size_t slash = it->first.find('/');
+        const std::string game = it->first.substr(0, slash), name = it->first.substr(slash + 1);
+        const bool endShow = name == "EndShow" || name == "EndShowHalloween" || name == "EndShowEveryday";
+        const std::string wanted = found.count(game + "/" + themed) ? themed : "EndShow";
+        it = endShow && name != wanted ? found.erase(it) : std::next(it);
     }
     std::string o = "{\"files\":[";
     bool first = true;

@@ -55,11 +55,44 @@ inline void drawHero(ArcadeCanvas::Canvas &c, float cx, int cy, int n, int face,
 }
 
 // A Santa hat sitting on top of a ghost whose top row is y, flopping back
-// from the way it faces with the bobble hanging off the tip.
+// from the way it faces with the bobble hanging off the tip. At Halloween a
+// witch's hat, its tip bent back; on an everyday show a party hat.
 inline void drawHat(ArcadeCanvas::Canvas &c, float cx, int y, int n, int face, float k) {
     const int x = (int)std::lround(cx);
     const int b = -face;   // back
     auto px = [&](int dx, int dy, const RGB &col, float kk) { c.set(x + dx * b, y + dy, col, kk * k); };
+    const ShowTheme theme = arcadeShowTheme();
+    if (theme == ShowTheme::Halloween) {
+        const int brim = n >= 7 ? 3 : 2;
+        for (int dx = -brim; dx <= brim; ++dx) {
+            px(dx, -1, ShowArt::HAT, 1.0f);
+        }
+        for (int dx = -1; dx <= 1; ++dx) {
+            px(dx, -2, ShowArt::ORANGE, 1.0f);   // the band
+        }
+        px(0, -3, ShowArt::HAT, 1.0f);
+        if (n >= 7) {
+            px(0, -4, ShowArt::HAT, 1.0f);
+            px(1, -5, ShowArt::HAT, 1.0f);
+        } else {
+            px(1, -4, ShowArt::HAT, 1.0f);
+        }
+        return;
+    }
+    if (theme == ShowTheme::Everyday) {
+        const RGB A = {0.2f, 0.8f, 1.0f}, B = {1.0f, 0.3f, 0.8f};
+        for (int dx = -1; dx <= 1; ++dx) {
+            px(dx, -1, A, 1.0f);
+        }
+        px(0, -2, B, 1.0f);
+        if (n >= 7) {
+            px(0, -3, A, 1.0f);
+            px(0, -4, {1.0f, 0.85f, 0.1f}, 1.0f);
+        } else {
+            px(0, -3, {1.0f, 0.85f, 0.1f}, 1.0f);
+        }
+        return;
+    }
     if (n >= 7) {
         for (int dx = -2; dx <= 2; ++dx) {
             px(dx, -1, ArcadeCanvas::WHITE, 0.9f);   // the fur brim
@@ -295,7 +328,7 @@ private:
             c.set(x, wallTop, WALL, 0.3f * k);
             c.set(x, wallBottom, WALL, 0.3f * k);
             const unsigned h = (unsigned)x * 2654435761u;
-            if (wallTop > 0 && (h >> 7) % 3 != 0) {
+            if (wallTop > 0 && (h >> 7) % 3 != 0 && arcadeShowTheme() == ShowTheme::Christmas) {
                 c.set(x, wallTop - 1, ArcadeCanvas::WHITE, 0.3f * k);
             }
         }

@@ -6,6 +6,10 @@
 // it zooms ahead through the last of them and off the edge in a shower of
 // sparkles. The candy canes stand behind the credits and GAME OVER.
 //
+// At Halloween the bird wears a witch's hat and the pipes it passes turn
+// into candy corn, each topped with a jack-o'-lantern; on an everyday show
+// it wears a party hat and they turn into rainbows.
+//
 // After a two-player game the headline names the winner, both scores count
 // up in their birds' colours, and the blue bird flies the lap just behind the
 // yellow one.
@@ -28,6 +32,7 @@ public:
 
     void begin(ArcadeShow &s) override {
         const int W = s.W, H = s.H;
+        theme = s.theme();
         birdX = W / 4.0f;
         lead = Flyer{H / 2.0f};
         wing = Flyer{H / 2.0f + 2.0f};
@@ -72,14 +77,22 @@ public:
             fly(wing, birdX - TRAIL, dt, H);
         }
 
-        // Through a gap: the pipe turns to a candy cane, with a puff of red and white.
+        // Through a gap: the pipe turns to a candy cane (or candy corn, or a
+        // rainbow), with a puff of its colours.
         for (auto &p : pipes) {
             if (!p.passed && p.x - scroll + 1 < birdX) {
                 p.passed = true;
                 p.passMs = ms;
-                const float gy = p.gapTop + gap / 2.0f;
-                s.burst(p.x - scroll + 0.5f, gy, {1, 0.1f, 0.1f}, 8, false);
-                s.burst(p.x - scroll + 0.5f, gy, {1, 1, 1}, 8, false);
+                const float gy = p.gapTop + gap / 2.0f, px = p.x - scroll + 0.5f;
+                if (theme == ShowTheme::Halloween) {
+                    s.burst(px, gy, ShowArt::ORANGE, 8, false);
+                    s.burst(px, gy, {0.65f, 0.2f, 1.0f}, 8, false);
+                } else if (theme == ShowTheme::Everyday) {
+                    s.burst(px, gy, {1, 1, 1}, 14, true);
+                } else {
+                    s.burst(px, gy, {1, 0.1f, 0.1f}, 8, false);
+                    s.burst(px, gy, {1, 1, 1}, 8, false);
+                }
             }
         }
         if (!gone && birdX - (two ? TRAIL : 0) >= W + 1) {
@@ -91,8 +104,9 @@ public:
         if (!gone) {
             // A trail of gold sparkles once it's off on its own.
             if (birdX > W / 4.0f + 1 && s.rnd() < dt * 30.0f) {
+                const RGB trail = theme == ShowTheme::Halloween ? RGB{1, 0.45f, 0.05f} : RGB{1, 0.8f, 0.3f};
                 s.sparks.push_back({birdX - 1, lead.y + s.rnd() - 0.5f, -4.0f, s.rnd() * 2 - 1, 0, 0.4f + s.rnd() * 0.4f,
-                                    {1, 0.8f, 0.3f}, 30, 2.0f});
+                                    trail, 30, 2.0f});
             }
             drawBird(c, (int)std::lround(birdX), (int)lead.y, lead.flapT, YELLOW, YELLOW_WING, k);
             if (two) {
@@ -139,22 +153,45 @@ private:
     static constexpr RGB BLUE = {0.3f, 0.75f, 1.0f}, BLUE_WING = {0.1f, 0.35f, 1.0f};
 
     // The game's bird - its body, its wing up on a flap, a red beak -
-    // wearing a Santa hat.
+    // wearing a Santa hat, a witch's hat or a party hat.
     void drawBird(ArcadeCanvas::Canvas &c, int bx, int by, float flapT, const RGB &body, const RGB &wingCol, float k) {
         c.set(bx, by, body, k);
         c.set(bx - 1, by + (flapT > 0 ? -1 : 0), wingCol, 0.8f * k);
         c.set(bx + 1, by, {1.0f, 0.3f, 0.1f}, 0.6f * k);
-        c.set(bx, by - 1, {1.0f, 0.05f, 0.05f}, k);
-        c.set(bx - 1, by - 2, {1, 1, 1}, 0.8f * k);   // the bobble
+        if (theme == ShowTheme::Halloween) {
+            c.set(bx - 1, by - 1, ShowArt::HAT, k);   // the brim,
+            c.set(bx, by - 1, ShowArt::HAT, k);
+            c.set(bx + 1, by - 1, ShowArt::HAT, k);
+            c.set(bx, by - 2, ShowArt::HAT, k);       // the crown,
+            c.set(bx - 1, by - 3, ShowArt::HAT, k);   // and its bent tip
+        } else if (theme == ShowTheme::Everyday) {
+            c.set(bx, by - 1, {0.2f, 0.8f, 1.0f}, k);
+            c.set(bx, by - 2, {1.0f, 0.8f, 0.1f}, k);   // the pompom
+        } else {
+            c.set(bx, by - 1, {1.0f, 0.05f, 0.05f}, k);
+            c.set(bx - 1, by - 2, {1, 1, 1}, 0.8f * k);   // the bobble
+        }
     }
 
     // Green pipes, two wide with brighter lips, as in the game; a passed one
     // becomes a red and white candy cane, the stripes spreading out from its
-    // gap, and the bottom one grows a crook.
+    // gap, and the bottom one grows a crook. At Halloween it's candy corn -
+    // white at the gap, then orange, then yellow - with a jack-o'-lantern on
+    // the bottom one; on an everyday show, rainbow stripes.
     void drawPipes(ArcadeShow &s, ArcadeCanvas::Canvas &c, double ms, float k) {
         const int H = s.H;
         const RGB GREEN = {0.1f, 0.85f, 0.2f}, RED = {1, 0.08f, 0.06f}, WHITE = {0.9f, 0.9f, 0.9f};
-        auto cane = [&](int x, int yy) { return ((x + yy) / 2 & 1) ? RED : WHITE; };
+        auto cane = [&](int x, int yy) {
+            if (theme == ShowTheme::Everyday) {
+                return ArcadeShow::hue(yy / 9.0f);
+            }
+            return ((x + yy) / 2 & 1) ? RED : WHITE;
+        };
+        auto corn = [&](const Pipe &p, int yy) {
+            const int d = yy < p.gapTop ? p.gapTop - 1 - yy : yy - (p.gapTop + gap);   // from the gap
+            return d < 2 ? RGB{1, 1, 0.9f} : d < 2 + H / 6 ? ShowArt::ORANGE : ShowArt::CANDLE;
+        };
+        const bool hallow = theme == ShowTheme::Halloween;
         for (const auto &p : pipes) {
             const int px = (int)std::floor(p.x - scroll);
             if (px < -6 || px > s.W) {
@@ -169,14 +206,16 @@ private:
                 const bool lip = yy == p.gapTop - 1 || yy == p.gapTop + gap;
                 for (int dx = 0; dx < 2; ++dx) {
                     if (std::fabs(yy - mid) < spread) {
-                        c.set(px + dx, yy, cane(px + dx, yy), 0.7f * k);
+                        c.set(px + dx, yy, hallow ? corn(p, yy) : cane(px + dx, yy), 0.7f * k);
                     } else {
                         c.set(px + dx, yy, GREEN, (lip ? 0.8f : (dx ? 0.25f : 0.4f)) * k);
                     }
                 }
             }
-            // The crook, once the stripes are all the way down.
-            if (spread > H) {
+            // The crook (or the jack-o'-lantern), once the stripes are all the way down.
+            if (spread > H && hallow) {
+                ShowArt::pumpkin(c, px - 1, p.gapTop + gap - 4, 0.8f * k);
+            } else if (spread > H && theme == ShowTheme::Christmas) {
                 // Two LEDs wide down both sides, like the shaft.
                 static const char *CROOK[3] = {".####.", "##..##", "##..##"};
                 const int top = p.gapTop + gap - 3;
@@ -191,6 +230,7 @@ private:
         }
     }
 
+    ShowTheme theme = ShowTheme::Christmas;
     std::vector<Pipe> pipes;
     int gap = 8, spacing = 20;
     float birdX = 15, scroll = 0;

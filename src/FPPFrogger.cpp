@@ -400,7 +400,7 @@ private:
             int best = 0;
             newBest = arcadeRecordBest(model->getName(), "Frogger", score, &best);
             showDue = arcadeWantShow(opt.endShow, level >= opt.goodGame, newBest);
-            sfx("frogger", showDue ? "EndShow" : "GameOver");
+            showDue ? sfxEndShow("frogger") : sfx("frogger", "GameOver");
             return;
         }
         sfx("frogger", sound);

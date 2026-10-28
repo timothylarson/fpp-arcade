@@ -52,6 +52,17 @@ SOUNDS = {
         melody([("C3", 2), ("G2", 2), ("C3", 2), ("G2", 2), ("F3", 2), ("G3", 2), ("C3", 2), ("E3", 2),
                 ("F3", 2), ("F3", 2), ("G3", 2), ("G2", 2), ("C3", 2), ("G2", 2), ("C3", 5)],
                0.13, wave="triangle", vol=0.6, legato=0.7)),
+    # Halloween's: the da-da-da-DUM of Beethoven's Fifth, twice (the ape's
+    # fall), then a bouncy climb up the minor scale to a held top C.
+    "EndShowHalloween": lambda: with_bass(
+        melody([("G5", 0.5), ("G5", 0.5), ("G5", 0.5), ("Eb5", 3), ("-", 0.5),
+                ("F5", 0.5), ("F5", 0.5), ("F5", 0.5), ("D5", 3), ("-", 0.5),
+                ("C5", 0.5), ("D5", 0.5), ("Eb5", 1), ("G5", 1), ("F5", 0.5), ("Eb5", 0.5), ("D5", 1), ("B4", 1),
+                ("C5", 0.5), ("Eb5", 0.5), ("G5", 1), ("C6", 1), ("B5", 0.5), ("G5", 0.5), ("C6", 4)],
+               0.14, duty=0.25, vol=0.5),
+        melody([("C3", 2), ("C3", 2), ("Bb2", 2), ("B2", 2), ("C3", 2), ("G2", 2), ("Ab2", 2), ("G2", 2),
+                ("C3", 2), ("G2", 2), ("C3", 4)],
+               0.14, wave="triangle", vol=0.6, legato=0.7)),
     "GameOver": lambda: with_bass(
         melody([("G4", 1), ("F#4", 1), ("F4", 1), ("E4", 1), ("-", 0.5), ("C4", 3)], 0.2, duty=0.25, vibrato=0.2),
         melody([("C3", 2), ("B2", 2), ("C2", 3.5)], 0.2, wave="triangle", vol=0.7)),

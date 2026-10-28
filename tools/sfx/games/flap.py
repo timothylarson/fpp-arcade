@@ -2,6 +2,12 @@
 
 from synth import *
 
+# In the Hall of the Mountain King (Grieg, 1875): its first theme, in A minor.
+MOUNTAIN_KING = [("A5", 1), ("B5", 1), ("C6", 1), ("D6", 1), ("E6", 1), ("C6", 1), ("E6", 2),
+                 ("D#6", 1), ("B5", 1), ("D#6", 2), ("D6", 1), ("Bb5", 1), ("D6", 2),
+                 ("A5", 1), ("B5", 1), ("C6", 1), ("D6", 1), ("E6", 1), ("C6", 1), ("E6", 1), ("A6", 1),
+                 ("G6", 1), ("E6", 1), ("C6", 1), ("E6", 1), ("G6", 4)]
+
 SOUNDS = {
     "GameSelected": lambda: mix(
         melody([("G5", 1), ("C6", 1), ("E6", 1), ("-", 1), ("D6", 1), ("E6", 1), ("G6", 3)], 0.09, duty=0.125),
@@ -28,4 +34,23 @@ SOUNDS = {
                     ("G5", 0.5), ("G5", 0.5), ("A5", 1), ("D6", 1), ("B5", 1), ("C6", 3)], 0.18, duty=0.125),
             seq(silence(0.18), melody([("C3", 3), ("F3", 3), ("D3", 3), ("G3", 3), ("E3", 3), ("A3", 3),
                                        ("F3", 2), ("G3", 2), ("C3", 3)], 0.18, wave="triangle", vol=0.45, legato=0.7)))),
+    # Halloween's: a flutter, then In the Hall of the Mountain King (Grieg),
+    # chirped high over a plodding bass and speeding up as the bird races off.
+    "EndShowHalloween": lambda: seq(
+        mix(noise(0.07, vol=0.25, smooth=0.6, decay=0.03), tone("A5", 0.07, duty=0.125, freq_end="E6", vol=0.35)),
+        silence(0.05),
+        mix(melody(MOUNTAIN_KING[:13], 0.15, duty=0.125),
+            melody([("A3", 1), ("E3", 1)] * 8, 0.15, wave="triangle", vol=0.45, legato=0.5)),
+        mix(melody(MOUNTAIN_KING[13:], 0.11, duty=0.125),
+            melody([("A3", 1), ("E3", 1)] * 7, 0.11, wave="triangle", vol=0.45, legato=0.5)),
+        mix(tone("A6", 0.5, duty=0.125, vol=0.4, release=0.2), tone("A3", 0.5, wave="triangle", vol=0.45, release=0.2))),
+    # Everyday's: a flutter, then a chirpy fanfare climbing to a high C.
+    "EndShowEveryday": lambda: seq(
+        mix(noise(0.07, vol=0.25, smooth=0.6, decay=0.03), tone("A5", 0.07, duty=0.125, freq_end="E6", vol=0.35)),
+        silence(0.05),
+        mix(melody([("G5", 1), ("C6", 1), ("E6", 1), ("G6", 2), ("E6", 1), ("G6", 1), ("C7", 3),
+                    ("B6", 1), ("A6", 1), ("G6", 1), ("E6", 1), ("C6", 1), ("D6", 1), ("E6", 2),
+                    ("G6", 1), ("A6", 1), ("B6", 1), ("C7", 4)], 0.16, duty=0.125),
+            melody([("C3", 2), ("G3", 2), ("C3", 2), ("G3", 2), ("F3", 2), ("G3", 2), ("E3", 2), ("C3", 2),
+                    ("G3", 2), ("C3", 4)], 0.16, wave="triangle", vol=0.45, legato=0.7))),
 }

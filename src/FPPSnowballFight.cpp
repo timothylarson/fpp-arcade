@@ -474,7 +474,7 @@ private:
             if (stateT > 2.0f && showDue) {
                 showDue = false;
                 sfxStop(SFX);
-                sfx(SFX, "EndShow");
+                sfxEndShow(SFX);
                 const int cpuSide = !elf[0].human ? 0 : (!elf[1].human ? 1 : -1);
                 show.start(model, SnowballFightShow::config(winner, elf[winner].throws, elf[winner].health, cpuSide),
                            std::make_unique<SnowballFightShow::Story>(winner));

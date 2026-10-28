@@ -458,7 +458,7 @@ private:
                     // of GAME OVER.
                     const bool newBest = arcadeRecordBest(model->getName(), "Maze Chase", score);
                     if (arcadeWantShow(endShow, level >= goodGame, newBest)) {
-                        sfx("mazechase", "EndShow");
+                        sfxEndShow("mazechase");
                         show.start(model, MazeChaseShow::config(score, level, newBest),
                                    std::make_unique<MazeChaseShow::Story>());
                     } else {

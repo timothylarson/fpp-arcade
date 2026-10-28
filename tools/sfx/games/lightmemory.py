@@ -26,6 +26,19 @@ SOUNDS = {
         mix(chime("A3", 0.7), chime("E4", 0.7) * 0.6)),
     # The end show's light show: Jingle Bells on the chimes, ending on the
     # four triangles' chord.
+    # Halloween's: midnight - the Westminster quarters on the chimes, then the
+    # hour tolling low, three times, ringing on.
+    "EndShowHalloween": lambda: seq(
+        *[chime(n, b * 0.28) for n, b in [("G#4", 1), ("E4", 1), ("F#4", 1), ("B3", 2),
+                                          ("B3", 1), ("F#4", 1), ("G#4", 1), ("E4", 2)]],
+        silence(0.15),
+        *[mix(chime("E3", 0.75), chime("B3", 0.75) * 0.5) for _ in range(3)]),
+    # Everyday's: a cheerful run up and down the four triangles' notes,
+    # ending on their chord.
+    "EndShowEveryday": lambda: seq(
+        *[chime(n, b * 0.14) for n, b in [("A4", 1), ("C#5", 1), ("E5", 1), ("C#5", 1), ("A4", 1), ("C#5", 1),
+                                          ("E5", 1), ("A5", 2), ("B4", 1), ("C#5", 2), ("E5", 1), ("A5", 3)]],
+        mix(chime("A4", 1.2), chime("C#5", 1.2) * 0.8, chime("E5", 1.2) * 0.7, chime("A5", 1.2) * 0.6)),
     "EndShow": lambda: seq(
         *[chime(n, b * 0.14) if n != "-" else silence(b * 0.14) for n, b in [
             ("C#5", 1), ("C#5", 1), ("C#5", 2), ("C#5", 1), ("C#5", 1), ("C#5", 2),

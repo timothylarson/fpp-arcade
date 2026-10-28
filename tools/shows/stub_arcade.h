@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include "ShowTheme.h"
 bool arcadeGlyph(char c, int x, int y);
 bool arcadeGlyphScaled(char c, int px, int py, int scl);
 int arcadeGlyphWidth(char c, int scl);

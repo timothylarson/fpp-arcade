@@ -127,7 +127,7 @@ public:
                 // GAME OVER box would be, once the miss has had its second.
                 if (showDue) {
                     showDue = false;
-                    sound("EndShow");
+                    sfxEndShow(folder());
                     show.start(model, std::move(showConfig), std::move(showStory));
                     resetFrameTimer();
                     return FRAME_MS;

@@ -25,6 +25,7 @@ public:
 
     void begin(ArcadeShow &s) override {
         const int W = s.W, H = s.H;
+        hallow = s.halloween();
         body.clear();
         trail.clear();
         lastStepY = 0;
@@ -71,7 +72,8 @@ public:
         // A faint checked field, like the playfield.
         for (int y = 0; y < H; ++y) {
             for (int x = 0; x < W; ++x) {
-                c.add(x, y, {0.1f, 0.5f, 0.15f}, ((x + y) & 1 ? 0.05f : 0.08f) * k);
+                c.add(x, y, hallow ? ArcadeCanvas::RGB{0.4f, 0.1f, 0.5f} : ArcadeCanvas::RGB{0.1f, 0.5f, 0.15f},
+                      ((x + y) & 1 ? 0.05f : 0.08f) * k);
             }
         }
 
@@ -82,9 +84,10 @@ public:
         }
 
         // Apples: red with a green leaf; the golden one twinkles and is bigger.
+        // At Halloween little pumpkins, and a jack-o'-lantern that flickers.
         for (const auto &a : apples) {
             if (!a.eaten) {
-                c.set(a.x, a.y, {1, 0.1f, 0.08f}, k);
+                c.set(a.x, a.y, hallow ? ShowArt::ORANGE : ArcadeCanvas::RGB{1, 0.1f, 0.08f}, k);
                 c.set(a.x, a.y - 1, {0.2f, 0.9f, 0.2f}, 0.7f * k);
             }
         }
@@ -92,7 +95,9 @@ public:
             const float tw = 0.75f + 0.25f * std::sin((float)ms * 0.012f);
             for (int dy = 0; dy < 2; ++dy) {
                 for (int dx = 0; dx < 2; ++dx) {
-                    c.set(gold.x + dx, gold.y + dy, {1, 0.8f, 0.15f}, tw * k);
+                    // The lantern: orange, its top row's eyes lit and flickering.
+                    const ArcadeCanvas::RGB col = !hallow ? ArcadeCanvas::RGB{1, 0.8f, 0.15f} : dy == 0 ? ShowArt::CANDLE : ShowArt::ORANGE;
+                    c.set(gold.x + dx, gold.y + dy, col, (hallow ? (dy == 0 ? tw : 1.0f) : tw) * k);
                 }
             }
             c.set(gold.x, gold.y - 1, {0.2f, 0.9f, 0.2f}, 0.7f * k);
@@ -103,7 +108,7 @@ public:
         for (size_t i = 0; i < body.size(); ++i) {
             ArcadeCanvas::RGB col;
             if (rainbow) {
-                col = ArcadeShow::hue((float)(ms / 900.0) - i * 0.04f);
+                col = s.accent((float)(ms / 900.0) - i * 0.04f);
             } else {
                 const float g = i == 0 ? 1.0f : 0.55f + 0.35f * ((i / 2) & 1);
                 col = two ? ArcadeCanvas::RGB{g, 0.15f * g, 0.1f * g} : ArcadeCanvas::RGB{0.25f * g, g, 0.3f * g};
@@ -118,7 +123,7 @@ public:
                 }
                 ArcadeCanvas::RGB col;
                 if (rainbow) {
-                    col = ArcadeShow::hue((float)(ms / 900.0) + 0.5f - i * 0.04f);
+                    col = s.accent((float)(ms / 900.0) + 0.5f - i * 0.04f);
                 } else {
                     const float g = i == 0 ? 1.0f : 0.55f + 0.35f * ((i / 2) & 1);
                     col = {0.15f * g, 0.4f * g, g};
@@ -191,12 +196,12 @@ private:
         if (next && head.x == next->x && head.y == next->y) {
             next->eaten = true;
             grow += 3;
-            s.burst(head.x, head.y, {1, 0.2f, 0.15f}, 12, false);
+            s.burst(head.x, head.y, hallow ? ShowArt::ORANGE : ArcadeCanvas::RGB{1, 0.2f, 0.15f}, 12, false);
         } else if (!next && !gold.eaten && std::abs(head.x - gold.x) <= 1 && std::abs(head.y - gold.y) <= 1) {
             gold.eaten = true;
             rainbow = true;
             grow += 6;
-            s.burst(head.x, head.y, {1, 0.8f, 0.2f}, 30, true);
+            s.burst(head.x, head.y, {1, 0.8f, 0.2f}, 30, !hallow);
         }
     }
 
@@ -211,6 +216,7 @@ private:
     Apple gold{0, 0, false};
     int exitY = 0, grow = 0;
     bool rainbow = false, horizontal = true;
+    bool hallow = false;
     int lastStepY = 0;   // the way the last vertical step went (0 after a sideways one)
     float stepAcc = 0, speed = 0;
 };
@@ -225,7 +231,8 @@ inline ShowConfig config(int length, bool newBest, int previousBest) {
         cfg.stats.push_back({"BEST", previousBest, false, GOLD});
     }
     cfg.roll = {{"SNAKE", HEAD}, {"", WHITE}, {"CAST", HEAD}, {"THE SNAKE", GREEN}, {"AND", HEAD},
-                {std::to_string(std::max(0, length - 3)) + " APPLES", RED}, {"", WHITE}, {"THANKS FOR PLAYING", WHITE}};
+                {std::to_string(std::max(0, length - 3)) + (cfg.theme == ShowTheme::Halloween ? " PUMPKINS" : " APPLES"), RED},
+                {"", WHITE}, {"THANKS FOR PLAYING", WHITE}};
     cfg.ending = "GAME OVER";
     return cfg;
 }

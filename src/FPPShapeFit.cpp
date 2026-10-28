@@ -187,7 +187,7 @@ private:
         for (int k = 0; k < ROUNDS; ++k) {
             played.push_back(order[k % order.size()]);
         }
-        sfx("shapefit", "EndShow");
+        sfxEndShow("shapefit");
         skipShow.store(false);
         showing = true;
         show.start(W, H, ShapeFitShow::config(total, newBest, best), std::make_unique<ShapeFitShow::Story>(played));

@@ -312,7 +312,7 @@ private:
                     int best = 0;
                     const bool newBest = arcadeRecordBest(model->getName(), "Barrel Climb", score, &best);
                     if (arcadeWantShow(endShow, level >= goodGame, newBest)) {
-                        sound("EndShow");
+                        sfxEndShow("barrelclimb");
                         show.start(model, BarrelClimbShow::config(score, level, newBest),
                                    std::make_unique<BarrelClimbShow::Story>());
                     } else {

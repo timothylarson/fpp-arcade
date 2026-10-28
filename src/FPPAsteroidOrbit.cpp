@@ -432,7 +432,7 @@ private:
                 int best = 0;
                 const bool newBest = arcadeRecordBest(model->getName(), "Asteroid Orbit", score, &best);
                 if (arcadeWantShow(endShow, sector >= goodGame, newBest)) {
-                    sfx("asteroidorbit", "EndShow");
+                    sfxEndShow("asteroidorbit");
                     show.start(model, AsteroidOrbitShow::config(W, score, sector, newBest),
                                std::make_unique<AsteroidOrbitShow::Story>(sector));
                     return;

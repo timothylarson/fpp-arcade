@@ -81,6 +81,19 @@ SOUNDS = {
         seq(silence(0.45), bell("E6", 1.1, 0.25, decay=0.35)),
         seq(silence(0.4), sparkle(1.1, count=18, vol=0.18, seed=11)),
     ),
+    # Halloween's: a haunted music box - bells wandering down a minor scale
+    # and up again with a creepy flattened note - then the glitter as the orb
+    # bursts and a long, uneasy chord (A minor with a tritone) as the
+    # lanterns float away.
+    "EndShowHalloween": lambda: mix(
+        arp(["A6", "E6", "C6", "A5", "B5", "C6", "D#6", "E6", "C6", "A5", "G#5", "A5", "C6", "E6"], 0.17, 0.6, 0.45),
+        seq(silence(2.4), arp(["A5", "E6", "A6", "C7", "E7"], 0.04, 0.4, 0.4)),
+        seq(silence(2.4), sparkle(0.9, lo=3000, hi=7000, count=22, vol=0.3, seed=13)),
+        seq(silence(2.7), bell("A5", 2.6, 0.4, decay=0.9)),
+        seq(silence(2.7), bell("C6", 2.6, 0.3, decay=0.9)),
+        seq(silence(2.7), bell("D#6", 2.6, 0.22, decay=0.9)),
+        seq(silence(2.9), sparkle(2.2, count=26, vol=0.16, seed=17)),
+    ),
     # The end show after a good round: a music-box tune of bells climbing the
     # pentatonic scale the pops use, a swell of glitter as the giant orb
     # bursts, and a long shimmering chord as the lanterns float away.

@@ -38,6 +38,7 @@ public:
     void begin(ArcadeShow &s) override {
         W = s.W;
         H = s.H;
+        theme = s.theme();
         base.clear();
         for (int y = H - 1; y >= 4; y -= 5) {
             base.push_back(y);
@@ -423,7 +424,8 @@ private:
         }
     }
 
-    // Soft snow once the two of them are together.
+    // Soft snow once the two of them are together: falling leaves at
+    // Halloween, confetti on an everyday show.
     void snow(ArcadeShow &s, ArcadeCanvas::Canvas &c, float dt, double since, float k) {
         if (flakes.empty()) {
             const int n = std::max(6, W * H / 70);
@@ -439,10 +441,14 @@ private:
                 f.y -= H + 1;
                 f.x = s.rnd() * W;
             }
-            c.add((int)f.x, (int)f.y, {1, 1, 1}, 0.35f * in * k);
+            static const RGB LEAF[3] = {{1.0f, 0.4f, 0.0f}, {0.85f, 0.12f, 0.05f}, {0.55f, 0.3f, 0.05f}};
+            const RGB col = theme == ShowTheme::Halloween ? LEAF[(int)(f.phase * 10) % 3]
+                          : theme == ShowTheme::Everyday ? ArcadeShow::hue(f.phase / 6.28f) : RGB{1, 1, 1};
+            c.add((int)f.x, (int)f.y, col, (theme == ShowTheme::Christmas ? 0.35f : 0.5f) * in * k);
         }
     }
 
+    ShowTheme theme = ShowTheme::Christmas;
     int W = 60, H = 25, top = 0;
     std::vector<int> base;
     std::vector<double> popAt;   // when each girder's rivets popped; -1 not yet

@@ -200,7 +200,7 @@ public:
                 // GAME OVER box would be, once the crash has had its second.
                 if (showDue) {
                     showDue = false;
-                    sfx("reindeerrun", "EndShow");
+                    sfxEndShow("reindeerrun");
                     show.start(model, std::move(showConfig), std::move(showStory));
                     resetFrameTimer();
                     return FRAME_MS;

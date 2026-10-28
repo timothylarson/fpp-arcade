@@ -96,6 +96,19 @@ Saving applies straight away, without restarting FPP, and stops any game being p
     the model it's set to, from its own copy of the files, which it fetches from here.</div></td></tr>
 </table>
 
+<h3>End shows</h3>
+<table class="opts" id="arcadeShows">
+<tr><td>Theme</td><td><select id="showTheme">
+        <option value="date">By date</option>
+        <option value="christmas">Christmas</option>
+        <option value="halloween">Halloween</option>
+        <option value="everyday">Everyday</option>
+    </select>
+    <div class="hint">How every game's end show looks and sounds. By date: Halloween in October, Christmas from 15 November
+    to 6 January, Everyday the rest of the year. Controller speakers keep only the theme's end-show music, and fetch the other
+    when it changes.</div></td></tr>
+</table>
+
 <div id="arcadeModels"></div>
 
 <h3>Add a game</h3>
@@ -112,6 +125,7 @@ Saving applies straight away, without restarting FPP, and stops any game being p
 var arcadeConfig = <?= json_encode($arcadeConfig) ?>;
 var ARCADE_SOUND_DEFAULTS = { enabled: false, device: 'auto', volume: 80, streamHost: '', streamPort: 5570 };
 arcadeConfig.sound = $.extend({}, ARCADE_SOUND_DEFAULTS, arcadeConfig.sound || {});
+arcadeConfig.shows = $.extend({ theme: 'date' }, arcadeConfig.shows || {});
 var arcadeModels = [];
 
 // Every game, what it is, how it's played, and its options. Option names are
@@ -305,6 +319,11 @@ $('#arcadeSound').on('change input', 'input, select', function () {
     s.streamHost = $.trim($('#sndHost').val());
     s.streamPort = parseInt($('#sndPort').val(), 10) || 5570;
     $('#arcadeSound tr').not(':first').toggle(s.enabled);
+    arcadeSetDirty(true);
+});
+
+$('#showTheme').on('change', function () {
+    arcadeConfig.shows.theme = $(this).val();
     arcadeSetDirty(true);
 });
 
@@ -527,6 +546,7 @@ $.get('api/models').done(function (data) {
     $('#arcadeAddModel').html(arcadeModels.map(function (m) { return '<option>' + arcadeEsc(m) + '</option>'; }).join(''));
     arcadeRender();
     arcadeShowSound();
+    $('#showTheme').val(arcadeConfig.shows.theme);
     arcadeRefresh();
     setInterval(arcadeRefresh, 3000);
 });

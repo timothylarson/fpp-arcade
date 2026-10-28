@@ -12,13 +12,21 @@
 // lets any button skip it. Everything draws into a canvas the size of the
 // model; nothing here knows about any particular game.
 //
-// To see a show without the wall, tools/shows/ renders one to images.
+// Shows come in three themes (ShowTheme.h): Christmas, Halloween and
+// Everyday. The engine's own parts follow the theme by themselves - the sky
+// (snow, or an orange moon with bats and falling leaves, or a clear night),
+// the fireworks' colours, the headline's and the ending's - and ShowArt
+// (below) has pictures for stories to put in theirs.
+//
+// To see a show without the wall, tools/shows/ renders one to images
+// (THEME=halloween or THEME=everyday for the others).
 
 #include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <initializer_list>
 #include <memory>
 #include <random>
 #include <string>
@@ -63,11 +71,102 @@ struct ShowConfig {
     std::vector<std::pair<std::string, ArcadeCanvas::RGB>> roll;   // credits lines; "" is a gap
     std::string ending = "GAME OVER";                       // split over two lines if too wide
     double lengthMs = 20000;
+    ShowTheme theme = arcadeShowTheme();   // the setting when the show is made
     // Where each part starts, as a share of the whole: headline from 0.
     double pStats = 0.14, pStory = 0.30, pRoll = 0.72, pEnd = 0.90;
     // Fireworks a second in each part.
     float rateHeadline = 2.4f, rateStats = 1.0f, rateStory = 0.0f, rateRoll = 0.35f, rateEnd = 4.0f;
 };
+
+// Little pictures for the stories, mostly for Halloween and Everyday. x, y is
+// the top-left corner; k the fade. On the wall black is just LEDs left off,
+// so the coal eyes and the bats' and hats' dark parts are drawn in colour.
+namespace ShowArt {
+using RGB = ArcadeCanvas::RGB;
+using Canvas = ArcadeCanvas::Canvas;
+struct Ink {
+    char key;
+    RGB col;
+};
+// rows of characters, one a pixel, coloured by key; '.' and unknown keys are clear.
+inline void sprite(Canvas &c, const char *const *rows, int n, int x, int y, std::initializer_list<Ink> inks, float k, bool flip = false) {
+    for (int r = 0; r < n; ++r) {
+        const int w = (int)std::char_traits<char>::length(rows[r]);
+        for (int i = 0; i < w; ++i) {
+            const char ch = rows[r][flip ? w - 1 - i : i];
+            for (const Ink &ink : inks) {
+                if (ink.key == ch) {
+                    c.set(x + i, y + r, ink.col, k);
+                    break;
+                }
+            }
+        }
+    }
+}
+const RGB ORANGE = {1.0f, 0.45f, 0.0f}, STEM = {0.25f, 0.6f, 0.1f}, CANDLE = {1.0f, 0.85f, 0.25f};
+const RGB BAT = {0.55f, 0.2f, 0.75f}, GHOST = {0.85f, 0.9f, 1.0f}, BONE = {0.9f, 0.88f, 0.75f};
+const RGB HAT = {0.45f, 0.12f, 0.6f}, STONE = {0.22f, 0.08f, 0.3f}, GOLDEN = {1.0f, 0.75f, 0.1f};
+
+// A jack-o'-lantern, 5x5: lit (a candle-yellow face) or plain.
+inline void pumpkin(Canvas &c, int x, int y, float k, bool lit = true) {
+    static const char *const P[] = {"..s..", ".ooo.", "oyoyo", "oyyyo", ".ooo."};
+    sprite(c, P, 5, x, y, {{'s', STEM}, {'o', ORANGE}, {'y', lit ? CANDLE : ORANGE}}, k);
+}
+// A bat, 5x2, wings up (frame 0) or down (1).
+inline void bat(Canvas &c, int x, int y, int frame, bool flip, float k) {
+    static const char *const UP[] = {"b...b", ".bbb."}, *const DOWN[] = {".bbb.", "b...b"};
+    sprite(c, frame ? DOWN : UP, 2, x, y, {{'b', BAT}}, k, flip);
+}
+// A friendly ghost, 5x6: hollow eyes, its hem waving (frame 0 or 1).
+inline void ghost(Canvas &c, int x, int y, int frame, float k) {
+    static const char *const G0[] = {".www.", "wwwww", "w.w.w", "wwwww", "wwwww", "w.w.w"};
+    static const char *const G1[] = {".www.", "wwwww", "w.w.w", "wwwww", "wwwww", ".w.w."};
+    sprite(c, frame ? G1 : G0, 6, x, y, {{'w', GHOST}}, k);
+}
+// A dancing cartoon skeleton, 5x8: arms up (frame 0) or out (1).
+inline void skeleton(Canvas &c, int x, int y, int frame, float k) {
+    static const char *const S0[] = {".www.", ".w.w.", ".www.", "w.w.w", ".www.", "..w..", ".w.w.", "w...w"};
+    static const char *const S1[] = {".www.", ".w.w.", ".www.", "..w..", "wwwww", "..w..", ".w.w.", ".w.w."};
+    sprite(c, frame ? S1 : S0, 8, x, y, {{'w', BONE}}, k);
+}
+// A witch's hat, 7x4, with an orange band.
+inline void witchHat(Canvas &c, int x, int y, float k) {
+    static const char *const W[] = {"...h...", "..hh...", "..ooo..", "hhhhhhh"};
+    sprite(c, W, 4, x, y, {{'h', HAT}, {'o', ORANGE}}, k);
+}
+// Candy corn, 3x3.
+inline void candyCorn(Canvas &c, int x, int y, float k) {
+    static const char *const C[] = {".w.", ".o.", "yyy"};
+    sprite(c, C, 3, x, y, {{'w', {1, 1, 0.9f}}, {'o', ORANGE}, {'y', CANDLE}}, k);
+}
+// A castle on the skyline, w wide, its base on row ground: dim stone towers
+// with battlements and lit windows.
+inline void castle(Canvas &c, int x0, int ground, int w, float k) {
+    const int h = std::max(5, w / 3);
+    for (int x = 0; x < w; ++x) {
+        const bool tower = x < w / 5 || x >= w - w / 5 || std::abs(x - w / 2) < w / 10 + 1;
+        const int top = ground - (tower ? h + 3 : h);
+        for (int y = top; y < ground; ++y) {
+            const bool merlon = y == top && x % 2 == 1;   // battlements
+            if (!merlon) {
+                c.set(x0 + x, y, STONE, k);
+            }
+        }
+        if (tower && x % 3 == 1) {
+            c.set(x0 + x, top + 2, CANDLE, 0.7f * k);   // a lit window
+        }
+    }
+}
+// Everyday: a gold trophy cup, 5x5, and a balloon on a string, 3x5.
+inline void trophy(Canvas &c, int x, int y, float k) {
+    static const char *const T[] = {"ggggg", "ggggg", ".ggg.", "..g..", ".ggg."};
+    sprite(c, T, 5, x, y, {{'g', GOLDEN}}, k);
+}
+inline void balloon(Canvas &c, int x, int y, const RGB &col, float k) {
+    static const char *const B[] = {".b.", "bbb", ".b.", ".s.", "s.."};
+    sprite(c, B, 5, x, y, {{'b', col}, {'s', {0.5f, 0.5f, 0.5f}}}, k);
+}
+}  // namespace ShowArt
 
 class ArcadeShow {
 public:
@@ -88,6 +187,7 @@ public:
         big = std::max(1, std::min((H - 3) / 11, W / 15));
         roll = std::max(1, H / 40);
         buildSky();
+        themeRoll();
         lines.clear();
         for (const auto &l : cfg.roll) {
             addRollLine(l.first, l.second);
@@ -99,6 +199,19 @@ public:
     }
 
     double elapsedMs() const { return t; }
+    ShowTheme theme() const { return cfg.theme; }
+    bool halloween() const { return cfg.theme == ShowTheme::Halloween; }
+    // A colour that shifts with h: the rainbow, or for Halloween orange,
+    // purple and green.
+    RGB accent(float h) const {
+        if (!halloween()) {
+            return hue(h);
+        }
+        static const RGB H3[3] = {{1.0f, 0.45f, 0.0f}, {0.65f, 0.2f, 1.0f}, {0.35f, 1.0f, 0.15f}};
+        h = (h - std::floor(h)) * 3;
+        const int i = (int)h % 3;
+        return ArcadeCanvas::mix(H3[i], H3[(i + 1) % 3], h - std::floor(h));
+    }
     bool over() const { return t >= T; }
     void finish() { t = T; }
 
@@ -250,29 +363,46 @@ public:
         }
     }
 
-    // A winter night: the faintest blue at the top of the sky, twinkling
-    // stars, the moon and falling snow. For stories that want it (Breakout's
-    // does). The sky is kept to 2% at most: a coloured fill washes out on the
-    // real wall.
+    // The night for the theme, for stories that want one (Breakout's does).
+    // Christmas: the faintest blue at the top of the sky, twinkling stars, the
+    // moon and falling snow. Halloween: a purple sky, a big orange moon, bats
+    // flitting across it and falling leaves. Everyday: a clear starry night.
+    // The sky is kept to 2% at most: a coloured fill washes out on the real
+    // wall.
     void drawNight(Canvas &c, float dt, float k) {
+        const RGB sky = halloween() ? RGB{0.6f, 0.0f, 1.0f} : RGB{0.0f, 0.02f, 1.0f};
         for (int y = 0; y < H; ++y) {
             const float g = 0.02f * (1.0f - (float)y / H);
             for (int x = 0; x < W; ++x) {
-                c.add(x, y, {0.0f, 0.02f, 1.0f}, g * k);
+                c.add(x, y, sky, g * k);
             }
         }
         for (auto &s : stars) {
-            c.add(s.x, s.y, {0.9f, 0.9f, 1.0f}, (0.12f + 0.12f * std::sin((float)(t / 400.0) + s.phase)) * k);
+            c.add(s.x, s.y, {0.9f, 0.9f, 1.0f}, (0.12f + 0.12f * std::sin((float)(t / 400.0) + s.phase)) * (halloween() ? 0.6f : 1.0f) * k);
         }
-        for (int y = (int)(moonY - moonR - 1); y <= (int)(moonY + moonR + 1); ++y) {
-            for (int x = (int)(moonX - moonR - 1); x <= (int)(moonX + moonR + 1); ++x) {
+        drawMoon(c, k);
+        if (halloween()) {
+            drawBats(c, dt, k);
+            drawLeaves(c, dt, k);
+        } else if (cfg.theme == ShowTheme::Christmas) {
+            drawSnow(c, dt, k);
+        }
+    }
+    // The moon alone: pale, or a big orange harvest moon at Halloween.
+    void drawMoon(Canvas &c, float k) {
+        const float r = halloween() ? moonR * 1.3f : moonR;
+        const RGB col = halloween() ? RGB{1.0f, 0.5f, 0.08f} : RGB{1.0f, 0.93f, 0.7f};
+        for (int y = (int)(moonY - r - 1); y <= (int)(moonY + r + 1); ++y) {
+            for (int x = (int)(moonX - r - 1); x <= (int)(moonX + r + 1); ++x) {
                 const float d = std::hypot(x + 0.5f - moonX, y + 0.5f - moonY);
-                const float in = ArcadeCanvas::clamp01(moonR - d + 0.5f);
+                const float in = ArcadeCanvas::clamp01(r - d + 0.5f);
                 // A darker patch, so it reads as the moon and not a ball.
-                const float spot = (std::hypot(x + 0.5f - (moonX - moonR * 0.3f), y + 0.5f - (moonY - moonR * 0.2f)) < moonR * 0.3f) ? 0.75f : 1.0f;
-                c.add(x, y, {1.0f, 0.93f, 0.7f}, 0.5f * in * spot * k);
+                const float spot = (std::hypot(x + 0.5f - (moonX - r * 0.3f), y + 0.5f - (moonY - r * 0.2f)) < r * 0.3f) ? 0.75f : 1.0f;
+                c.add(x, y, col, (halloween() ? 0.75f : 0.5f) * in * spot * k);
             }
         }
+    }
+    void drawSnow(Canvas &c, float dt, float k) {
         for (auto &f : flakes) {
             f.y += f.vy * dt;
             f.x += std::sin((float)(t / 700.0) + f.phase) * 1.2f * dt;
@@ -281,6 +411,32 @@ public:
                 f.x = rnd() * W;
             }
             c.add((int)f.x, (int)f.y, {1, 1, 1}, 0.45f * k);
+        }
+    }
+    // Bats flapping across the sky, one now and then past the moon.
+    void drawBats(Canvas &c, float dt, float k) {
+        for (auto &b : bats) {
+            b.x += b.vx * dt;
+            if (b.x > W + 6 || b.x < -6) {
+                b.vx = -b.vx;
+                b.y = H * (0.1f + 0.35f * rnd());
+            }
+            const float y = b.y + 1.5f * std::sin((float)(t / 300.0) + b.phase);
+            ShowArt::bat(c, (int)b.x, (int)y, (int)(t / 120.0 + b.phase * 3) % 2, b.vx < 0, 0.8f * k);
+        }
+    }
+    // Falling leaves: orange, red and brown, drifting as they fall.
+    void drawLeaves(Canvas &c, float dt, float k) {
+        static const RGB LEAF[3] = {{1.0f, 0.4f, 0.0f}, {0.85f, 0.12f, 0.05f}, {0.55f, 0.3f, 0.05f}};
+        for (size_t i = 0; i < flakes.size(); i += 2) {   // half as many as snowflakes
+            Flake &f = flakes[i];
+            f.y += f.vy * 0.6f * dt;
+            f.x += std::sin((float)(t / 500.0) + f.phase) * 3.0f * dt;
+            if (f.y >= H) {
+                f.y -= H + 1;
+                f.x = rnd() * W;
+            }
+            c.add((int)f.x, (int)f.y, LEAF[i % 3], 0.5f * k);
         }
     }
     float moonX = 0, moonY = 0, moonR = 3;
@@ -293,6 +449,9 @@ private:
     struct Flake {
         float x, y, vy, phase;
     };
+    struct Bat {
+        float x, y, vx, phase;
+    };
     struct Star {
         int x, y;
         float phase;
@@ -301,6 +460,28 @@ private:
         std::string text;
         RGB col;
     };
+
+    // The roll's sign-off for the theme: MERRY CHRISTMAS becomes HAPPY
+    // HALLOWEEN, or SEE YOU NEXT TIME on an everyday show, and a Halloween
+    // roll without one gets HAPPY HALLOWEEN at the end.
+    void themeRoll() {
+        if (cfg.theme == ShowTheme::Christmas) {
+            return;
+        }
+        const std::string greeting = halloween() ? "HAPPY HALLOWEEN" : "SEE YOU NEXT TIME";
+        bool found = false;
+        for (auto &l : cfg.roll) {
+            if (l.first == "MERRY CHRISTMAS") {
+                l.first = greeting;
+                l.second = halloween() ? RGB{1.0f, 0.5f, 0.05f} : l.second;
+                found = true;
+            }
+        }
+        if (!found && halloween()) {
+            cfg.roll.push_back({"", ShowColours::WHITE});
+            cfg.roll.push_back({greeting, {1.0f, 0.5f, 0.05f}});
+        }
+    }
 
     // In over the first 300 ms of a part and out over its last 300.
     float phaseFade(double from, double to) const {
@@ -313,15 +494,17 @@ private:
         while (rate > 0 && rocketDue <= 0) {
             rocketDue += 0.5f + rnd();
             static const RGB COLS[] = {{1, 0.15f, 0.1f}, {0.2f, 1, 0.3f}, {1, 0.8f, 0.2f}, {0.3f, 0.5f, 1}, {0.9f, 0.3f, 1}, {1, 1, 1}};
+            static const RGB SPOOKY[] = {{1, 0.45f, 0}, {0.65f, 0.2f, 1}, {0.35f, 1, 0.15f}, {1, 0.6f, 0.1f}, {0.8f, 0.35f, 1}, {0.95f, 0.9f, 0.7f}};
+            const RGB col = (halloween() ? SPOOKY : COLS)[(int)(rnd() * 6) % 6];
             rockets.push_back({W * (0.1f + 0.8f * rnd()), (float)H, -(H * 1.3f + rnd() * H * 0.5f),
-                               H * (0.12f + 0.35f * rnd()), COLS[(int)(rnd() * 6) % 6]});
+                               H * (0.12f + 0.35f * rnd()), col});
         }
         for (size_t i = 0; i < rockets.size();) {
             Rocket &r = rockets[i];
             r.y += r.vy * dt;
             r.vy += H * 0.6f * dt;   // slows toward the top
             if (r.y <= r.burstY || r.vy >= 0) {
-                burst(r.x, r.y, r.col, 18 + (int)(rnd() * 16), rnd() < 0.3f);
+                burst(r.x, r.y, r.col, 18 + (int)(rnd() * 16), !halloween() && rnd() < 0.3f);
                 rockets.erase(rockets.begin() + i);
             } else {
                 ++i;
@@ -369,7 +552,7 @@ private:
                 const int yy = y - (int)std::lround((1.0f - e) * (H + 5 * scl));
                 const int xx = x0 + (int)i * 4 * scl;
                 shade(c, xx, yy, 3 * scl, 5 * scl, k);
-                letter(c, s[i], xx, yy, scl, hue((float)(ms / 2500.0) + idx * 0.13f), k);
+                letter(c, s[i], xx, yy, scl, accent((float)(ms / 2500.0) + idx * 0.13f), k);
             }
         }
     }
@@ -423,6 +606,10 @@ private:
         moonX = W * 0.74f;
         moonY = H * 0.3f;
         moonR = std::max(2.5f, H / 6.0f);
+        bats.clear();
+        for (int i = 0; i < std::max(2, W / 25); ++i) {
+            bats.push_back({rnd() * W, H * (0.1f + 0.35f * rnd()), (rnd() < 0.5f ? -1.0f : 1.0f) * (5.0f + rnd() * 5.0f), rnd() * 6.28f});
+        }
     }
 
     // Word-wraps a roll line to the width; a word too long for a line is hyphenated.
@@ -478,7 +665,7 @@ private:
     // The ending on one line if it fits big, else split at its space.
     void drawEnding(Canvas &c, double ms) {
         const float k = std::clamp((float)(ms / 800.0), 0.0f, 1.0f);
-        const RGB col = {1.0f, 0.85f, 0.4f};
+        const RGB col = halloween() ? RGB{1.0f, 0.5f, 0.05f} : RGB{1.0f, 0.85f, 0.4f};
         const std::string &e = cfg.ending;
         std::vector<std::string> parts;
         const size_t sp = e.find(' ');
@@ -509,6 +696,7 @@ private:
     int statsBursts = 0;
     std::vector<Star> stars;
     std::vector<Flake> flakes;
+    std::vector<Bat> bats;
     std::vector<Line> lines;
 };
 

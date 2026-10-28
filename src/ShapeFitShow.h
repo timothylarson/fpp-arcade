@@ -87,6 +87,8 @@ public:
     explicit Story(std::vector<int> played) : poses(std::move(played)) {}
 
     void begin(ArcadeShow &s) override {
+        // The fill: the game's green for a fitted pose, pumpkin orange at Halloween.
+        fillCol = s.halloween() ? ShowArt::ORANGE : INSIDE;
         mask.assign(s.W * s.H, 0);
         if (poses.empty()) {
             poses = {0, 1, 2, 3, 4};
@@ -135,7 +137,7 @@ public:
                 // Alternate ones lean the other way on the kick.
                 const float tilt = kick ? std::sin(within * 3.1416f) * 0.22f * ((i & 1) ? -1 : 1) : 0.0f;
                 figure(s, c, POSES[poses[i] % POSES.size()], x, H - 1 - hop, tall, tilt, 1.0f,
-                       0.6f + 0.25f * std::sin(sec * 6.0f), INSIDE, 0.35f, OUTLINE, k);
+                       0.6f + 0.25f * std::sin(sec * 6.0f), fillCol, 0.35f, OUTLINE, k);
             }
         } else {
             // The finale: the STAR outline pulses in, fills from its feet,
@@ -146,7 +148,7 @@ public:
             const bool scored = f >= 1.7f;
             const float pulse = 0.75f + 0.25f * std::sin(sec * 6.0f);
             const RGB edge = scored ? CLOCK : OUTLINE;
-            figure(s, c, POSES[0], W / 2.0f, H - 1, bigTall, 0, fill, (scored ? 0.95f : 0.6f * pulse) * appear, INSIDE,
+            figure(s, c, POSES[0], W / 2.0f, H - 1, bigTall, 0, fill, (scored ? 0.95f : 0.6f * pulse) * appear, fillCol,
                    scored ? 0.55f : 0.45f, edge, k);
             if (scored && !burst) {
                 burst = true;
@@ -155,7 +157,7 @@ public:
                 const float wide = bigTall * KINECT_STRETCH;
                 for (int p = 0; p < 5; ++p) {
                     s.burst(W / 2.0f + pts[p][0] * wide, H - 1 - bigTall + pts[p][1] * bigTall,
-                            p == 0 ? CLOCK : INSIDE, 16, p == 0);
+                            p == 0 ? CLOCK : fillCol, 16, p == 0);
                 }
             }
             // A scored round flickers brighter, as in the game.
@@ -169,7 +171,7 @@ public:
     // Behind the credits: the gold STAR, faint, still pulsing.
     void backdrop(ArcadeShow &s, ArcadeCanvas::Canvas &c, float, float k) override {
         const float pulse = 0.75f + 0.25f * std::sin((float)(s.t / 1000.0) * 4.0f);
-        figure(s, c, POSES[0], s.W / 2.0f, s.H - 1, bigTall, 0, 1.0f, 0.5f * pulse, INSIDE, 0.15f, CLOCK, k);
+        figure(s, c, POSES[0], s.W / 2.0f, s.H - 1, bigTall, 0, 1.0f, 0.5f * pulse, fillCol, 0.15f, CLOCK, k);
     }
 
 private:
@@ -222,6 +224,7 @@ private:
     }
 
     std::vector<int> poses;
+    RGB fillCol = INSIDE;
     std::vector<uint8_t> mask;
     float tall = 14, spacing = 24, bigTall = 24;
     bool burst = false;

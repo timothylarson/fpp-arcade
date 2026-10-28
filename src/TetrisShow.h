@@ -5,6 +5,12 @@
 // another and lock into the tree, presents drop in beside it when the wall is
 // wide enough, and last of all the star lands on top and lights up, the
 // ornaments switch on and fireworks go off - the credits, and GAME OVER.
+//
+// At Halloween the pieces build a giant candy corn instead - yellow at the
+// bottom, orange, then white at the tip - on a purple stand, with
+// jack-o'-lanterns for presents and a bat landing on top. On an everyday
+// show they keep the game's own colours, gold trophies stand either side,
+// and the star still lands.
 
 #include <algorithm>
 #include <cmath>
@@ -48,6 +54,7 @@ class Story : public ShowStory {
 public:
     void begin(ArcadeShow &s) override {
         const int W = s.W, H = s.H;
+        theme = s.theme();
         pieces.clear();
         lights.clear();
         starLit = false;
@@ -64,7 +71,8 @@ public:
 
         // The trunk first, half a cell over so it's centred like the tip.
         static const RGB BROWN = {0.55f, 0.25f, 0.05f};
-        pieces.push_back(square(x0 + (TREE_W * cell) / 2 - cell, y0 + TREE_ROWS * cell, BROWN));
+        pieces.push_back(square(x0 + (TREE_W * cell) / 2 - cell, y0 + TREE_ROWS * cell,
+                                theme == ShowTheme::Halloween ? ShowArt::HAT : theme == ShowTheme::Everyday ? ShowArt::GOLDEN : BROWN));
 
         // Then the tree, piece by piece in letter order.
         static const RGB GREENS[3] = {{0.05f, 0.75f, 0.15f}, {0.0f, 0.45f, 0.1f}, {0.3f, 0.85f, 0.2f}};
@@ -100,6 +108,23 @@ public:
             }
             pieces[i].shade = pick;
             pieces[i].col = GREENS[pick];
+            if (theme == ShowTheme::Halloween) {
+                // Candy corn: banded by how high the piece sits, a touch
+                // darker or lighter by its shade so the pieces still show.
+                float row = 0;
+                for (const auto &q : pieces[i].cells) {
+                    row += q.y;
+                }
+                row /= pieces[i].cells.size();
+                const RGB band = row < TREE_ROWS * 0.3f ? RGB{1, 1, 0.9f} : row < TREE_ROWS * 0.65f ? ShowArt::ORANGE : ShowArt::CANDLE;
+                const float sh = pick == 0 ? 1.0f : pick == 1 ? 0.75f : 0.9f;
+                pieces[i].col = {band.r * sh, band.g * sh, band.b * sh};
+            } else if (theme == ShowTheme::Everyday) {
+                // The game's seven colours, in turn.
+                static const RGB GAME[7] = {{0.2f, 1, 1}, {1, 1, 0.2f}, {0.95f, 0.3f, 1}, {0.3f, 1, 0.3f},
+                                            {1, 0.25f, 0.2f}, {0.25f, 0.4f, 1}, {1, 0.6f, 0.1f}};
+                pieces[i].col = GAME[(i - treeFrom) % 7];
+            }
         }
 
         // Presents either side, on a wall with room for them: O pieces with
@@ -166,7 +191,9 @@ public:
             if (near) {
                 continue;
             }
-            lights.push_back({spot.first, spot.second, BULBS[i % 6], s.rnd() * 6.28f});
+            static const RGB GLINT[2] = {{0.65f, 0.2f, 1}, {0.35f, 1, 0.15f}};
+            const RGB col = theme == ShowTheme::Halloween ? GLINT[i % 2] : theme == ShowTheme::Everyday ? RGB{1, 1, 1} : BULBS[i % 6];
+            lights.push_back({spot.first, spot.second, col, s.rnd() * 6.28f});
         }
         std::sort(lights.begin(), lights.end(), [](const Light &a, const Light &b) { return a.y < b.y; });
     }
@@ -307,8 +334,18 @@ private:
 
     // A present one LED wider than an O piece, so its ribbon can run down the
     // middle, with a band across and a bow on top.
+    // At Halloween a jack-o'-lantern, lit once the bat is down; on an
+    // everyday show a trophy.
     void drawPresent(ArcadeCanvas::Canvas &c, const Piece &p, int dy, float flash, float k) const {
         const int w = presentW(), h = 2 * cell, mid = w / 2;
+        if (theme == ShowTheme::Halloween) {
+            ShowArt::pumpkin(c, p.x + (w - 5) / 2, p.y + h - 5 + dy, k, starLit);
+            return;
+        }
+        if (theme == ShowTheme::Everyday) {
+            ShowArt::trophy(c, p.x + (w - 5) / 2, p.y + h - 5 + dy, k);
+            return;
+        }
         for (int y = 0; y < h; ++y) {
             for (int x = 0; x < w; ++x) {
                 const RGB col = (x == mid || y == cell - 1) ? p.ribbon : p.col;
@@ -324,6 +361,15 @@ private:
     // often, a glint flying out from its corners.
     void drawStar(ArcadeCanvas::Canvas &c, int dy, double since, float k) const {
         const bool lit = since >= 0;
+        if (theme == ShowTheme::Halloween) {
+            // A big bat, its eyes glowing once it's down, flapping now and then.
+            static const char *const UP[] = {"bb..bb", "bbyybb", ".bbbb.", "..bb.."};
+            static const char *const DOWN[] = {"..bb..", "bbyybb", "bbbbbb", "b.bb.b"};
+            const bool flap = !lit || std::fmod(since, 1600.0) < 500.0;
+            ShowArt::sprite(c, flap && ((int)(since / 120.0) & 1) ? DOWN : UP, 4, starX, starY + 1 + dy,
+                            {{'b', ShowArt::BAT}, {'y', lit ? ShowArt::CANDLE : ShowArt::BAT}}, k);
+            return;
+        }
         const float flash = lit ? std::max(0.0f, 1.0f - (float)since / 400.0f) : 0.0f;
         for (int y = 0; y < STAR_H; ++y) {
             for (int x = 0; x < STAR_W; ++x) {
@@ -362,6 +408,7 @@ private:
         }
     }
 
+    ShowTheme theme = ShowTheme::Christmas;
     std::vector<Piece> pieces;
     std::vector<Light> lights;
     int cell = 2, x0 = 0, y0 = 0, starX = 0, starY = 0;

@@ -21,6 +21,8 @@ bool arcadeGlyphScaled(char c, int px, int py, int scl);
 // How many LEDs wide that letter is drawn: 3scl, or a little more for a wide one.
 int arcadeGlyphWidth(char c, int scl);
 
+#include "ShowTheme.h"
+
 // Best scores, kept by model and game in media/plugindata/fpp-arcade/best.json.
 // Records score; true if it beats the best so far (any score above 0 beats
 // none). previousBest, if given, gets the best before this one.
@@ -112,6 +114,9 @@ public:
     // sent to this model's speakers. A name with no file is silent, so call it
     // for every event worth hearing.
     void sfx(const std::string &game, const std::string &name, float gain = 1.0f);
+    // The end show's music for the theme (ShowTheme.h): EndShowHalloween or
+    // EndShowEveryday if the game has it, else EndShow.
+    void sfxEndShow(const std::string &game, float gain = 1.0f);
     void sfxStop(const std::string &game);
     void outputPixel(int x, int y, int r, int g, int b, int scl = -1);
     double consumeElapsedMs(double fallbackMs, double maxClampMs = 250.0);

@@ -6,6 +6,12 @@
 // pad in its home bay. The view tips up to the sky, its four little frogs pop
 // up out of the other bays, and they all hop for joy under the moon and the
 // fireworks - the credits, and GAME OVER.
+//
+// At Halloween it's an autumn night instead: leaf-strewn banks, two
+// jack-o'-lanterns on the median, a hedge strung with orange and purple
+// lights, dark water with the moon's orange glints, leaves falling and the
+// frog in a witch's hat. On an everyday show: grass, little round trees, a
+// hedge of flowers, plain logs and no hat.
 
 #include <algorithm>
 #include <cmath>
@@ -23,6 +29,7 @@ public:
 
     void begin(ArcadeShow &s) override {
         const int W = s.W, H = s.H;
+        theme = s.theme();
         // The scene is seven bands three rows deep, filling the bottom of the
         // panel: the start bank, two lanes of road, a snowy median, two lanes
         // of river and the home bays. What's left at the top is sky.
@@ -187,21 +194,32 @@ private:
     void drawScene(ArcadeShow &s, ArcadeCanvas::Canvas &c, float dt, float sec, float k) {
         const int W = s.W, H = s.H;
         const int oy = offset(sec);
-        const RGB SNOW = {0.75f, 0.82f, 0.95f}, WATER = {0.0f, 0.12f, 0.6f}, HEDGE = {0.05f, 0.4f, 0.1f};
+        const bool hallow = theme == ShowTheme::Halloween, xmas = theme == ShowTheme::Christmas;
+        // The banks' ground: snow, leaf litter or grass.
+        const RGB SNOW = xmas ? RGB{0.75f, 0.82f, 0.95f} : hallow ? RGB{0.45f, 0.25f, 0.05f} : RGB{0.15f, 0.6f, 0.15f};
+        const RGB WATER = {0.0f, 0.12f, 0.6f}, HEDGE = {0.05f, 0.4f, 0.1f};
 
-        // Snowy banks: the start, and the median with two little trees.
+        // Snowy banks: the start, and the median with two little trees. At
+        // Halloween the glints are fallen leaves, on an everyday show flowers.
         for (int band : {0, 3}) {
             const int y0 = rowTop(band, oy);
             for (int y = y0; y < y0 + ROW; ++y) {
                 for (int x = 0; x < W; ++x) {
                     const unsigned h = (unsigned)(x * 7 + y * 13) % 11;
                     const float tw = h == 0 ? 0.25f + 0.15f * std::sin(sec * 4.0f + x) : 0.09f;
-                    c.set(x, y, SNOW, tw * k);
+                    const RGB col = h != 0 || xmas ? SNOW : hallow ? ((x + y) % 2 ? ShowArt::ORANGE : RGB{0.85f, 0.15f, 0.05f})
+                                                                   : ArcadeShow::hue((x * 3 + y) / 13.0f);
+                    // (Leaf litter and grass dimmer than snow: a big fill.)
+                    c.set(x, y, col, (h == 0 && !xmas ? 0.4f : xmas ? tw : 0.05f) * k);
                 }
             }
         }
         for (float f : {0.14f, 0.86f}) {
-            drawTree(c, (int)(W * f), rowTop(3, oy), sec, k);
+            if (hallow) {
+                ShowArt::pumpkin(c, (int)(W * f) - 2, rowTop(3, oy) - 2, 0.8f * k);
+            } else {
+                drawTree(c, (int)(W * f), rowTop(3, oy), sec, k);
+            }
         }
 
         // The road, black, with a dashed line down the middle.
@@ -235,7 +253,7 @@ private:
                 x += W;
             }
             const float b = 0.5f + 0.5f * std::sin(sec * 3.0f + g.phase);
-            c.set((int)x, rowTop(g.band, oy) + g.row, {0.6f, 0.85f, 1.0f}, (0.1f + 0.25f * b) * k);
+            c.set((int)x, rowTop(g.band, oy) + g.row, hallow ? RGB{1.0f, 0.5f, 0.1f} : RGB{0.6f, 0.85f, 1.0f}, (0.1f + 0.25f * b) * k);
         }
 
         // The home bank: a snowy hedge strung with lights, broken by five
@@ -247,13 +265,21 @@ private:
                 c.set(x, hy + 1, WATER, 0.13f * k);
                 c.set(x, hy + 2, {0.2f, 0.75f, 0.2f}, 0.35f * k);
             } else {
-                c.set(x, hy, SNOW, 0.15f * k);
+                if (xmas) {
+                    c.set(x, hy, SNOW, 0.15f * k);
+                }
                 c.set(x, hy + 1, HEDGE, 0.3f * k);
                 c.set(x, hy + 2, HEDGE, 0.2f * k);
                 if (x % 3 == 0) {
+                    // Christmas lights; orange and purple ones; or flowers.
                     static const RGB BULBS[] = {{1, 0.1f, 0.05f}, {1, 0.7f, 0.1f}, {0.2f, 0.4f, 1}, {1, 1, 1}};
+                    static const RGB SPOOKY[] = {{1, 0.45f, 0}, {0.65f, 0.2f, 1}, {1, 0.45f, 0}, {0.35f, 1, 0.15f}};
                     const int i = (x / 3 + (int)(sec * 2.5f)) % 4;
-                    c.set(x, hy + 1, BULBS[i], 0.6f * k);
+                    if (theme == ShowTheme::Everyday) {
+                        c.set(x, hy, ArcadeShow::hue(x / 17.0f), 0.5f * k);
+                    } else {
+                        c.set(x, hy + 1, hallow ? SPOOKY[i] : BULBS[i], 0.6f * k);
+                    }
                 }
             }
         }
@@ -268,7 +294,7 @@ private:
             for (int lx : moverXs(l, sec)) {
                 for (int x = 0; x < l.w; ++x) {
                     const bool end = x == 0 || x == l.w - 1;
-                    if (!end && (x * 5 + lx) % 7 != 0) {
+                    if (xmas && !end && (x * 5 + lx) % 7 != 0) {
                         c.set(lx + x, y0, SNOW, 0.22f * k);
                     }
                     c.set(lx + x, y0 + 1, end ? RGB{0.85f, 0.6f, 0.35f} : RGB{0.55f, 0.27f, 0.08f}, (end ? 0.5f : 0.45f) * k);
@@ -307,15 +333,17 @@ private:
         y -= joy(sec, 6.2f, 3.0f);
         drawFrog(c, x, y, true, H, k);
 
-        // Snow falling over it all.
-        for (auto &f : flakes) {
-            f.y += f.vy * dt;
-            f.x += std::sin(sec * 1.3f + f.phase) * 1.0f * dt;
+        // Snow falling over it all (leaves at Halloween; nothing otherwise).
+        for (size_t i = 0; i < flakes.size() && theme != ShowTheme::Everyday; i += hallow ? 2 : 1) {
+            Flake &f = flakes[i];
+            f.y += f.vy * (hallow ? 0.6f : 1.0f) * dt;
+            f.x += std::sin(sec * 1.3f + f.phase) * (hallow ? 2.5f : 1.0f) * dt;
             if (f.y >= H) {
                 f.y -= H + 1;
                 f.x = s.rnd() * W;
             }
-            c.add((int)f.x, (int)f.y, {1, 1, 1}, 0.3f * k);
+            static const RGB LEAF[3] = {{1.0f, 0.4f, 0.0f}, {0.85f, 0.12f, 0.05f}, {0.55f, 0.3f, 0.05f}};
+            c.add((int)f.x, (int)f.y, hallow ? LEAF[i % 3] : RGB{1, 1, 1}, (hallow ? 0.45f : 0.3f) * k);
         }
     }
 
@@ -355,10 +383,17 @@ private:
         if (hero) {
             px(cx - 1, y + 2, LEGS, 1);
             px(cx + 1, y + 2, LEGS, 1);
-            // The hat sits between the eyes, its bobble flopped to one side.
-            px(cx, y, {1, 0.1f, 0.08f}, 1);
-            px(cx, y - 1, {1, 0.1f, 0.08f}, 0.8f);
-            px(cx + 1, y - 1, {1, 1, 1}, 0.9f);
+            // The hat sits between the eyes, its bobble flopped to one side -
+            // or a witch's hat, its tip bent over; none on an everyday show.
+            if (theme == ShowTheme::Halloween) {
+                px(cx, y, ShowArt::HAT, 1);
+                px(cx, y - 1, ShowArt::HAT, 1);
+                px(cx + 1, y - 2, ShowArt::HAT, 0.9f);
+            } else if (theme == ShowTheme::Christmas) {
+                px(cx, y, {1, 0.1f, 0.08f}, 1);
+                px(cx, y - 1, {1, 0.1f, 0.08f}, 0.8f);
+                px(cx + 1, y - 1, {1, 1, 1}, 0.9f);
+            }
         }
     }
 
@@ -380,14 +415,26 @@ private:
     }
 
     // A little Christmas tree with a star on top, 3 x 3.
-    static void drawTree(ArcadeCanvas::Canvas &c, int x, int y, float sec, float k) {
+    // A little Christmas tree: a star, green, a bauble. On an everyday show a
+    // round green tree on a trunk.
+    void drawTree(ArcadeCanvas::Canvas &c, int x, int y, float sec, float k) const {
+        const RGB G = {0.05f, 0.65f, 0.15f};
+        if (theme == ShowTheme::Everyday) {
+            c.set(x, y, G, 0.8f * k);
+            c.set(x - 1, y + 1, G, 0.8f * k);
+            c.set(x, y + 1, G, 0.8f * k);
+            c.set(x + 1, y + 1, G, 0.8f * k);
+            c.set(x, y + 2, {0.5f, 0.25f, 0.06f}, 0.7f * k);
+            return;
+        }
         c.set(x, y, {1, 0.85f, 0.2f}, (0.7f + 0.3f * std::sin(sec * 5.0f)) * k);
-        c.set(x, y + 1, {0.05f, 0.65f, 0.15f}, 0.8f * k);
-        c.set(x - 1, y + 2, {0.05f, 0.65f, 0.15f}, 0.8f * k);
+        c.set(x, y + 1, G, 0.8f * k);
+        c.set(x - 1, y + 2, G, 0.8f * k);
         c.set(x, y + 2, {1, 0.1f, 0.1f}, 0.8f * k);   // a bauble
-        c.set(x + 1, y + 2, {0.05f, 0.65f, 0.15f}, 0.8f * k);
+        c.set(x + 1, y + 2, G, 0.8f * k);
     }
 
+    ShowTheme theme = ShowTheme::Christmas;
     int top = 4, fx = 30, logW = 10;
     std::vector<int> homeX;
     std::vector<Lane> lanes;

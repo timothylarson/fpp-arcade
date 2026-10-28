@@ -205,7 +205,7 @@ var ARCADE_GAMES = {
                   { name: 'Road Speed', label: 'Road speed', type: 'number', def: 1, min: 1, max: 10 },
                   { name: 'Speed Variability', label: 'Speed variety (%)', type: 'number', def: 20, min: 0, max: 100, hint: 'How much lanes differ from each other.' },
                   PW, PH] },
-    'Orb Pop': { about: 'Kinect: pop drifting orbs by touching them. Shows people as flickering light between rounds. Needs the FPP Kinect plugin on the same model.',
+    'Orb Pop': { about: 'Kinect: pop drifting orbs by touching them. Shows people as flickering light between rounds. Needs the FPP Kinect plugin on the same model. Overlay Transparent plays it over the sequence, dimmed by the Kinect plugin\'s Sequence Brightness.',
         controls: ['Stand in view to start', 'A start now', 'Start pause'],
         options: [{ name: 'Brightness', label: 'Brightness (%)', type: 'number', def: 50, min: 1, max: 100 },
                   { name: 'Palette', label: 'Palette', type: 'select', def: 'Frost', choices: [['Frost', 'Frost'], ['Christmas', 'Christmas']] },

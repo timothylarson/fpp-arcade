@@ -76,6 +76,9 @@ struct OrbPopSettings {
     double startHoldMs = 2000;    // someone in view this long starts a round
     float presencePct = 3.0f;     // % of LEDs a person must cover to count
     int endShow = 1, goodGame = 50;   // the End Show and Good Game settings
+    // Overlay Transparent: no field or attract spheres, so the sequence (dimmed
+    // by the Kinect plugin's Sequence Brightness) is the backdrop.
+    bool seeThrough = false;
 };
 
 double steadyMs() {
@@ -412,7 +415,7 @@ private:
         ambientAlpha += std::clamp(wantAmbient - ambientAlpha, -stepA, stepA);
 
         // 1. The field: dim characters, with slow brighter clouds drifting through.
-        for (int y = 0; y < H; ++y) {
+        for (int y = 0; y < H && !set.seeThrough; ++y) {
             for (int x = 0; x < W; ++x) {
                 const int i = y * W + x;
                 const float cloud = (0.5f + 0.5f * std::sin(x * 0.21f + now * 0.00031 + std::sin(y * 0.3f + now * 0.0002) * 1.7f))
@@ -422,7 +425,7 @@ private:
         }
 
         // 2. Attract mode: two big shaded spheres of brighter characters.
-        if (ambientAlpha > 0.01f) {
+        if (ambientAlpha > 0.01f && !set.seeThrough) {
             const double a = now * 0.0004;
             float L[3];
             lightFrom(std::cos(a) * 0.7f, -0.45f, 0.55f, L);
@@ -787,6 +790,7 @@ void FPPOrbPop::startEffect() {
     s.presencePct = (float)std::clamp(findIntOption("Sensitivity", 3), 1, 100);
     s.endShow = endShowOption();
     s.goodGame = goodGameOption(50);
+    s.seeThrough = findOption("overlay", "Overwrite") == "Transparent";
     m->setRunningEffect(new OrbPopEffect(m, s), 1);
 }
 

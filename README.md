@@ -32,6 +32,9 @@ the games.
 | **Snowball Fight** | Left/Right aim and Up (held, then released) throws for the red elf; B swings the aim and A throws for the green one. Alone, the computer plays green. |
 | **Asteroid Orbit** | All eight directions held and released (thrust), A (fire, hold to keep firing), B (shockwave). |
 
+**Start pauses any game**, with a menu of RESUME, RESTART and EXIT: Up/Down (or Left/Right)
+choose, and Start, A or B picks. EXIT ends the game as GAME OVER would, without its end show.
+
 ## New in the arcade: Stick Bridge, Sky Jump, Reindeer Run, Road Race, Snowball Fight
 
 - **Stick Bridge:** hold a direction (or A/B) to grow a candy cane up from the edge of your gift

@@ -50,6 +50,11 @@ public:
     
     virtual bool isRunning();
     virtual void stop();
+    // True once, after EXIT was picked on the running game's pause menu.
+    bool takeExitRequest();
+    // The button that picked EXIT: its release is ignored, or with the game
+    // gone it would start a new one.
+    std::string releaseToIgnore;
     // Give back anything outside this library that points at the game, such
     // as a timer. Called from the plugin's shutdown(), before FPP unloads it.
     virtual void release() {}
@@ -129,6 +134,8 @@ public:
     virtual void restart();
     void activatePauseSelection();
     bool isPaused() const { return paused; }
+    // EXIT was picked on the pause menu (see activatePauseSelection); true once.
+    bool takeExit() { return exitWanted.exchange(false); }
 
     // A cheat code was entered. Button presses arrive on another thread, so
     // this only raises a flag: a game with levels takes it with takeCheat()
@@ -175,6 +182,7 @@ protected:
     bool paused = false;
     PauseMenu pauseMenu;
     std::atomic<int> cheatPending{0};
+    std::atomic<bool> exitWanted{false};
 
 private:
     std::chrono::steady_clock::time_point lastFrameTime;

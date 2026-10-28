@@ -226,6 +226,12 @@ public:
     bool calledOnce = false;
 };
 
+bool FPPArcadeGame::takeExitRequest() {
+    PixelOverlayModel *m = PixelOverlayManager::INSTANCE.getModel(modelName);
+    FPPArcadeGameEffect *effect = m ? dynamic_cast<FPPArcadeGameEffect *>(m->getRunningEffect()) : nullptr;
+    return effect && effect->takeExit();
+}
+
 void FPPArcadeGame::stop() {
     PixelOverlayModel *m = PixelOverlayManager::INSTANCE.getModel(modelName);
     if (m != nullptr) {
@@ -670,6 +676,14 @@ void FPPArcadeGameEffect::drawUnderline(int x, int y, int length, int r, int g, 
 // Both ways of choosing a pause-menu entry (Start, or A/B) land here, so the
 // two cannot drift apart.
 void FPPArcadeGameEffect::activatePauseSelection() {
+    if (pauseMenu.getSelectedOption() == PauseMenuOption::Exit) {
+        // Ends the game as GAME OVER would, without the end show. Only a flag
+        // here: the plugin stops the game once this press has been handled
+        // (FPPArcadeGame::takeExitRequest), never from inside the game's own
+        // button(). The menu stays up until then.
+        exitWanted.store(true);
+        return;
+    }
     sfx("arcade", "Unpause");   // shared by every game, in sounds/arcade
     if (pauseMenu.isResumeSelected()) {
         resume();
@@ -686,7 +700,9 @@ void FPPArcadeGameEffect::activatePauseSelection() {
 }
 
 void FPPArcadeGameEffect::drawPauseMenu() {
-    const int scl = fitTextScale({"RESUME", "RESTART"}, std::max(1, (int)(model->getHeight() / 16)));
+    static const char *const ITEMS[] = {"RESUME", "RESTART", "EXIT"};   // as in PauseMenuOption
+    constexpr int N = 3;
+    const int scl = fitTextScale({ITEMS[0], ITEMS[1], ITEMS[2]}, std::max(1, (int)(model->getHeight() / 16)));
 
     // Draw semi-transparent overlay (darken current buffer)
     for (int y = 0; y < model->getHeight(); y++) {
@@ -697,21 +713,14 @@ void FPPArcadeGameEffect::drawPauseMenu() {
         }
     }
 
-    // Draw menu options only (no PAUSED header to save space)
-    const std::string resumeText = "RESUME";
-    const std::string restartText = "RESTART";
-
-    // Logical letter height is 5 rows. Choose spacing (in logical rows) between
-    // the two option lines; scale it relative to scl for larger displays.
+    // The entries only (no PAUSED header, to save space), 5 rows of letters
+    // each with a gap between them: two rows on a 25-row wall, less if the
+    // three lines wouldn't fit.
     const int letterHeight = 5;
-    // Increase vertical spacing between the two option lines so they don't feel cramped
-    const int spacing = std::max(1, 2 * scl); // logical rows between the two words
-
-    int gridRows = std::max(1, model->getHeight() / scl);
-    int totalMenuHeight = letterHeight * 2 + spacing;
+    const int gridRows = std::max(1, model->getHeight() / scl);
+    const int spacing = std::clamp((gridRows - N * letterHeight) / (N - 1), 1, 2);
+    const int totalMenuHeight = N * letterHeight + (N - 1) * spacing;
     const int optionTopY = std::max(0, (gridRows - totalMenuHeight) / 2);
-    const int resumeY = optionTopY;
-    const int restartY = optionTopY + letterHeight + spacing;
 
     // The menu darkens and covers the whole matrix, so it centres on the panel.
     // Without this it inherited the game's transform: centerTextX() measured the
@@ -719,14 +728,15 @@ void FPPArcadeGameEffect::drawPauseMenu() {
     // well, and outputPixel() then shifted everything right by offsetX - the menu
     // started at the left wall and ran off to the right.
     PanelTransform pt(this);
-    outputString(resumeText, centerTextX(resumeText, scl), resumeY, 255, 255, 255, scl);
-    outputString(restartText, centerTextX(restartText, scl), restartY, 255, 255, 255, scl);
-
-    // Draw underline under selected option (directly beneath the 5-row letters)
-    if (pauseMenu.isResumeSelected()) {
-        drawUnderline(centerTextX(resumeText, scl), resumeY, (int)resumeText.length(), 255, 255, 255, scl);
-    } else {
-        drawUnderline(centerTextX(restartText, scl), restartY, (int)restartText.length(), 255, 255, 255, scl);
+    const int selected = (int)pauseMenu.getSelectedOption();
+    for (int i = 0; i < N; ++i) {
+        const std::string text = ITEMS[i];
+        const int y = optionTopY + i * (letterHeight + spacing);
+        outputString(text, centerTextX(text, scl), y, 255, 255, 255, scl);
+        if (i == selected) {
+            // The underline, on the row just beneath the letters.
+            drawUnderline(centerTextX(text, scl), y, (int)text.length(), 255, 255, 255, scl);
+        }
     }
 }
 
@@ -887,7 +897,8 @@ void FPPArcadeGameEffect::resetFrameTimer() {
 
 void FPPArcadeGameEffect::pause() {
     paused = true;
-    pauseMenu.moveUp();  // Reset to Resume option
+    exitWanted.store(false);
+    pauseMenu.reset();  // Resume selected
     drawPauseMenu();
     model->flushOverlayBuffer();
 }
@@ -1126,6 +1137,16 @@ public:
         if (games.empty()) {
             return;
         }
+        std::string &ignore = games.front()->releaseToIgnore;
+        if (!ignore.empty()) {
+            if (button == ignore + " - Released") {
+                ignore.clear();
+                return;
+            }
+            if (button.find(" - Pressed") != std::string::npos) {
+                ignore.clear();
+            }
+        }
         if (games.front()->isRunning() && games.front()->cheatInput(button)) {
             return;
         }
@@ -1133,6 +1154,7 @@ public:
             if (games.front()->isRunning()) {
                 // When a game is running, pressing Start should pause it (handled by the game/effect)
                 games.front()->button(button);
+                stopIfExited(games.front(), button);
                 return;
             }
         }
@@ -1156,6 +1178,17 @@ public:
         } else {
             // Forward other buttons to the currently-selected game
             games.front()->button(button);
+            stopIfExited(games.front(), button);
+        }
+    }
+    // EXIT on the pause menu: the game ends as at GAME OVER (see
+    // activatePauseSelection), stopped here once its button() has returned.
+    void stopIfExited(FPPArcadeGame *g, const std::string &button) {
+        if (g && g->takeExitRequest()) {
+            LogInfo(VB_PLUGIN, "FPP Arcade: %s exited from the pause menu\n", g->getName().c_str());
+            g->stop();
+            const size_t dash = button.find(" - Pressed");
+            g->releaseToIgnore = dash == std::string::npos ? "" : button.substr(0, dash);
         }
     }
     std::unique_ptr<Command::Result>  selectGame(const std::vector<std::string> &args) {

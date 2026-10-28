@@ -7,7 +7,7 @@ made with the little synthesizer in `tools/sfx/` (the recipes are `tools/sfx/gam
 `media/plugindata/fpp-arcade/sounds/<game>/` on the player is played instead, so any sound can
 be replaced, and Breakout's come from there. A name with no file is silent.
 
-All of them play `GameSelected` when the game's title is shown, and `EndShow` when an end show starts (README.md, End shows). Pausing (Start) stops the game's sounds and plays `arcade/Pause`; leaving the menu, by Resume or Restart, plays `arcade/Unpause`. Those two are shared by every game, in `sounds/arcade/` (recipe `tools/sfx/games/arcade.py`). Sounds marked *(quiet)* are
+All of them play `GameSelected` when the game's title is shown, and `EndShow` when an end show starts (README.md, End shows) - or, at Halloween or on an everyday show, `EndShowHalloween` or `EndShowEveryday` when the game has one (every game but Breakout does; the tables list only `EndShow`). Pausing (Start) stops the game's sounds and plays `arcade/Pause`; leaving the menu, by Resume or Restart, plays `arcade/Unpause`. Those two are shared by every game, in `sounds/arcade/` (recipe `tools/sfx/games/arcade.py`). Sounds marked *(quiet)* are
 played below full level by the game.
 
 ## Tetris

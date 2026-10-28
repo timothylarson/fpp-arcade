@@ -150,6 +150,18 @@ new best score always counts too. Best scores are kept per model and game in
 `media/plugindata/fpp-arcade/best.json` (delete it to start afresh). Each show plays its game's
 `EndShow` sound as it starts (see SOUNDS.md).
 
+*End shows* on the Arcade Games page sets the season they're dressed for. **By date** (the
+default) is Halloween through October, Christmas from 15 November to 6 January and everyday the
+rest of the year; or pick Christmas, Halloween or Everyday to keep to one. The stories below are
+the Christmas ones. At Halloween each has its spooky, kid-friendly side - an orange harvest moon
+with bats and falling leaves instead of snow, jack-o'-lanterns, witches' hats, candy corn, orange
+and purple fireworks - and plays `EndShowHalloween`; an everyday show has a clear night, party
+hats, balloons and trophies, and plays `EndShowEveryday`. MERRY CHRISTMAS in the credits
+(Breakout's own lines included) becomes HAPPY HALLOWEEN or SEE YOU NEXT TIME. Breakout keeps its
+`WonGame` music in every season; a game without a sound for the season plays its `EndShow`.
+Controller speakers are only offered the season's end-show music, so they hold one set: change
+the setting and they swap it for the other within a minute.
+
 What counts as good, and each game's story:
 
 - **Tetris** (level 5): falling tetrominoes build a Christmas tree; a star lands on top and

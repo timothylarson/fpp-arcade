@@ -32,6 +32,7 @@ public:
     explicit Story(int cars = 1, int who = 1) : two(cars >= 2), who(who) {}
 
     void begin(ArcadeShow &s) override {
+        theme = s.theme();
         W = s.W;
         carH = std::max(2, std::min(6, s.H / 8));
         carL = carH <= 2 ? 5 : 2 * carH;
@@ -189,7 +190,8 @@ private:
         for (int y = (int)(moonY - moonR - 1); y <= (int)(moonY + moonR + 1); ++y) {
             for (int x = (int)(moonX - moonR - 1); x <= (int)(moonX + moonR + 1); ++x) {
                 const float in = ArcadeCanvas::clamp01(moonR - std::hypot(x + 0.5f - moonX, y + 0.5f - moonY) + 0.5f);
-                c.add(x, y, {1.0f, 0.93f, 0.7f}, 0.25f * in * k);
+                c.add(x, y, theme == ShowTheme::Halloween ? RGB{1.0f, 0.5f, 0.08f} : RGB{1.0f, 0.93f, 0.7f},
+                      (theme == ShowTheme::Halloween ? 0.5f : 0.25f) * in * k);
             }
         }
         for (auto &f : flakes) {
@@ -199,7 +201,13 @@ private:
                 f.y -= s.H + 1;
                 f.x = s.rnd() * W;
             }
-            c.add((int)f.x, (int)f.y, {1, 1, 1}, 0.3f * k);
+            // Snow; leaves at Halloween; none on an everyday show.
+            static const RGB LEAF[3] = {{1.0f, 0.4f, 0.0f}, {0.85f, 0.12f, 0.05f}, {0.55f, 0.3f, 0.05f}};
+            if (theme == ShowTheme::Halloween) {
+                c.add((int)f.x, (int)f.y, LEAF[(int)(f.phase * 10) % 3], 0.45f * k);
+            } else if (theme == ShowTheme::Christmas) {
+                c.add((int)f.x, (int)f.y, {1, 1, 1}, 0.3f * k);
+            }
         }
     }
 
@@ -219,13 +227,15 @@ private:
             if (wc % 6 < 2) {
                 c.set(x, kerbTop + pitch, {0.75f, 0.82f, 1.0f}, 0.14f * k);
             }
-            if ((wc * 7) % 3 == 0) {
+            if ((wc * 7) % 3 == 0 && theme == ShowTheme::Christmas) {
                 c.set(x, H - 1, {0.75f, 0.82f, 1.0f}, 0.06f * k);   // a sprinkle of snow
             }
-            // Lights along the far verge.
-            if (kerbBot + 2 < H && wc % 3 == 0) {
+            // Lights along the far verge (orange and purple at Halloween; none on an everyday show).
+            if (kerbBot + 2 < H && wc % 3 == 0 && theme != ShowTheme::Everyday) {
                 static const RGB BULBS[4] = {{1, 0.1f, 0.05f}, {0.1f, 1, 0.2f}, {1, 0.75f, 0.1f}, {0.2f, 0.35f, 1}};
-                c.set(x, kerbBot + 2, BULBS[(wc / 3) % 4], (0.25f + 0.15f * std::sin(tw * 3 + wc)) * k);
+                static const RGB SPOOKY[4] = {{1, 0.45f, 0}, {0.65f, 0.2f, 1}, {1, 0.45f, 0}, {0.35f, 1, 0.15f}};
+                c.set(x, kerbBot + 2, (theme == ShowTheme::Halloween ? SPOOKY : BULBS)[(wc / 3) % 4],
+                      (0.25f + 0.15f * std::sin(tw * 3 + wc)) * k);
             }
         }
 
@@ -291,8 +301,11 @@ private:
             const float u = (float)std::clamp((t - f.t0) / FLIGHT, 0.0, 1.0);
             const float x = f.fromX + (f.toX - f.fromX) * u - scroll;
             const float y = f.fromY + (f.toY - f.fromY) * u - 5.0f * std::sin(u * 3.1416f);
-            c.set((int)std::lround(x), (int)std::lround(y), {1, 0.1f, 0.1f}, k);
-            c.set((int)std::lround(x) + 1, (int)std::lround(y), {1, 0.8f, 0.2f}, k);
+            // A present; candy at Halloween; a brown parcel on an everyday show.
+            const RGB a = theme == ShowTheme::Halloween ? ShowArt::ORANGE : theme == ShowTheme::Everyday ? RGB{0.6f, 0.4f, 0.15f} : RGB{1, 0.1f, 0.1f};
+            const RGB b = theme == ShowTheme::Halloween ? RGB{0.65f, 0.2f, 1.0f} : theme == ShowTheme::Everyday ? RGB{0.6f, 0.4f, 0.15f} : RGB{1, 0.8f, 0.2f};
+            c.set((int)std::lround(x), (int)std::lround(y), a, k);
+            c.set((int)std::lround(x) + 1, (int)std::lround(y), b, k);
         }
 
         // The car (or both), a tree on the roof.
@@ -334,24 +347,33 @@ private:
                 c.set(x0 + x, y, col, kk * k);
             }
         }
-        // The roof: two rows stepping in, deep in snow.
+        // The roof: two rows stepping in, deep in snow (purple slates at
+        // Halloween, red tiles otherwise).
+        const RGB roof = theme == ShowTheme::Halloween ? RGB{0.45f, 0.15f, 0.55f} : theme == ShowTheme::Everyday ? RGB{0.75f, 0.15f, 0.1f}
+                                                                                                                 : RGB{0.85f, 0.9f, 1.0f};
         for (int x = -1; x <= h.w; ++x) {
-            c.set(x0 + x, top + 1, {0.85f, 0.9f, 1.0f}, 0.25f * k);
+            c.set(x0 + x, top + 1, roof, 0.25f * k);
         }
         for (int x = 1; x < h.w - 1; ++x) {
-            c.set(x0 + x, top, {0.85f, 0.9f, 1.0f}, 0.25f * k);
+            c.set(x0 + x, top, roof, 0.25f * k);
         }
-        for (int x = -1; x <= h.w; x += 2) {
+        for (int x = -1; x <= h.w && theme != ShowTheme::Everyday; x += 2) {
             static const RGB BULBS[4] = {{1, 0.1f, 0.05f}, {0.1f, 1, 0.2f}, {1, 0.75f, 0.1f}, {0.2f, 0.35f, 1}};
-            c.set(x0 + x, top + 2, BULBS[((x + 1) / 2 + (int)h.x) % 4], (0.3f + 0.3f * std::sin(tw * 4 + x + h.x)) * k);
+            static const RGB SPOOKY[4] = {{1, 0.45f, 0}, {0.65f, 0.2f, 1}, {1, 0.45f, 0}, {0.35f, 1, 0.15f}};
+            c.set(x0 + x, top + 2, (theme == ShowTheme::Halloween ? SPOOKY : BULBS)[((x + 1) / 2 + (int)h.x) % 4],
+                  (0.3f + 0.3f * std::sin(tw * 4 + x + h.x)) * k);
         }
-        // A wreath beside the door.
-        if (h.door + 2 < h.w) {
-            c.set(x0 + h.door + 2, base - 1, {0.1f, 0.7f, 0.2f}, 0.6f * k);
+        // A wreath beside the door; at Halloween a jack-o'-lantern, lit with the house.
+        if (h.door + 2 < h.w && theme != ShowTheme::Everyday) {
+            c.set(x0 + h.door + 2, base - 1, theme == ShowTheme::Halloween ? ShowArt::ORANGE : RGB{0.1f, 0.7f, 0.2f},
+                  (theme == ShowTheme::Halloween ? 0.35f + 0.6f * glow : 0.6f) * k);
         }
         if (lit) {
-            c.set(x0 + h.door, base, {1, 0.1f, 0.1f}, 0.9f * k);
-            c.set(x0 + h.door + 1, base, {1, 0.8f, 0.2f}, 0.9f * k);
+            // The present on the doorstep: a candy bucket at Halloween, a parcel otherwise.
+            const RGB a = theme == ShowTheme::Halloween ? ShowArt::ORANGE : theme == ShowTheme::Everyday ? RGB{0.6f, 0.4f, 0.15f} : RGB{1, 0.1f, 0.1f};
+            const RGB b = theme == ShowTheme::Halloween ? ShowArt::ORANGE : theme == ShowTheme::Everyday ? RGB{0.6f, 0.4f, 0.15f} : RGB{1, 0.8f, 0.2f};
+            c.set(x0 + h.door, base, a, 0.9f * k);
+            c.set(x0 + h.door + 1, base, b, 0.9f * k);
         }
     }
 
@@ -383,8 +405,22 @@ private:
         for (int d = 1; d <= 4; ++d) {
             c.add(x0 + carL - 1 + d, y0 + topRows, {1, 0.94f, 0.75f}, 0.22f * (5 - d) / 4.0f * k);
         }
-        // The tree, tied on over the cab.
+        // The tree, tied on over the cab - or a pumpkin, or a balloon on a string.
         const int tx = x0 + (c0 + c1) / 2;
+        if (theme == ShowTheme::Halloween) {
+            c.set(tx - 1, y0 - 1, ShowArt::ORANGE, 0.8f * k);
+            c.set(tx, y0 - 1, ShowArt::ORANGE, 0.9f * k);
+            c.set(tx + 1, y0 - 1, ShowArt::ORANGE, 0.8f * k);
+            c.set(tx, y0 - 2, ShowArt::STEM, 0.8f * k);
+            return;
+        }
+        if (theme == ShowTheme::Everyday) {
+            c.set(tx, y0 - 1, {0.5f, 0.5f, 0.5f}, 0.6f * k);
+            c.set(tx, y0 - 2, {0.5f, 0.5f, 0.5f}, 0.6f * k);
+            c.set(tx, y0 - 3, {1, 0.2f, 0.2f}, 0.9f * k);
+            c.set(tx, y0 - 4, {1, 0.2f, 0.2f}, 0.9f * k);
+            return;
+        }
         c.set(tx - 1, y0 - 1, {0.05f, 0.55f, 0.12f}, 0.8f * k);
         c.set(tx, y0 - 1, {0.05f, 0.55f, 0.12f}, 0.8f * k);
         c.set(tx + 1, y0 - 1, {0.05f, 0.55f, 0.12f}, 0.8f * k);
@@ -413,6 +449,7 @@ private:
     bool crossed = false;
     std::vector<House> houses;
     std::vector<Present> flying;
+    ShowTheme theme = ShowTheme::Christmas;
 };
 
 // Alone: score and metres driven; who 1 the red car (the D-pad), 2 the blue

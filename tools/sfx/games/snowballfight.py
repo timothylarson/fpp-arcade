@@ -89,6 +89,30 @@ SOUNDS = {
         melody([("G5", 1), ("E5", 1), ("C5", 1), ("-", 1), ("D5", 1), ("B4", 1), ("G4", 1), ("C5", 3)], 0.13,
                duty=0.25, vol=0.45),
         melody([("C3", 4), ("G2", 3), ("C3", 3)], 0.13, wave="triangle", vol=0.4)),
+    # Halloween's end show: a skeleton's xylophone - a creepy, bouncy tune in
+    # A minor on dry bones, over a plodding bass, with a rattle and a low
+    # spooky bell at the end.
+    "EndShowHalloween": lambda: seq(
+        mix(melody([("A4", 1), ("C5", 1), ("E5", 1), ("D#5", 1), ("E5", 2), ("C5", 1), ("A4", 1),
+                    ("F4", 1), ("A4", 1), ("C5", 1), ("B4", 1), ("C5", 2), ("A4", 1), ("F4", 1),
+                    ("E4", 1), ("G#4", 1), ("B4", 1), ("D5", 1), ("C5", 1), ("B4", 1), ("A4", 1), ("G#4", 1),
+                    ("A4", 1), ("E5", 1), ("A5", 2), ("-", 2), ("A4", 2)],
+                   0.17, wave="triangle", vol=0.55, legato=0.35),
+            melody([("A2", 2), ("E2", 2), ("A2", 2), ("E2", 2), ("F2", 2), ("C3", 2), ("F2", 2), ("C3", 2),
+                    ("E2", 2), ("B2", 2), ("E2", 2), ("G#2", 2), ("A2", 4), ("-", 2), ("A2", 2)],
+                   0.17, wave="square", duty=0.25, vol=0.3, legato=0.5),
+            seq(silence(0.17 * 24), shake(6, 0.03, 0.3))),
+        mix(bell("A4", 0.9, 0.35), bell("D#5", 0.9, 0.25))),
+    # The everyday end show: a bright skipping tune on bells over a bouncy
+    # bass, then a last chord.
+    "EndShowEveryday": lambda: seq(
+        mix(melody([("C5", 1), ("E5", 1), ("G5", 1), ("E5", 1), ("F5", 1), ("A5", 1), ("G5", 2),
+                    ("E5", 1), ("G5", 1), ("C6", 1), ("B5", 1), ("A5", 1), ("G5", 1), ("E5", 2),
+                    ("F5", 1), ("E5", 1), ("D5", 1), ("G5", 1), ("E5", 1), ("C5", 1), ("D5", 1), ("B4", 1),
+                    ("C5", 4)], 0.16, duty=0.25, vol=0.45),
+            melody([("C3", 2), ("G2", 2), ("F2", 2), ("C3", 2), ("C3", 2), ("E3", 2), ("F3", 2), ("C3", 2),
+                    ("F2", 2), ("G2", 2), ("C3", 2), ("G2", 2), ("C3", 4)], 0.16, wave="triangle", vol=0.4)),
+        mix(bell("C6", 0.6, 0.35), bell("E6", 0.6, 0.3), bell("G6", 0.6, 0.3), bell("C7", 0.8, 0.3))),
     # The end show: the Jingle Bells chorus right through, with sleigh bells,
     # then a last bright chord.
     "EndShow": lambda: seq(

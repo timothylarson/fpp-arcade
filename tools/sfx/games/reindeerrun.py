@@ -79,6 +79,25 @@ SOUNDS = {
     "GameOver": lambda: mix(
         melody([("G5", 1), ("E5", 1), ("C5", 1), ("-", 1), ("D5", 1), ("B4", 1), ("G4", 1), ("C5", 3)], 0.13, duty=0.25, vol=0.35),
         melody([("C3", 4), ("G2", 3), ("C3", 3)], 0.13, wave="triangle", vol=0.45)),
+    # Halloween's pumpkin-coach ride: a galloping minor tune over hoofbeats
+    # and a bass, ending on a long low A.
+    "EndShowHalloween": lambda: mix(
+        melody([("A4", 1), ("C5", 1), ("E5", 1), ("A5", 1), ("G#5", 1), ("E5", 1), ("-", 2),
+                ("F5", 1), ("E5", 1), ("D5", 1), ("C5", 1), ("B4", 1), ("G#4", 1), ("-", 2),
+                ("A4", 1), ("C5", 1), ("E5", 1), ("A5", 1), ("C6", 1), ("B5", 1), ("G#5", 1), ("E5", 1),
+                ("A5", 4), ("A4", 4)], 0.16, duty=0.25, vol=0.35),
+        melody([("A2", 2), ("E3", 2), ("A2", 2), ("E3", 2), ("D3", 2), ("A2", 2), ("E3", 2), ("E2", 2),
+                ("A2", 2), ("E3", 2), ("A2", 2), ("E3", 2), ("A2", 8)], 0.16, wave="triangle", vol=0.45, legato=0.6),
+        seq(*[seq(hoof(0.3), silence(0.13), hoof(0.25), silence(0.17)) for _ in range(8)])),
+    # Everyday's ride: a bright galloping tune over hoofbeats and a bass.
+    "EndShowEveryday": lambda: mix(
+        melody([("C5", 1), ("E5", 1), ("G5", 1), ("C6", 1), ("B5", 1), ("G5", 1), ("-", 2),
+                ("A5", 1), ("G5", 1), ("F5", 1), ("E5", 1), ("D5", 1), ("G5", 1), ("-", 2),
+                ("C5", 1), ("E5", 1), ("G5", 1), ("C6", 1), ("E6", 1), ("D6", 1), ("B5", 1), ("G5", 1),
+                ("C6", 4)], 0.16, duty=0.25, vol=0.35),
+        melody([("C3", 2), ("G3", 2), ("C3", 2), ("G3", 2), ("F3", 2), ("C3", 2), ("G3", 2), ("G2", 2),
+                ("C3", 2), ("G3", 2), ("C3", 2), ("G3", 2), ("C3", 4)], 0.16, wave="triangle", vol=0.45, legato=0.6),
+        seq(*[seq(hoof(0.3), silence(0.13), hoof(0.25), silence(0.17)) for _ in range(7)])),
     # The end show's sleigh ride: the Jingle Bells chorus over sleigh bells
     # and a bass, about five seconds.
     "EndShow": lambda: mix(

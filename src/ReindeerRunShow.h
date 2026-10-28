@@ -131,6 +131,22 @@ inline void drawCandy(ArcadeCanvas::Canvas &c, int x, int y, float k) {
     }
 }
 
+// The show's own Halloween and everyday pieces (the game keeps the candy
+// canes): a flying pumpkin coach with a ghost riding in it, or a red wagon
+// carrying a gold trophy, the size of the sleigh; and candy corn, the size of
+// a candy cane.
+inline void drawCoach(ArcadeCanvas::Canvas &c, int x, int y, ShowTheme theme, float k) {
+    static const char *const COACH[RH] = {"..s....", ".owo...", "ooooooy", ".y...y."};
+    static const char *const WAGON[RH] = {".ggg...", "..g....", "rrrrrry", ".y...y."};
+    ShowArt::sprite(c, theme == ShowTheme::Halloween ? COACH : WAGON, RH, x, y,
+                    {{'s', ShowArt::STEM}, {'o', ShowArt::ORANGE}, {'w', ShowArt::GHOST}, {'g', ShowArt::GOLDEN},
+                     {'r', {0.85f, 0.05f, 0.05f}}, {'y', {1.0f, 0.75f, 0.15f}}}, k);
+}
+inline void drawCandyCorn(ArcadeCanvas::Canvas &c, int x, int y, float k) {
+    static const char *const CORN[CANDY_H] = {".w.", ".o.", "ooo", "yyy"};
+    ShowArt::sprite(c, CORN, CANDY_H, x, y, {{'w', {1, 1, 0.9f}}, {'o', ShowArt::ORANGE}, {'y', ShowArt::CANDLE}}, k);
+}
+
 class Story : public ShowStory {
 public:
     // dasherLeads: the winner (or the only player) is Dasher, not Rudolph.
@@ -139,6 +155,7 @@ public:
 
     void begin(ArcadeShow &s) override {
         const int W = s.W, H = s.H;
+        theme = s.theme();
         feet = H - 3;   // two rows of snow below
         scroll = 0;
         runX = W / 4.0f;
@@ -170,7 +187,8 @@ public:
         sleighT = sleighT < 0 ? 0 : sleighT + dt;
         const float x = -8.0f + std::fmod(sleighT, 14.0f) / 14.0f * (s.W + 16);
         const int y = (int)std::lround(moonY - 0.5f + std::sin(x * 0.2f) * 0.6f);
-        c.set((int)x, y, {1.0f, 0.15f, 0.1f}, 0.8f * k);
+        c.set((int)x, y, theme == ShowTheme::Halloween ? ShowArt::ORANGE : theme == ShowTheme::Everyday ? ShowArt::GOLDEN
+                                                                                                 : RGB{1.0f, 0.15f, 0.1f}, 0.8f * k);
         for (int i = 1; i <= 3; ++i) {
             c.set((int)x + 2 * i, y, {0.55f, 0.3f, 0.12f}, 0.8f * k);
         }
@@ -283,6 +301,14 @@ public:
                         c.set(hx + dx, feet - dy, (dy == 1 && dx % 2) ? RGB{0.7f, 0.7f, 0.75f} : RGB{0.45f, 0.2f, 0.05f}, k);
                     }
                 }
+            } else if (theme == ShowTheme::Halloween) {
+                // A pumpkin to hop instead of a present.
+                for (int dy = 0; dy < 2; ++dy) {
+                    for (int dx = 0; dx < 3; ++dx) {
+                        c.set(hx + dx, feet - dy, ShowArt::ORANGE, (dx == 1 ? 1.0f : 0.8f) * k);
+                    }
+                }
+                c.set(hx + 1, feet - 2, ShowArt::STEM, k);
             } else {
                 for (int dy = 0; dy < 2; ++dy) {
                     for (int dx = 0; dx < 3; ++dx) {
@@ -292,7 +318,11 @@ public:
                 c.set(hx + 1, feet - 2, {1, 0.8f, 0.1f}, k);
             }
             if (!hd.taken) {
-                drawCandy(c, hx, feet - 6, k);
+                if (theme == ShowTheme::Halloween) {
+                    drawCandyCorn(c, hx, feet - 6, k);
+                } else {
+                    drawCandy(c, hx, feet - 6, k);
+                }
             }
         }
 
@@ -306,7 +336,11 @@ public:
             for (int x = (int)tx + SW; x < (int)(tx + reach); x += 2) {
                 c.add(x, top + RH - 2, {1.0f, 0.75f, 0.15f}, 0.35f * k);
             }
-            drawSleigh(c, (int)tx, top, k);
+            if (theme == ShowTheme::Christmas) {
+                drawSleigh(c, (int)tx, top, k);
+            } else {
+                drawCoach(c, (int)tx, top, theme, k);
+            }
             for (int m = 1; m <= team; ++m) {
                 drawSprite(c, RUN[(frame + m) % 3], RH, (int)tx + 9 * m, top, TEAM, 0.8f * k);
             }
@@ -358,7 +392,8 @@ private:
         for (int y = (int)(moonY - r - 1); y <= (int)(moonY + r + 1); ++y) {
             for (int x = (int)(moonX - r - 1); x <= (int)(moonX + r + 1); ++x) {
                 const float in = ArcadeCanvas::clamp01(r - std::hypot(x + 0.5f - moonX, y + 0.5f - moonY) + 0.5f);
-                c.add(x, y, {1.0f, 0.93f, 0.7f}, 0.16f * in * k);
+                c.add(x, y, theme == ShowTheme::Halloween ? RGB{1.0f, 0.5f, 0.08f} : RGB{1.0f, 0.93f, 0.7f},
+                      (theme == ShowTheme::Halloween ? 0.4f : 0.16f) * in * k);
             }
         }
         for (auto &f : flakes) {
@@ -367,7 +402,13 @@ private:
                 f.y -= s.H + 1;
                 f.x = s.rnd() * s.W;
             }
-            c.add((int)f.x, (int)f.y, {1, 1, 1}, 0.12f * k);
+            // Snow; leaves at Halloween; none on an everyday show.
+            static const RGB LEAF[3] = {{1.0f, 0.4f, 0.0f}, {0.85f, 0.12f, 0.05f}, {0.55f, 0.3f, 0.05f}};
+            if (theme == ShowTheme::Halloween) {
+                c.add((int)f.x, (int)f.y, LEAF[(int)(f.x * 7) % 3], 0.4f * k);
+            } else if (theme == ShowTheme::Christmas) {
+                c.add((int)f.x, (int)f.y, {1, 1, 1}, 0.12f * k);
+            }
         }
     }
 
@@ -377,11 +418,14 @@ private:
             for (int x = 0; x < s.W; ++x) {
                 const unsigned hsh = (unsigned)(x + (int)scroll) * 2654435761u;
                 const float spark = y == feet + 1 && (hsh >> 27) == 0 ? 0.3f : 0.0f;
-                c.add(x, y, {0.75f, 0.82f, 1.0f}, (y == feet + 1 ? 0.14f : 0.012f) * k + spark * k);
+                const RGB g = theme == ShowTheme::Halloween ? RGB{0.6f, 0.3f, 0.6f}
+                            : theme == ShowTheme::Everyday ? RGB{0.2f, 0.75f, 0.2f} : RGB{0.75f, 0.82f, 1.0f};
+                c.add(x, y, g, (y == feet + 1 ? 0.14f : 0.012f) * k + (theme == ShowTheme::Christmas ? spark : 0.0f) * k);
             }
         }
     }
 
+    ShowTheme theme = ShowTheme::Christmas;
     bool dasher = false, two = false, gone = false;
     int feet = 22;
     float scroll = 0, runX = 15, sleighT = -1;
@@ -401,6 +445,14 @@ inline std::vector<std::pair<std::string, RGB>> title(int W) {
     return {{"REIN-", HEAD}, {"DEER RUN", HEAD}};
 }
 
+// Who the team pulls, for the roll.
+inline std::string santa(ShowTheme t) {
+    return t == ShowTheme::Halloween ? "THE GHOST" : t == ShowTheme::Everyday ? "THE TROPHY" : "SANTA";
+}
+inline std::string team(ShowTheme t) {
+    return t == ShowTheme::Halloween ? "AND THE PUMPKIN COACH" : t == ShowTheme::Everyday ? "AND THE WAGON TEAM" : "AND THE SLEIGH TEAM";
+}
+
 // score: the run's score, candy the candy canes in it; dasher if Dasher ran
 // it; W the model's width.
 inline ShowConfig config(int score, int candy, bool dasher, bool newBest, int previousBest, int W) {
@@ -416,8 +468,8 @@ inline ShowConfig config(int score, int candy, bool dasher, bool newBest, int pr
     }
     cfg.roll = title(W);
     cfg.roll.insert(cfg.roll.end(), {{"", WHITE}, {"CAST", HEAD},
-                                     {dasher ? "DASHER" : "RUDOLPH", dasher ? DASHER_TEXT : RUDOLPH_TEXT}, {"SANTA", RED},
-                                     {"AND THE SLEIGH TEAM", GOLD}, {"", WHITE}, {"THANKS FOR PLAYING", WHITE}});
+                                     {dasher ? "DASHER" : "RUDOLPH", dasher ? DASHER_TEXT : RUDOLPH_TEXT}, {santa(cfg.theme), RED},
+                                     {team(cfg.theme), GOLD}, {"", WHITE}, {"THANKS FOR PLAYING", WHITE}});
     cfg.ending = "GAME OVER";
     return cfg;
 }
@@ -442,7 +494,7 @@ inline ShowConfig config2(int top, int bottom, bool newBest, int previousBest, i
     }
     cfg.roll = title(W);
     cfg.roll.insert(cfg.roll.end(), {{"", WHITE}, {"CAST", HEAD}, {"TOP: RUDOLPH", RUDOLPH_TEXT},
-                                     {"BOTTOM: DASHER", DASHER_TEXT}, {"SANTA", RED}, {"AND THE SLEIGH TEAM", GOLD},
+                                     {"BOTTOM: DASHER", DASHER_TEXT}, {santa(cfg.theme), RED}, {team(cfg.theme), GOLD},
                                      {"", WHITE}, {"THANKS FOR PLAYING", WHITE}});
     cfg.ending = "GAME OVER";
     return cfg;

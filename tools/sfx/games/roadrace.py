@@ -80,6 +80,29 @@ SOUNDS = {
         mix(tone("A1", 0.12, wave="saw", vol=0.35, release=0.04), noise(0.12, vol=0.18, smooth=0.8, seed=5)), silence(0.15),
         mix(melody([("G5", 1), ("E5", 1), ("C5", 1), ("-", 1), ("D5", 1), ("B4", 1), ("G4", 1), ("C5", 3)], 0.12, wave="square", duty=0.25),
             melody([("C3", 4), ("G2", 3), ("C3", 3)], 0.12, wave="triangle", vol=0.45))),
+    # Halloween's trick-or-treat drive: the engine revving, then a sneaky
+    # minor-key tiptoe over a walking bass, and the horn.
+    "EndShowHalloween": lambda: seq(
+        tone("C2", 0.5, wave="saw", freq_end="C4", curve=0.8, vol=0.4, vibrato=0.3, vib_rate=22, release=0.05),
+        silence(0.05),
+        mix(melody([("E4", 1), ("G4", 1), ("B4", 1), ("C5", 1), ("B4", 1), ("A#4", 1), ("B4", 2),
+                    ("E4", 1), ("G4", 1), ("B4", 1), ("D5", 1), ("C5", 1), ("B4", 1), ("E4", 2)],
+                   0.2, wave="square", duty=0.25, vol=0.5, legato=0.5),
+            melody([("E2", 1), ("B2", 1), ("E2", 1), ("B2", 1), ("A2", 1), ("B2", 1), ("E2", 2),
+                    ("E2", 1), ("B2", 1), ("G2", 1), ("B2", 1), ("A2", 1), ("B2", 1), ("E2", 2)],
+                   0.2, wave="triangle", vol=0.55, legato=0.6)),
+        silence(0.05), _horn(0.12), silence(0.05), _horn(0.3)),
+    # Everyday's drive home: the engine revving, then a bouncy tune and the horn.
+    "EndShowEveryday": lambda: seq(
+        tone("C2", 0.5, wave="saw", freq_end="C4", curve=0.8, vol=0.4, vibrato=0.3, vib_rate=22, release=0.05),
+        silence(0.05),
+        mix(melody([("G4", 1), ("C5", 1), ("E5", 1), ("G5", 1), ("E5", 1), ("C5", 1), ("D5", 2),
+                    ("F5", 1), ("E5", 1), ("D5", 1), ("B4", 1), ("C5", 4)],
+                   0.2, wave="square", duty=0.25, vol=0.5),
+            melody([("C3", 1), ("G2", 1), ("C3", 1), ("G2", 1), ("C3", 1), ("G2", 1), ("G2", 2),
+                    ("D3", 1), ("G2", 1), ("G2", 1), ("G2", 1), ("C3", 4)],
+                   0.2, wave="triangle", vol=0.55, legato=0.7)),
+        silence(0.05), _horn(0.12), silence(0.05), _horn(0.3)),
     # The end show: the engine revving up, then Deck the Halls over a bouncy
     # bass, ending on a toot of the horn.
     "EndShow": lambda: seq(

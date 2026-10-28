@@ -4,7 +4,9 @@
 // the winning elf rolls a snowball along the hill, growing as it goes, into
 // the base of a giant snowman, tosses the middle and the head up onto it, and
 // the snowman gets coal eyes, a carrot nose, stick arms and the winner's own
-// hat. Then the other elf walks over and the two of them throw snowballs
+// hat. At Halloween its head is a jack-o'-lantern under a witch's hat, bats
+// fly past an orange moon and leaves fall instead of snow; an everyday show
+// has a clear night. Then the other elf walks over and the two of them throw snowballs
 // straight up, where they burst like fireworks. The snowman stands behind
 // the credits and GAME OVER.
 //
@@ -73,6 +75,7 @@ public:
         const int W = s.W, H = s.H;
         // The winner comes from its own side of the wall and faces the middle.
         from = winner == 0 ? -1 : 1;   // -1: in from the left
+        theme = s.theme();
         sx = W / 2.0f;
         rb = std::max(2.5f, H * 0.17f);
         rm = rb * 0.68f;
@@ -141,7 +144,10 @@ public:
         // 0.42 - 0.54: the middle, tossed from the elf's hands in an arc and
         // landing with a bounce. 0.54 - 0.64: the head, the same way.
         tossed(s, c, u, 0.42f, 0.54f, elfX, midY, rm, k);
-        tossed(s, c, u, 0.54f, 0.64f, elfX, headY, rh, k);
+        tossed(s, c, u, 0.54f, 0.64f, elfX, headY, rh, k, theme == ShowTheme::Halloween);
+        if (theme == ShowTheme::Halloween && u >= 0.64f) {
+            drawStem(c, k);
+        }
         // 0.64 - 0.74: eyes, nose, buttons, arms and the hat, one by one,
         // each with a little puff.
         const int parts = std::clamp((int)((u - 0.64f) / 0.02f) + 1, 0, 5);
@@ -150,7 +156,8 @@ public:
                 // Where each one goes: the face, the buttons and arms on the
                 // middle, the hat on top.
                 const float py = popped >= 2 && popped <= 3 ? midY : (popped == 4 ? headY - rh - 1 : headY);
-                s.burst(sx, py, popped == 4 ? HAT[winner] : RGB{1, 1, 1}, 8, false);
+                const RGB hatCol = theme == ShowTheme::Halloween ? ShowArt::ORANGE : HAT[winner];
+                s.burst(sx, py, popped == 4 ? hatCol : RGB{1, 1, 1}, 8, false);
             }
             drawDetails(c, popped, k);
         }
@@ -188,7 +195,11 @@ public:
             if (b.vy >= -H * 0.25f) {
                 static const RGB GOLD = {1.0f, 0.8f, 0.25f};
                 const float pick = s.rnd();
-                const RGB col = pick < 0.5f ? HAT[b.who] : (pick < 0.8f ? RGB{1, 1, 1} : GOLD);
+                // At Halloween, orange and purple in place of white and gold.
+                const bool hallow = theme == ShowTheme::Halloween;
+                const RGB col = pick < 0.5f ? HAT[b.who]
+                                            : (pick < 0.8f ? (hallow ? ShowArt::ORANGE : RGB{1, 1, 1})
+                                                           : (hallow ? RGB{0.65f, 0.2f, 1.0f} : GOLD));
                 s.burst(b.x, b.y, col, 22 + (int)(s.rnd() * 10), s.rnd() < 0.2f);
                 snowballs[i] = snowballs.back();
                 snowballs.pop_back();
@@ -212,6 +223,7 @@ private:
 
     // The night as the game has it: a black sky - no coloured fill, which
     // looks washed out on the lights - with stars, the moon and falling snow.
+    // At Halloween an orange moon, bats and falling leaves; everyday, no snow.
     void drawSky(ArcadeShow &s, ArcadeCanvas::Canvas &c, float dt, float k) {
         for (auto &st : stars) {
             c.add((int)st.x, (int)st.y, {0.9f, 0.9f, 1.0f}, (0.1f + 0.08f * std::sin((float)(s.t / 400.0) + st.phase)) * k);
@@ -219,7 +231,8 @@ private:
         for (int y = (int)(moonY - moonR - 1); y <= (int)(moonY + moonR + 1); ++y) {
             for (int x = (int)(moonX - moonR - 1); x <= (int)(moonX + moonR + 1); ++x) {
                 const float in = ArcadeCanvas::clamp01(moonR - std::hypot(x + 0.5f - moonX, y + 0.5f - moonY) + 0.5f);
-                c.add(x, y, {1.0f, 0.93f, 0.7f}, 0.4f * in * k);
+                c.add(x, y, theme == ShowTheme::Halloween ? RGB{1.0f, 0.5f, 0.08f} : RGB{1.0f, 0.93f, 0.7f},
+                      (theme == ShowTheme::Halloween ? 0.5f : 0.4f) * in * k);
             }
         }
         for (auto &f : flakes) {
@@ -229,7 +242,15 @@ private:
                 f.y -= s.H + 1;
                 f.x = s.rnd() * s.W;
             }
-            c.add((int)std::floor(f.x), (int)std::floor(f.y), {1, 1, 1}, 0.25f * k);
+            static const RGB LEAF[3] = {{1.0f, 0.4f, 0.0f}, {0.85f, 0.12f, 0.05f}, {0.55f, 0.3f, 0.05f}};
+            if (theme == ShowTheme::Halloween) {
+                c.add((int)std::floor(f.x), (int)std::floor(f.y), LEAF[(int)(f.phase * 10) % 3], 0.45f * k);
+            } else if (theme == ShowTheme::Christmas) {
+                c.add((int)std::floor(f.x), (int)std::floor(f.y), {1, 1, 1}, 0.25f * k);
+            }
+        }
+        if (theme == ShowTheme::Halloween) {
+            s.drawBats(c, dt, k);
         }
     }
 
@@ -249,8 +270,9 @@ private:
     }
 
     // A ball of snow, lit from the upper left, with a soft edge: brighter
-    // than the ground, as it's the star of the scene, but not glaring.
-    static void drawBall(ArcadeCanvas::Canvas &c, float bx, float by, float r, float k) {
+    // than the ground, as it's the star of the scene, but not glaring. Or a
+    // pumpkin, for the head at Halloween.
+    static void drawBall(ArcadeCanvas::Canvas &c, float bx, float by, float r, float k, bool pumpkin = false) {
         for (int y = (int)std::floor(by - r - 1); y <= (int)std::ceil(by + r + 1); ++y) {
             for (int x = (int)std::floor(bx - r - 1); x <= (int)std::ceil(bx + r + 1); ++x) {
                 const float dx = x + 0.5f - bx, dy = y + 0.5f - by;
@@ -259,14 +281,16 @@ private:
                     continue;
                 }
                 const float light = 0.75f - 0.25f * (dx + dy) / std::max(1.0f, r);
-                c.set(x, y, {0.5f * light, 0.55f * light, 0.66f * light}, in * k);
+                c.set(x, y, pumpkin ? RGB{0.9f * light, 0.38f * light, 0.0f} : RGB{0.5f * light, 0.55f * light, 0.66f * light},
+                      in * k);
             }
         }
     }
 
     // A ball thrown from the elf's hands to (sx, toY), arcing over and
     // landing with a bounce, between u0 and u1; there for good after.
-    void tossed(ArcadeShow &s, ArcadeCanvas::Canvas &c, float u, float u0, float u1, float fromX, float toY, float r, float k) {
+    void tossed(ArcadeShow &s, ArcadeCanvas::Canvas &c, float u, float u0, float u1, float fromX, float toY, float r, float k,
+                bool pumpkin = false) {
         if (u < u0) {
             return;
         }
@@ -281,7 +305,7 @@ private:
             x = sx;
             y = toY - (1.0f - ArcadeShow::easeOutBounce(b)) * 1.5f;
         }
-        drawBall(c, x, y, r, k);
+        drawBall(c, x, y, r, k, pumpkin);
     }
 
     // The snowman's face and the rest, the first n of: eyes, nose, buttons,
@@ -290,11 +314,18 @@ private:
         const RGB COAL = {0.0f, 0.0f, 0.0f}, CARROT = {1.0f, 0.45f, 0.05f}, STICK = {0.45f, 0.25f, 0.1f};
         const int hx = (int)std::floor(sx), hy = (int)std::floor(headY);
         const int look = -from;   // the snowman looks the way the winner is standing from it
+        const bool hallow = theme == ShowTheme::Halloween;
         if (n >= 1) {
-            c.set(hx - 1, hy - 1, COAL, k);
-            c.set(hx + 1, hy - 1, COAL, k);
+            // Coal eyes, or a jack-o'-lantern's, lit from inside.
+            c.set(hx - 1, hy - 1, hallow ? ShowArt::CANDLE : COAL, k);
+            c.set(hx + 1, hy - 1, hallow ? ShowArt::CANDLE : COAL, k);
         }
-        if (n >= 2) {
+        if (n >= 2 && hallow) {
+            // A grin.
+            for (int dx = -1; dx <= 1; ++dx) {
+                c.set(hx + dx, hy + 1, ShowArt::CANDLE, (dx == 0 ? 0.7f : 1.0f) * k);
+            }
+        } else if (n >= 2) {
             c.set(hx + look, hy, CARROT, k);
             c.set(hx + 2 * look, hy, CARROT, 0.6f * k);
         }
@@ -313,7 +344,10 @@ private:
                 c.set(hx + side * (reach + 2), my - 3, STICK, 0.6f * k);   // a twig, like fingers
             }
         }
-        if (n >= 5) {
+        if (n >= 5 && hallow) {
+            // A witch's hat, its brim on the top of the pumpkin.
+            ShowArt::witchHat(c, hx - 3, (int)std::floor(headY - rh) - 3, k);
+        } else if (n >= 5) {
             // The winner's elf hat: a white fur brim, the point flopping over
             // to the back, and the bobble.
             const int top = (int)std::floor(headY - rh);
@@ -329,10 +363,18 @@ private:
         }
     }
 
+    // The pumpkin's stem, under where the hat goes.
+    void drawStem(ArcadeCanvas::Canvas &c, float k) const {
+        c.set((int)std::floor(sx), (int)std::floor(headY - rh), ShowArt::STEM, k);
+    }
+
     void drawSnowman(ArcadeShow &s, ArcadeCanvas::Canvas &c, float r, float x, int, float k) const {
         drawBall(c, x, baseY, r, k);
         drawBall(c, x, midY, rm, k);
-        drawBall(c, x, headY, rh, k);
+        drawBall(c, x, headY, rh, k, theme == ShowTheme::Halloween);
+        if (theme == ShowTheme::Halloween) {
+            drawStem(c, k);
+        }
         drawDetails(c, 5, k);
         (void)s;
     }
@@ -344,6 +386,7 @@ private:
     float moonX = 0, moonY = 0, moonR = 2;
     double nextThrow = 0;
     int popped = 0;
+    ShowTheme theme = ShowTheme::Christmas;
 };
 
 // winner 0 red, 1 green; throws: the winner's throws; health: what it had
@@ -365,7 +408,7 @@ inline ShowConfig config(int winner, int throws, int health, int computerSide) {
     if (computerSide == 1) {
         cfg.roll.push_back({"PLAYED BY THE COMPUTER", LABEL});
     }
-    cfg.roll.push_back({"A GIANT SNOWMAN", WHITE});
+    cfg.roll.push_back({cfg.theme == ShowTheme::Halloween ? "A PUMPKIN HEAD" : "A GIANT SNOWMAN", WHITE});
     cfg.roll.push_back({"AND", HEAD});
     cfg.roll.push_back({"A LOT OF SNOW", WHITE});
     cfg.roll.push_back({"", WHITE});

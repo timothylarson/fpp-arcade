@@ -77,7 +77,8 @@ struct OrbPopSettings {
     float presencePct = 3.0f;     // % of LEDs a person must cover to count
     int endShow = 1, goodGame = 50;   // the End Show and Good Game settings
     // Overlay Transparent: no field or attract spheres, so the sequence (dimmed
-    // by the Kinect plugin's Sequence Brightness) is the backdrop.
+    // by the Kinect plugin's Sequence Brightness) is the backdrop, and people
+    // at full brightness.
     bool seeThrough = false;
 };
 
@@ -450,6 +451,14 @@ private:
             }
             const float f = clamp01((depth[i] - 500) / 3500.0f);
             const float shade = 0.3f + 0.7f * std::sqrt(std::min<int>(dist[i], 3) / 3.0f);
+            if (set.seeThrough) {
+                // Over the sequence the players are the picture: steady and at
+                // full brightness whatever Brightness says, as the Kinect
+                // picture draws them, so they're easy to see. Only the
+                // sequence under them is dimmed.
+                add(i, mix(pal.nearC, pal.farC, f), (1.0f - 0.3f * f) * shade * 100.0f / set.brightness);
+                continue;
+            }
             add(i, mix(pal.nearC, pal.farC, f), (1.0f - 0.5f * f) * shade * (0.5f + 0.5f * glyph[i]) * peopleK);
         }
 

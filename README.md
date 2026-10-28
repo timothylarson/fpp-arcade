@@ -256,7 +256,8 @@ and the same overlay model, and reads who is standing where from it every frame.
 - **Overlay Transparent** (the default for Orb Pop) plays it over the running sequence: the dim
   field and the attract-mode orbs are left out, so the sequence is the backdrop, and the
   fpp-kinect plugin's *Sequence Brightness* dims it under the players as it does for the plain
-  Kinect picture. Overwrite keeps Orb Pop's own field over the whole matrix. Every other game is
+  Kinect picture. The players themselves are drawn steady and at full brightness, as the Kinect
+  picture draws them, whatever *Brightness* is set to. Overwrite keeps Orb Pop's own field over the whole matrix. Every other game is
   meant to be played with Overwrite.
 
 Only something nearer than the Kinect's learned empty scene starts rounds and pops orbs, so a

@@ -6,7 +6,9 @@
 //   stats        bricks broken and time played, counting up
 //   a story      a snowy town at night; Santa's sleigh comes by, the paddle
 //                tosses the ball up to ride along, presents go down the
-//                chimneys and the sleigh flies off across the moon
+//                chimneys and the sleigh flies off across the moon. At
+//                Halloween a witch on her broomstick drops candy instead;
+//                an everyday show has a hot-air balloon delivering parcels
 //   credits      rolling up the screen, with the lines from the settings
 //   THE END      over a last burst of fireworks
 
@@ -24,6 +26,11 @@ public:
 
     void begin(ArcadeShow &s) override {
         const int W = s.W, H = s.H;
+        theme = s.theme();
+        // Where the ball rides, from the top left of the sleigh's row sy:
+        // Santa's lap, behind the witch on her broom, or in the basket.
+        lapX = theme == ShowTheme::Halloween ? 4 : 3;
+        lapY = theme == ShowTheme::Halloween ? 3 : theme == ShowTheme::Everyday ? 2 : 1;
         houses.clear();
         presents.clear();
         ballState = 0;
@@ -69,29 +76,31 @@ public:
         const float flight = 0.7f;
         if (ballState == 0) {
             by = py - 1 - std::fabs(std::sin((float)ms * 0.005f)) * std::min(5.0f, H * 0.2f);
-            if (sleighOn && sxf + 3 + speed * flight >= paddleX) {
+            if (sleighOn && sxf + lapX + speed * flight >= paddleX) {
                 ballState = 1;
                 ballLaunchMs = ms;
             }
         }
         if (ballState == 1) {
             const float f = std::clamp((float)((ms - ballLaunchMs) / 1000.0) / flight, 0.0f, 1.0f);
-            bx = paddleX + (sxf + 3 - paddleX) * f;
-            by = (py - 1) + (sy + 1 - (py - 1)) * f - std::sin(f * 3.1416f) * 4.0f;
+            bx = paddleX + (sxf + lapX - paddleX) * f;
+            by = (py - 1) + (sy + lapY - (py - 1)) * f - std::sin(f * 3.1416f) * 4.0f;
             if (f >= 1.0f) {
                 ballState = 2;
-                s.burst(sxf + 3, (float)sy + 1, {1, 1, 1}, 12, true);
+                s.burst(sxf + lapX, (float)sy + lapY, {1, 1, 1}, 12, true);
             }
         }
 
-        // Presents down the chimneys once the ball is aboard.
+        // Presents (or candy) down the chimneys once the ball is aboard.
         if (sleighOn && ballState == 2) {
             for (size_t i = 0; i < houses.size(); ++i) {
                 House &h = houses[i];
-                if (!h.gotPresent && sx + 2 >= h.chimneyX && sx + 2 < h.chimneyX + 2 &&
+                if (!h.gotPresent && sx + lapX - 1 >= h.chimneyX && sx + lapX - 1 < h.chimneyX + 2 &&
                     std::none_of(presents.begin(), presents.end(), [&](const Present &p) { return p.house == (int)i; })) {
                     static const RGB COLS[] = {{1, 0.15f, 0.15f}, {0.2f, 1, 0.3f}, {1, 0.8f, 0.2f}, {0.4f, 0.6f, 1}};
-                    presents.push_back({(float)h.chimneyX, (float)sy + 4, (int)i, COLS[i % 4]});
+                    static const RGB CANDY[] = {{1, 0.45f, 0}, {0.65f, 0.2f, 1}, {0.35f, 1, 0.15f}, {1, 0.85f, 0.25f}};
+                    presents.push_back({(float)h.chimneyX, (float)sy + lapY + 3, (int)i,
+                                        (theme == ShowTheme::Halloween ? CANDY : COLS)[i % 4]});
                 }
             }
         }
@@ -129,12 +138,21 @@ public:
         }
 
         if (sleighOn) {
-            // A trail of gold sparkles behind.
-            if (s.rnd() < dt * 25.0f) {
+            // A trail of gold sparkles behind, or the witch's purple and
+            // green; the balloon has none.
+            if (theme != ShowTheme::Everyday && s.rnd() < dt * 25.0f) {
+                const RGB spark = theme == ShowTheme::Halloween ? (s.rnd() < 0.5f ? RGB{0.65f, 0.2f, 1} : RGB{0.35f, 1, 0.15f})
+                                                                : RGB{1, 0.8f, 0.3f};
                 s.sparks.push_back({sxf - 0.5f, sy + 3.0f + s.rnd(), -speed * 0.2f, s.rnd() * 2 - 1, 0, 0.5f + s.rnd() * 0.5f,
-                                    {1, 0.8f, 0.3f}, 30, 2.0f});
+                                    spark, 30, 2.0f});
             }
-            drawSleigh(c, sx, sy, ms, ballState == 2, k);
+            if (theme == ShowTheme::Halloween) {
+                drawWitch(c, sx, sy, ms, ballState == 2, k);
+            } else if (theme == ShowTheme::Everyday) {
+                drawBalloon(c, sx, sy, ballState == 2, k);
+            } else {
+                drawSleigh(c, sx, sy, ms, ballState == 2, k);
+            }
         }
         s.drawFireworks(c, k);   // the sparkles, and the bursts as presents land
     }
@@ -155,8 +173,14 @@ private:
     static int chimneyTop(const House &h, int H) { return H - 1 - h.h - 4; }
 
     void drawTown(ArcadeCanvas::Canvas &c, int W, int H, float k) {
+        // Snow on the ground and the roofs; at Halloween dark purple roofs
+        // edged orange over dead grass; everyday red roofs on grass.
+        const bool hallow = theme == ShowTheme::Halloween, everyday = theme == ShowTheme::Everyday;
+        const RGB ground = hallow ? RGB{0.35f, 0.22f, 0.05f} : everyday ? RGB{0.1f, 0.6f, 0.1f} : RGB{0.85f, 0.9f, 1.0f};
+        const RGB roof = hallow ? RGB{0.35f, 0.08f, 0.45f} : RGB{0.6f, 0.08f, 0.06f};
+        const RGB roofEdge = hallow ? RGB{1.0f, 0.45f, 0.0f} : everyday ? roof : RGB{0.85f, 0.9f, 1.0f};
         for (int x = 0; x < W; ++x) {
-            c.set(x, H - 1, {0.85f, 0.9f, 1.0f}, 0.35f * k);   // snow on the ground
+            c.set(x, H - 1, ground, 0.35f * k);
         }
         for (const auto &h : houses) {
             const int top = H - 1 - h.h;
@@ -170,15 +194,16 @@ private:
             for (int wdx = 0; wdx < 2; ++wdx) {
                 const bool lit = h.gotPresent || (h.windows >> wdx & 1);
                 const int wx = wdx ? h.x + h.w - 2 : h.x + 1;
-                c.set(wx, top + 1, lit ? RGB{1.0f, 0.7f, 0.25f} : RGB{0.05f, 0.05f, 0.1f}, (lit ? glow : 1.0f) * k);
+                const RGB warm = hallow ? RGB{1.0f, 0.45f, 0.0f} : RGB{1.0f, 0.7f, 0.25f};
+                c.set(wx, top + 1, lit ? warm : RGB{0.05f, 0.05f, 0.1f}, (lit ? glow : 1.0f) * k);
             }
-            // The roof, snowy along the top edge, and a chimney.
+            // The roof, snowy (or orange) along the top edge, and a chimney.
             const int rows = (h.w + 1) / 2;
             for (int r = 1; r <= rows; ++r) {
                 const int x0 = h.x + r - 1, x1 = h.x + h.w - r;
                 for (int x = x0; x <= x1; ++x) {
                     const bool edge = x == x0 || x == x1;
-                    c.set(x, top - r, edge ? RGB{0.85f, 0.9f, 1.0f} : RGB{0.6f, 0.08f, 0.06f}, (edge ? 0.5f : 0.55f) * k);
+                    c.set(x, top - r, edge ? roofEdge : roof, (edge && !everyday ? 0.5f : 0.55f) * k);
                 }
             }
             // The chimney is the second column from the right, where the
@@ -230,12 +255,82 @@ private:
         }
     }
 
+    // The witch on her broomstick, facing right: a pointed hat, a green
+    // face, a purple cloak, and the ball riding on the broom behind her,
+    // where the cat would sit. 17 x 6, from the row above the sleigh's.
+    void drawWitch(ArcadeCanvas::Canvas &c, int sx, int sy, double ms, bool withBall, float k) {
+        static const char *ROWS[6] = {
+            ".......P.........",
+            "......PP.........",
+            ".....PPPPP.......",
+            "......GGC........",
+            "YY....CCCC.......",
+            "YYYBBBBBBBBBBB...",
+        };
+        const RGB HAT = {0.45f, 0.12f, 0.6f}, FACE = {0.35f, 0.9f, 0.2f}, CLOAK = {0.4f, 0.1f, 0.55f},
+                  STRAW = {1.0f, 0.75f, 0.2f}, STICK = {0.55f, 0.3f, 0.1f};
+        // Her cloak flaps.
+        const bool flap = std::fmod(ms, 400.0) < 200.0;
+        for (int y = 0; y < 6; ++y) {
+            for (int x = 0; x < 17; ++x) {
+                RGB col;
+                float kk = 1;
+                switch (ROWS[y][x]) {
+                case 'P': col = HAT; break;
+                case 'G': col = FACE; kk = 0.8f; break;
+                case 'C': col = CLOAK; break;
+                case 'Y': col = STRAW; kk = 0.7f; break;
+                case 'B': col = STICK; kk = 0.8f; break;
+                default: continue;
+                }
+                c.set(sx + x, sy - 1 + y, col, kk * k);
+            }
+        }
+        c.set(sx + 5, sy + 3 - (flap ? 1 : 0), CLOAK, 0.7f * k);
+        if (withBall) {
+            c.set(sx + lapX, sy + lapY, {1, 1, 1}, k);
+        }
+    }
+
+    // A striped hot-air balloon, its top on the row above the sleigh's and
+    // the ball riding in the basket. 7 x 9.
+    void drawBalloon(ArcadeCanvas::Canvas &c, int sx, int sy, bool withBall, float k) {
+        static const char *ROWS[9] = {
+            "..EEE..",
+            ".EEEEE.",
+            "EEEEEEE",
+            "EEEEEEE",
+            ".EEEEE.",
+            "..EEE..",
+            "..r.r..",
+            "..B.B..",
+            "..BBB..",
+        };
+        static const RGB STRIPE[3] = {{1, 0.2f, 0.15f}, {1, 0.8f, 0.2f}, {0.3f, 0.5f, 1}};
+        const RGB ROPE = {0.5f, 0.45f, 0.4f}, BASKET = {0.6f, 0.35f, 0.12f};
+        for (int y = 0; y < 9; ++y) {
+            for (int x = 0; x < 7; ++x) {
+                switch (ROWS[y][x]) {
+                case 'E': c.set(sx + x, sy - 5 + y, STRIPE[x % 3], 0.8f * k); break;
+                case 'r': c.set(sx + x, sy - 5 + y, ROPE, 0.5f * k); break;
+                case 'B': c.set(sx + x, sy - 5 + y, BASKET, 0.8f * k); break;
+                default: break;
+                }
+            }
+        }
+        if (withBall) {
+            c.set(sx + lapX, sy + lapY, {1, 1, 1}, k);
+        }
+    }
+
     std::vector<House> houses;
     std::vector<Present> presents;
     float paddleX = 0;
     int paddleW = 6;
     int ballState = 0;   // 0 on the paddle, 1 flying up, 2 in the sleigh
     double ballLaunchMs = 0;
+    ShowTheme theme = ShowTheme::Christmas;
+    int lapX = 3, lapY = 1;
 };
 
 class BreakoutCredits {
@@ -268,6 +363,11 @@ public:
         const int roll = std::max(1, h / 40);
         const bool wide = (w + roll) / (4 * roll) >= 8;
         auto &r = cfg.roll;
+        // The settings' lines alternate red and green, or orange and purple
+        // at Halloween, or gold and blue.
+        const bool hallow = cfg.theme == ShowTheme::Halloween, everyday = cfg.theme == ShowTheme::Everyday;
+        const ArcadeCanvas::RGB one = hallow ? ArcadeCanvas::RGB{1.0f, 0.5f, 0.05f} : everyday ? GOLD : RED;
+        const ArcadeCanvas::RGB two = hallow ? ArcadeCanvas::RGB{0.75f, 0.35f, 1.0f} : everyday ? ArcadeCanvas::RGB{0.45f, 0.65f, 1.0f} : GREEN;
         r.push_back({wide ? "BREAKOUT" : "BREAK OUT", HEAD});
         r.push_back({"", WHITE});
         r.push_back({"CAST", HEAD});
@@ -280,14 +380,14 @@ public:
             r.push_back({"SPECIAL THANKS", HEAD});
             int n = 0;
             for (const auto &l : thanks) {
-                r.push_back({l, n++ % 2 ? GREEN : RED});
+                r.push_back({l, n++ % 2 ? two : one});
             }
         }
         if (!extraLines.empty()) {
             r.push_back({"", WHITE});
             int n = 0;
             for (const auto &l : extraLines) {
-                r.push_back({l, n++ % 2 ? GREEN : RED});
+                r.push_back({l, n++ % 2 ? two : one});
             }
         }
         r.push_back({"", WHITE});

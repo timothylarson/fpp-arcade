@@ -15,6 +15,9 @@
 //   - Serves a settings page on port 80. With no Wi-Fi set up, or none it can
 //     reach, it makes its own network "ArcadeSpeaker-XXXX" with that page.
 //   - Shows what it's doing on the board's RGB light (see README.md).
+//   - Takes new firmware over Wi-Fi: POST the .bin to /update (the page has a
+//     button). It goes into the spare app slot and is only switched to once
+//     it's all there and checks out.
 //
 // Build for "ESP32S3 Dev Module" with Flash Size 16MB, PSRAM "OPI PSRAM" and
 // Partition Scheme "16M Flash (3MB APP/9.9MB FATFS)" - see README.md.
@@ -26,6 +29,7 @@
 #include <FFat.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
+#include <Update.h>
 #include <WebServer.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
@@ -37,7 +41,7 @@
 
 #include "page.h"
 
-#define FIRMWARE "1.4"
+#define FIRMWARE "1.6"
 
 // Pins for an ESP32-S3-DevKitC-1; any free GPIOs will do.
 constexpr int PIN_BCLK = 5;    // MAX98357A BCLK
@@ -61,6 +65,7 @@ struct Settings {
     bool show = false;      // play the show's music too (show.h)
     int showVolume = 70;    // 0..100
     int showOffset = 0;     // ms: + plays it later, - earlier
+    bool ledAlways = false; // keep the status light on; otherwise it goes dark a minute after it's ready
 } cfg;
 Preferences prefs;
 
@@ -78,6 +83,7 @@ void loadSettings() {
     cfg.show = prefs.getBool("show", false);
     cfg.showVolume = prefs.getInt("showVol", 70);
     cfg.showOffset = prefs.getInt("showOfs", 0);
+    cfg.ledAlways = prefs.getBool("ledOn", false);
     prefs.end();
 }
 
@@ -92,6 +98,7 @@ void saveSettings() {
     prefs.putBool("show", cfg.show);
     prefs.putInt("showVol", cfg.showVolume);
     prefs.putInt("showOfs", cfg.showOffset);
+    prefs.putBool("ledOn", cfg.ledAlways);
     prefs.end();
 }
 
@@ -326,6 +333,7 @@ void loadClips() {
 
 // Kept dim: the LED is very bright at full power.
 uint32_t ledNow = 0xffffffff;
+bool ledDark = false;   // gone dark while all's well (see updateLed())
 
 void setLed(uint8_t r, uint8_t g, uint8_t b) {
     const uint32_t c = (r << 16) | (g << 8) | b;
@@ -412,7 +420,9 @@ bool syncSounds() {
         }
         // Purple, flickering a file at a time: the loop waits for this.
         const bool odd = (fetched + failed) & 1;
-        setLed(odd ? 4 : 16, 0, odd ? 6 : 24);
+        if (!ledDark) {
+            setLed(odd ? 4 : 16, 0, odd ? 6 : 24);
+        }
         FFat.mkdir("/s");
         FFat.mkdir("/s/" + path.substring(0, path.indexOf('/')));
         HTTPClient get;
@@ -611,15 +621,29 @@ State state() {
 // White blink: a sound was just asked for. Red blinking: something's wrong
 // with the speaker itself; red: FPP doesn't answer. Blue blinking: the set-up
 // network is on. Amber: joining the Wi-Fi or waiting to hear from FPP.
-// Green: ready.
+// Green: ready - and a minute after that, dark, unless "Keep the status light
+// on" is ticked. It saves a little battery and doesn't glow through the
+// controller; anything other than ready lights it again.
 void updateLed() {
     const uint32_t now = millis();
     const bool blinkOn = now % 1000 < 500;
+    static uint32_t readySince = 0;
+    const State st = state();
+    if (st != State::Ready) {
+        readySince = 0;
+    } else if (!readySince) {
+        readySince = now ? now : 1;
+    }
+    ledDark = !cfg.ledAlways && readySince && now - readySince > 60000;
+    if (ledDark) {
+        setLed(0, 0, 0);
+        return;
+    }
     if (now - lastPlayMs < 80 && lastPlayMs) {
         setLed(24, 24, 24);
         return;
     }
-    switch (state()) {
+    switch (st) {
         case State::Fault: setLed(blinkOn ? 24 : 0, 0, 0); break;
         case State::SetUp: setLed(0, 0, blinkOn ? 24 : 0); break;
         case State::NoFpp: setLed(24, 0, 0); break;
@@ -683,11 +707,19 @@ void handleStatus() {
     j += ",\"total\":" + String(storageOk ? FFat.totalBytes() : 0);
     j += ",\"volume\":" + String(cfg.volume);
     j += ",\"show\":" + String(cfg.show ? "true" : "false");
+    j += ",\"ledAlways\":" + String(cfg.ledAlways ? "true" : "false");
+    j += ",\"ledDark\":" + String(ledDark ? "true" : "false");
     j += ",\"showVolume\":" + String(cfg.showVolume);
     j += ",\"showOffset\":" + String(cfg.showOffset);
     j += ",\"showStatus\":" + json(showStatus());
     j += ",\"showPlaying\":" + String(showStarted && ringValid ? "true" : "false");
     j += ",\"showErr\":" + String(showErrMs);
+    j += ",\"showJumps\":" + String(showJumps);
+    j += ",\"showDry\":" + String(showDry);
+    j += ",\"showBadFrames\":" + String(showBadFrames);
+    j += ",\"showLastErr\":" + String(showLastErr);
+    j += ",\"showGaps\":" + String(showGaps);
+    j += ",\"showBuffered\":" + String((ringW - ringR) * 1000 / RATE);
     j += ",\"showHeardAgo\":" + String(showFile[0] ? millis() - showLastHeard : 0);
     j += ",\"loopWorst\":" + String(loopWorstMs);
     j += ",\"firmware\":" + json(FIRMWARE);
@@ -739,6 +771,7 @@ void handleSave() {
     cfg.model = web.arg("model");
     cfg.name = web.arg("name");
     cfg.show = web.arg("show") == "on";
+    cfg.ledAlways = web.arg("ledAlways") == "on";
     cfg.showOffset = constrain(web.arg("showOffset").toInt(), -2000, 2000);
     saveSettings();
     web.send(200, "text/plain", "ok");
@@ -799,6 +832,30 @@ void setup() {
     web.on("/models", handleModels);
     web.on("/scan", handleScan);
     web.on("/save", HTTP_POST, handleSave);
+    web.on(
+        "/update", HTTP_POST,
+        [] {
+            const bool ok = !Update.hasError();
+            web.send(ok ? 200 : 500, "text/plain",
+                     ok ? String("Updated. Restarting...") : "Update failed: " + String(Update.errorString()));
+            if (ok) {
+                delay(500);
+                ESP.restart();
+            }
+        },
+        [] {
+            HTTPUpload &up = web.upload();
+            if (up.status == UPLOAD_FILE_START) {
+                stopVoices("*");
+                Update.begin(UPDATE_SIZE_UNKNOWN);
+            } else if (up.status == UPLOAD_FILE_WRITE) {
+                Update.write(up.buf, up.currentSize);
+            } else if (up.status == UPLOAD_FILE_END) {
+                Update.end(true);   // checks it, and boots it next time
+            } else if (up.status == UPLOAD_FILE_ABORTED) {
+                Update.abort();
+            }
+        });
     web.on("/volume", [] {
         // Heard straight away; saved once the slider is let go (save=1).
         if (web.hasArg("v")) {

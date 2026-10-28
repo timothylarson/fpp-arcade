@@ -6,8 +6,8 @@
 // speaker downloads that file from the FPP that sent them
 // (api/file/Music/<name>), decodes the MP3 itself (the Helix decoder that
 // comes with the ESP32 core) and keeps to FPP's position: it skips or waits
-// when it's out by more than 40 ms, and otherwise plays a touch faster or
-// slower until it's back within 2 ms.
+// when it's well out, and otherwise plays a touch faster or slower until it's
+// back within 2 ms (see showMix()).
 //
 // Joining a song part-way (the speaker started late, or missed the start)
 // streams the file from the top and skips whole MP3 frames by their headers,
@@ -103,6 +103,9 @@ std::atomic<uint32_t> ringW{0}, ringR{0};
 volatile int64_t ringFirst = 0;
 volatile bool ringValid = false;
 volatile int32_t showErrMs = 0;   // how far out it was, last block
+volatile uint32_t showJumps = 0, showDry = 0;   // skips/waits, and blocks with too little decoded
+volatile uint32_t showBadFrames = 0, showGaps = 0;   // frames that wouldn't decode; silent blocks mid-song
+volatile int showLastErr = 0;                        // the decoder's last error
 
 void ringRestart(int64_t songIdx) {
     portENTER_CRITICAL(&showMux);
@@ -130,20 +133,48 @@ bool showMix(int16_t *out) {
     if (target < 0) {
         return false;
     }
+    // Each reading of FPP's position comes over Wi-Fi a few ms either way, so
+    // small differences are left alone, and only one that lasts is chased:
+    //   out by 8-40 ms:  a sample fewer or more every 4th block (0.1%), or
+    //                    every 2nd past 20 ms (0.2%) - no one hears that -
+    //                    until it's back within 2 ms;
+    //   out by more for a third of a second (or by a quarter second at once):
+    //                    skip ahead or wait, which is heard, but rarely.
+    constexpr int64_t MS = RATE / 1000;
+    static int steer = 0;            // -1 slowing, +1 speeding up, 0 leave it
+    static uint32_t farSince = 0, blockNo = 0;
+    ++blockNo;
     bool played = false;
     portENTER_CRITICAL(&showMux);
     const uint32_t r = ringR, w = ringW;
     if (ringValid && w != r) {
         const int64_t err = ringFirst + r - target;   // > 0: ahead of FPP
-        constexpr int64_t JUMP = RATE * 40 / 1000, FAR = RATE * 15 / 1000, NEAR = RATE * 2 / 1000;
-        showErrMs = (int32_t)(err * 1000 / RATE);
-        if (err < -JUMP) {
+        const int64_t mag = err < 0 ? -err : err;
+        showErrMs = (int32_t)(err / MS);
+        const uint32_t now = millis();
+        if (mag <= 40 * MS) {
+            farSince = 0;
+        } else if (!farSince) {
+            farSince = now ? now : 1;
+        }
+        const bool jump = mag > 250 * MS || (farSince && now - farSince > 330);
+        if (jump && err < 0) {
             ringR = r + (uint32_t)std::min<int64_t>(w - r, -err);   // behind: skip to it
-        } else if (err <= JUMP) {                                    // (ahead: wait for it)
-            // Close: one or two samples more or fewer per block (0.4 or 0.8%)
-            // until within 2 ms - too little to hear as a change of pitch.
-            const int n = BLOCK - (err > FAR ? 2 : err > NEAR ? 1 : err < -FAR ? -2 : err < -NEAR ? -1 : 0);
-            if (w - r > (uint32_t)n) {
+            ++showJumps;
+            farSince = 0;
+        } else if (jump) {
+            ++showJumps;   // ahead: wait for it (this block plays nothing)
+        } else {
+            if (mag > 8 * MS) {
+                steer = err > 0 ? -1 : 1;
+            } else if (mag < 2 * MS) {
+                steer = 0;
+            }
+            const int every = mag > 20 * MS ? 2 : 4;
+            const int n = BLOCK + (steer && blockNo % every == 0 ? steer : 0);
+            if (w - r <= (uint32_t)n) {
+                ++showDry;   // the decoder is behind (the download stalled)
+            } else {
                 for (int i = 0; i < BLOCK; ++i) {
                     const uint32_t pos = (uint32_t)i * n * 256 / BLOCK;   // in 1/256ths of a sample
                     const int32_t a = showRing[(r + (pos >> 8)) % SHOW_RING];
@@ -156,6 +187,9 @@ bool showMix(int16_t *out) {
         }
     }
     portEXIT_CRITICAL(&showMux);
+    if (!played && ringValid) {
+        ++showGaps;
+    }
     return played;
 }
 
@@ -272,6 +306,9 @@ int mp3FrameBytes(const uint8_t *h, int &spf, int &sr) {
 bool showStream(uint32_t gen, const char *name, IPAddress from, HMP3Decoder dec) {
     HTTPClient http;
     http.setTimeout(5000);
+    // HTTP/1.0, so FPP sends the file as it is: over 1.1 it comes chunked, and
+    // the chunk headers in the raw stream broke a frame or two every second.
+    http.useHTTP10(true);
     http.begin("http://" + from.toString() + "/api/file/Music/" + urlEncode(name));
     const int code = http.GET();
     if (code != 200) {
@@ -403,6 +440,10 @@ bool showStream(uint32_t gen, const char *name, IPAddress from, HMP3Decoder dec)
             continue;
         }
         if (err != ERR_MP3_NONE) {
+            if (!restart) {
+                ++showBadFrames;
+                showLastErr = err;
+            }
             // A frame that won't decode (the first after a skip has no bit
             // reservoir to draw on) is a frame of silence, so what follows
             // still lands at the right time.

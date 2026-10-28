@@ -132,13 +132,18 @@ body.setupmode #settings{order:-1}
 
 <label class="check"><input type="checkbox" id="fShow" name="show"> Play the show's music</label>
 <div class="hint">Plays the music of FPP's playlists and sequences, in time with the lights. On the show's
-FPP player, under Settings &rsaquo; MultiSync, tick <b>Send MultiSync Packets</b> and <b>Send MultiSync to ALL
-remotes via Multicast</b> (or Broadcast). The music has its own volume above.</div>
+FPP player, tick <b>Send MultiSync Packets</b> (FPP Settings &rsaquo; Playback) and <b>Send MultiSync to ALL
+remotes via Multicast</b> (Status/Control &rsaquo; MultiSync &rsaquo; More Settings), then Restart FPPD. The
+music has its own volume above.</div>
 <div class="showonly">
 <label for="fShowOfs">Music timing (ms)</label>
 <div class="field"><input type="number" id="fShowOfs" name="showOffset" min="-2000" max="2000" step="10"></div>
 <div class="hint">If the music is early or late against the lights: + plays it later, &minus; earlier.</div>
 </div>
+
+<label class="check"><input type="checkbox" id="fLed" name="ledAlways"> Keep the status light on</label>
+<div class="hint">Otherwise it goes dark a minute after the speaker is ready, and lights again if anything
+needs attention.</div>
 
 <label for="fSsid">Wi-Fi network</label>
 <div class="field"><input type="text" id="fSsid" name="ssid" list="ssids" maxlength="32">
@@ -153,6 +158,14 @@ remotes via Multicast</b> (or Broadcast). The music has its own volume above.</d
 <div class="actions"><button class="primary" id="save">Save and restart</button>
 <span class="dirty" id="dirty">Unsaved changes</span><span class="msg" id="saveMsg"></span></div>
 </form>
+</section>
+
+<section id="firmware">
+<h2>Firmware</h2>
+<div class="hint" style="margin-top:0">A new version, built as in the README (Sketch &rsaquo; Export Compiled Binary gives the
+<code>.bin</code>). Settings and sounds stay; if the upload fails, it keeps the one it has.</div>
+<div class="actions"><input type="file" id="fwFile" accept=".bin"><button id="fwSend" disabled>Update</button>
+<span class="msg" id="fwMsg"></span></div>
 </section>
 
 <footer id="foot"></footer>
@@ -263,7 +276,7 @@ function render(s) {
   $('foot').textContent = 'Firmware ' + s.firmware + ' · up ' + ago(s.uptime).replace(' ago', '');
   if (!filled || !dirty) {
     $('fName').value = s.name; $('fModel').value = s.model; $('fFpp').value = s.fpp; $('fSsid').value = s.ssid;
-    $('fShow').checked = s.show; $('fShowOfs').value = s.showOffset;
+    $('fShow').checked = s.show; $('fShowOfs').value = s.showOffset; $('fLed').checked = s.ledAlways;
     nameHint();
     if (!filled && s.connected) loadModels();
     filled = true;
@@ -377,6 +390,24 @@ $('form').onsubmit = async e => {
     } catch (e) {}
   }
   location.href = goTo;
+};
+
+$('fwFile').onchange = () => { $('fwSend').disabled = !$('fwFile').files.length; };
+$('fwSend').onclick = () => {
+  const f = $('fwFile').files[0];
+  if (!f) return;
+  $('fwSend').disabled = true;
+  const x = new XMLHttpRequest(), form = new FormData();
+  form.append('firmware', f);
+  x.upload.onprogress = e => { $('fwMsg').textContent = 'Sending ' + Math.round(100 * e.loaded / e.total) + '%'; };
+  x.onload = () => {
+    $('fwMsg').textContent = x.responseText;
+    if (x.status === 200) setTimeout(() => location.reload(), 12000);
+    else $('fwSend').disabled = false;
+  };
+  x.onerror = () => { $('fwMsg').textContent = 'The upload didn\'t get through; try again.'; $('fwSend').disabled = false; };
+  x.open('POST', '/update');
+  x.send(form);
 };
 
 refresh();

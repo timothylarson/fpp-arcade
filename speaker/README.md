@@ -84,6 +84,17 @@ then Upload. Or from a terminal, with the Arduino CLI:
 arduino-cli compile --upload -p /dev/cu.usbmodem1101 --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB" ArcadeSpeaker
 ```
 
+The first time it has to be over USB. After that (firmware 1.6 and later) it can be updated over
+Wi-Fi, sealed in its controller: *Sketch › Export Compiled Binary* in the IDE, then the
+**Firmware** section of the speaker's page, or from a terminal:
+
+```bash
+curl -F "firmware=@ArcadeSpeaker.ino.bin" http://left-controller.local/update
+```
+
+It goes into the spare half of the app space and is only switched to once it's all there and
+checks out, so a failed upload leaves the old firmware running. Settings and sounds stay.
+
 ## Setting it up
 
 1. Power it up. With no Wi-Fi set, it makes its own network, **ArcadeSpeaker-xxxx**. Join it
@@ -109,14 +120,16 @@ with the lights. Tick **Play the show's music** on its page (it restarts); the m
 volume slider beside the games'. Each speaker is set on its own, so only the ones you choose play
 it.
 
-On the FPP player running the show, under *Settings › MultiSync*, tick **Send MultiSync Packets**
-and **Send MultiSync to ALL remotes via Multicast** (or *via Broadcast*). FPP then says, every half
+On the FPP player running the show, tick **Send MultiSync Packets** (*FPP Settings › Playback*, or
+*Status/Control › MultiSync*) and **Send MultiSync to ALL remotes via Multicast**, or *via
+Broadcast* (*Status/Control › MultiSync › More Settings*), then **Restart FPPD**. FPP's default
+sends only to the FPP players it knows, which leaves the speakers out. FPP then says, every half
 second, which media file is playing and how far in. The speaker downloads that file from the same
 FPP, decodes it itself and keeps to FPP's position, within a few milliseconds; the page's *Show
 audio* line says how close it is.
 
 - MP3s only (FPP's Music folder). A song in another format is left silent, and the page says so.
-- Setting FPP's **Open/Start Delay** to about 1000 ms gives the speaker a moment to start
+- Setting FPP's **Open/Start Delay** (also under *Playback*) to about 1000 ms gives the speaker a moment to start
   downloading before each song, so it's in time from the first note. Without it, it's a few tens
   of milliseconds late at first and catches up within a few seconds.
 - A speaker that starts part-way through a song (switched on mid-show, or back from a Wi-Fi
@@ -131,8 +144,8 @@ what the speaker is doing:
 
 | Light | Means |
 |---|---|
-| Green, steady | Ready: on the Wi-Fi, FPP answers and the sounds are loaded |
-| White blink | FPP just sent a sound to play |
+| Green, steady | Ready: on the Wi-Fi, FPP answers and the sounds are loaded. After a minute it goes dark (unless *Keep the status light on* is ticked), and lights again if anything below happens |
+| White blink | FPP just sent a sound to play (while the light is on) |
 | Purple, flickering | Fetching sounds from FPP |
 | Amber | Starting up, joining the Wi-Fi, or waiting to hear from FPP |
 | Blue, blinking | Its set-up network is on: no Wi-Fi set, or it can't reach the one that is |

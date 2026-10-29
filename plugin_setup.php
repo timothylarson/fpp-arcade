@@ -52,6 +52,16 @@ $pluginName = basename(dirname(__FILE__));
 #arcadePage .noOpts { opacity: 0.6; font-size: 0.9em; margin: 6px 0; }
 #arcadePage .addRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 #arcadePage details { margin-top: 26px; }
+/* A card per controller speaker. */
+#arcadePage .spk { border: 1px solid rgba(128,128,128,0.45); border-radius: 6px; padding: 8px 10px; margin: 0 0 8px 0; }
+#arcadePage .spkHead { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#arcadePage .spkHead .spacer { flex: 1 1 auto; }
+#arcadePage .spkInfo { opacity: 0.75; font-size: 0.9em; }
+#arcadePage .spkRow { display: flex; gap: 8px 18px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+#arcadePage .spkRow label { margin: 0; font-weight: normal; white-space: nowrap; }
+#arcadePage .spkRow input[type=range] { width: 160px; vertical-align: middle; display: inline-block; }
+#arcadePage .spkSet { margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(128,128,128,0.3); }
+#arcadePage .spkMsg { font-size: 0.88em; opacity: 0.8; }
 #arcadePage summary { cursor: pointer; font-weight: bold; font-size: 1.15em; }
 /* Phones: labels above controls, and the card header wraps. */
 @media (max-width: 640px) {
@@ -93,7 +103,8 @@ Saving applies straight away, without restarting FPP, and stops any game being p
     settings, same port). Leave blank when the speaker is on the player.</div></td></tr>
 <tr><td>Controller speakers</td><td><div id="sndSpeakers">Looking...</div>
     <div class="hint">ESP32 speakers built into the controllers (see <code>speaker/README.md</code> in the plugin). Each plays the sounds of
-    the model it's set to, from its own copy of the files, which it fetches from here.</div></td></tr>
+    the model it's set to, from its own copy of the files, which it fetches from here. The controls here go through FPP, so
+    they work wherever this page does; the <b>FPP Arcade Speaker Volume</b> command sets volumes from a playlist or schedule.</div></td></tr>
 </table>
 
 <h3>End shows</h3>
@@ -358,6 +369,11 @@ function arcadeRender() {
                     ['Overwrite', 'Transparent'].map(function (o) {
                         return '<option' + (g.overlay === o ? ' selected' : '') + '>' + o + '</option>';
                     }).join('') + '</select></label>';
+            if (g.overlay === 'Transparent') {
+                html += '<label title="How bright the sequence behind the game is while it plays: 100 leaves it as it is">Sequence ' +
+                        '<input type="number" class="gSeq" min="0" max="100" style="width:4.5em" value="' +
+                        (g.sequenceBrightness === undefined ? 100 : g.sequenceBrightness) + '"> %</label>';
+            }
             html += '<span class="spacer"></span>';
             html += '<button type="button" class="buttons gPlay" title="Save first, then start it on the wall"><i class="fas fa-play"></i> Play</button>';
             html += '<button type="button" class="buttons gUp" title="Move up"' + (k === 0 ? ' disabled' : '') + '><i class="fas fa-chevron-up"></i></button>';
@@ -421,6 +437,11 @@ $('#arcadeModels').on('change', '.gEnabled', function () {
     arcadeRender();
 }).on('change', '.gOverlay', function () {
     arcadeConfig.games[arcadeIndex(this)].overlay = $(this).val();
+    arcadeSetDirty(true);
+    arcadeRender();   // shows or hides its Sequence brightness
+}).on('change input', '.gSeq', function () {
+    var v = parseInt($(this).val(), 10);
+    arcadeConfig.games[arcadeIndex(this)].sequenceBrightness = isNaN(v) ? 100 : Math.max(0, Math.min(100, v));
     arcadeSetDirty(true);
 }).on('change input', '.gOpt', function () {
     var g = arcadeConfig.games[arcadeIndex(this)], name = $(this).data('name'), v = String($(this).val());
@@ -499,18 +520,133 @@ function arcadeAdd() {
     $('html, body').animate({ scrollTop: $('#arcadeModels .game').last().offset().top - 80 }, 300);
 }
 
+// Controller speakers: a card each, built when it first appears so the
+// sliders aren't redrawn under a finger; the 3-second refresh only adds,
+// removes and updates the line under its name. Everything goes through FPP
+// (api/plugin-apis/arcade/speaker), which reaches the speakers wherever this
+// page is opened from.
+function arcadeSpeakerApi(ip, what, data, post) {
+    var url = 'api/plugin-apis/arcade/speaker?ip=' + encodeURIComponent(ip) + '&do=' + what;
+    return post ? $.post(url, data) : $.get(url, data);
+}
+function arcadeSpeakerCard(s) {
+    var h = '<div class="spk" data-ip="' + arcadeEsc(s.ip) + '">';
+    h += '<div class="spkHead"><b class="spkName"></b><span class="spkInfo"></span><span class="spacer"></span>';
+    h += '<button type="button" class="buttons spkTest">Test</button>';
+    h += '<button type="button" class="buttons spkSync">Fetch sounds</button>';
+    h += '<button type="button" class="buttons spkMore">Settings</button>';
+    h += '<a class="spkPage" target="_blank" title="Its own page, if this computer can reach it">page</a></div>';
+    h += '<div class="spkRow"><label>Game volume <input type="range" class="spkVol" min="0" max="100"> <span class="spkVolV"></span></label>';
+    h += '<label>Show music <input type="range" class="spkShowVol" min="0" max="100"> <span class="spkShowVolV"></span></label>';
+    h += '<span class="spkMsg"></span></div>';
+    h += '<div class="spkSet" style="display:none"><div class="spkRow">';
+    h += '<label>Name <input type="text" class="spkSetName" style="width:180px"></label>';
+    h += '<label>Plays for <select class="spkSetModel"></select></label></div><div class="spkRow">';
+    h += '<label><input type="checkbox" class="spkSetShow"> Play the show\'s music</label>';
+    h += '<label><input type="checkbox" class="spkSetLed"> Keep the status light on</label>';
+    h += '<label>Music timing <input type="number" class="spkSetOffset" min="-2000" max="2000" step="10" style="width:80px"> ms</label>';
+    h += '<button type="button" class="buttons spkSave">Save and restart it</button></div>';
+    h += '<div class="hint">Saving restarts the speaker (a few seconds). Its Wi-Fi and FPP address are kept; change those on its own page.</div></div>';
+    return $(h + '</div>');
+}
+// Fills a card from the speaker's /status.
+function arcadeSpeakerStatus(card) {
+    return arcadeSpeakerApi(card.data('ip'), 'status').done(function (st) {
+        if (typeof st === 'string') {
+            try { st = JSON.parse(st); } catch (e) { return; }
+        }
+        card.data('status', st);
+        if (!card.find('.spkVol').is(':active')) {
+            card.find('.spkVol').val(st.volume);
+            card.find('.spkVolV').text(st.volume + '%');
+        }
+        if (!card.find('.spkShowVol').is(':active')) {
+            card.find('.spkShowVol').val(st.showVolume);
+            card.find('.spkShowVolV').text(st.showVolume + '%');
+        }
+        card.find('.spkShowVol').closest('label').toggle(!!st.show);
+        if (!card.find('.spkSet').is(':visible')) {
+            card.find('.spkSetName').val(st.name);
+            var sel = card.find('.spkSetModel').empty();
+            var models = arcadeModels.slice();
+            if (st.model && models.indexOf(st.model) < 0) models.unshift(st.model);
+            models.forEach(function (m) { sel.append($('<option>').text(m).prop('selected', m === st.model)); });
+            card.find('.spkSetShow').prop('checked', !!st.show);
+            card.find('.spkSetLed').prop('checked', !!st.ledAlways);
+            card.find('.spkSetOffset').val(st.showOffset || 0);
+        }
+        card.data('detail', ', ' + (st.sounds || 0) + ' sounds, signal ' + st.rssi + ' dBm' +
+            (st.state && st.state !== 'ready' ? ', ' + st.state : '') + (st.fault ? ', ' + st.fault : ''));
+    });
+}
 function arcadeRefreshSpeakers() {
     $.get('api/plugin-apis/arcade/speakers').done(function (list) {
+        var box = $('#sndSpeakers');
         if (!list || !list.length) {
-            $('#sndSpeakers').text('None heard from.');
+            box.text('None heard from.');
             return;
         }
-        $('#sndSpeakers').html(list.map(function (s) {
-            return '<div><a href="http://' + arcadeEsc(s.ip) + '/" target="_blank">' + arcadeEsc(s.name || s.ip) + '</a> - ' +
-                arcadeEsc(s.model) + ', volume ' + s.volume + '%, ' + arcadeEsc(s.ip) + ', firmware ' + arcadeEsc(s.firmware) + '</div>';
-        }).join(''));
+        if (!box.find('.spk').length) box.empty();
+        var ips = list.map(function (s) { return s.ip; });
+        box.find('.spk').each(function () {
+            if (ips.indexOf($(this).data('ip')) < 0) $(this).remove();
+        });
+        list.forEach(function (s) {
+            var card = box.find('.spk').filter(function () { return $(this).data('ip') === s.ip; });
+            if (!card.length) {
+                card = arcadeSpeakerCard(s).appendTo(box);
+                card.find('.spkPage').attr('href', 'http://' + s.ip + '/');
+                arcadeSpeakerStatus(card);
+            }
+            card.find('.spkName').text(s.name || s.ip);
+            card.find('.spkInfo').text(s.model + ', ' + s.ip + ', firmware ' + s.firmware + (card.data('detail') || ''));
+            // The hello carries the volume: keep up with changes made elsewhere.
+            if (!card.find('.spkVol').is(':active') && !card.data('busy')) {
+                card.find('.spkVol').val(s.volume);
+                card.find('.spkVolV').text(s.volume + '%');
+            }
+        });
     }).fail(function () { $('#sndSpeakers').text('Not available.'); });
 }
+function arcadeSpeakerOf(el) { return $(el).closest('.spk'); }
+function arcadeSpeakerSay(card, text) {
+    card.find('.spkMsg').text(text);
+    clearTimeout(card.data('msgTimer'));
+    card.data('msgTimer', setTimeout(function () { card.find('.spkMsg').text(''); }, 5000));
+}
+$('#sndSpeakers').on('input change', '.spkVol, .spkShowVol', function (e) {
+    // Heard straight away while sliding; saved on the speaker when let go.
+    var card = arcadeSpeakerOf(this), show = $(this).hasClass('spkShowVol'), v = $(this).val();
+    $(this).siblings('span').text(v + '%');
+    var data = show ? { show: v } : { v: v };
+    if (e.type === 'change') data.save = 1;
+    card.data('busy', true);
+    arcadeSpeakerApi(card.data('ip'), 'volume', data).always(function () { card.data('busy', false); })
+        .fail(function () { arcadeSpeakerSay(card, 'It didn\'t answer.'); });
+}).on('click', '.spkTest', function () {
+    var card = arcadeSpeakerOf(this);
+    arcadeSpeakerApi(card.data('ip'), 'test').done(function () { arcadeSpeakerSay(card, 'Beep.'); })
+        .fail(function () { arcadeSpeakerSay(card, 'It didn\'t answer.'); });
+}).on('click', '.spkSync', function () {
+    var card = arcadeSpeakerOf(this);
+    arcadeSpeakerSay(card, 'Fetching...');
+    arcadeSpeakerApi(card.data('ip'), 'sync').done(function (t) { arcadeSpeakerSay(card, t || 'Done.'); arcadeSpeakerStatus(card); })
+        .fail(function () { arcadeSpeakerSay(card, 'It didn\'t answer.'); });
+}).on('click', '.spkMore', function () {
+    var card = arcadeSpeakerOf(this);
+    arcadeSpeakerStatus(card).always(function () { card.find('.spkSet').toggle(); });
+}).on('click', '.spkSave', function () {
+    var card = arcadeSpeakerOf(this);
+    var data = { name: card.find('.spkSetName').val(), model: card.find('.spkSetModel').val(),
+                 showOffset: card.find('.spkSetOffset').val() };
+    if (card.find('.spkSetShow').is(':checked')) data.show = 'on';
+    if (card.find('.spkSetLed').is(':checked')) data.ledAlways = 'on';
+    arcadeSpeakerApi(card.data('ip'), 'save', data, true).done(function () {
+        arcadeSpeakerSay(card, 'Saved; it\'s restarting.');
+        card.find('.spkSet').hide();
+        setTimeout(function () { arcadeSpeakerStatus(card); }, 8000);
+    }).fail(function () { arcadeSpeakerSay(card, 'It didn\'t answer.'); });
+});
 
 // What each model is doing right now.
 function arcadeRefresh() {

@@ -132,7 +132,10 @@ Two pages are added to the FPP UI:
 
 - **Content Setup → Arcade Games** — the games on each Pixel Overlay Model, numbered as *Select
   Game* counts them, with what each one is, its controls and its settings. A status line shows
-  what every model is doing, and Play starts a game on the wall.
+  what every model is doing, and Play starts a game on the wall. Each game's *Overlay* is
+  Overwrite (the game covers the model) or Transparent (the running sequence shows through
+  wherever the game is black); with Transparent, *Sequence* sets how bright that sequence is
+  while the game runs (100 leaves it alone), fading down as the game starts and back up after.
 - **Input/Output Setup → FPP Arcade Joysticks** — map a connected USB joystick or gamepad to
   the arcade button/axis commands. Detected controllers are listed automatically; "Set Defaults"
   fills in a standard mapping for a game pad or a dance mat.
@@ -256,9 +259,12 @@ and the same overlay model, and reads who is standing where from it every frame.
 - **Overlay Transparent** (the default for Orb Pop) plays it over the running sequence: the dim
   field and the attract-mode orbs are left out, so the sequence is the backdrop, and the
   fpp-kinect plugin's *Sequence Brightness* dims it under the players as it does for the plain
-  Kinect picture. The players themselves are drawn steady and at full brightness, as the Kinect
-  picture draws them, whatever *Brightness* is set to. Overwrite keeps Orb Pop's own field over the whole matrix. Every other game is
-  meant to be played with Overwrite.
+  Kinect picture, or Orb Pop's own *Sequence* setting does (use one or the other: both at once
+  multiply). Everything Orb Pop draws is at full brightness (*Brightness* is for Overwrite): the
+  players steady, as the Kinect picture draws them, and the orbs drawn over them with a dark ring
+  round each, the time bar as a solid row along the top and the score and countdown outlined in
+  dark, so they stand out from the players and the sequence. Overwrite keeps Orb Pop's own field over
+  the whole matrix. Every other game is meant to be played with Overwrite.
 
 Only something nearer than the Kinect's learned empty scene starts rounds and pops orbs, so a
 wall or fence inside the distance range doesn't. Someone standing perfectly still for the
@@ -441,8 +447,14 @@ output on the player set to none or the Dummy device).
 playing just its own model's sounds. It keeps its own copy of the sound files (fetched from
 here) and is sent an event per sound rather than audio, so sounds land instantly and a busy
 network costs at most a sound. Parts, wiring, firmware and set-up are in
-[speaker/README.md](speaker/README.md); connected speakers are listed under Sound on the Arcade
-Games page.
+[speaker/README.md](speaker/README.md).
+
+Connected speakers are listed under Sound on the Arcade Games page, each with its game and show-music
+volumes (heard as the slider moves, kept when it's let go), Test, Fetch sounds, and Settings: its
+name, the model it plays for, whether it plays the show's music, the status light and the music
+timing (saving restarts it; its Wi-Fi is changed on its own page). FPP passes all of it on to the
+speaker, so it works from any computer that can open FPP's pages, even one that can't reach the
+speakers' network. FPP only talks to speakers it has heard from.
 
 ## Commands
 
@@ -451,6 +463,9 @@ The plugin registers three FPP Commands:
 - **FPP Arcade Select Game** — start a game on a given overlay model.
 - **FPP Arcade Button** — deliver a button press/release (Up, Down, Left, Right, Fire, Select, Start).
 - **FPP Arcade Axis** — deliver an analog axis position.
+- **FPP Arcade Speaker Volume** — set controller speakers' game volume, and optionally their show-music
+  volume (-1 leaves it), for one speaker by name, every speaker for a model, or All; kept on the
+  speaker. For a playlist or schedule: quieter late in the evening, say.
 
 Wire these to GPIO inputs, the joystick page, or any other FPP event source to provide controls.
 

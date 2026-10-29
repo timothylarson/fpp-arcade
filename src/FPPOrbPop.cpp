@@ -77,8 +77,8 @@ struct OrbPopSettings {
     float presencePct = 3.0f;     // % of LEDs a person must cover to count
     int endShow = 1, goodGame = 50;   // the End Show and Good Game settings
     // Overlay Transparent: no field or attract spheres, so the sequence (dimmed
-    // by the Kinect plugin's Sequence Brightness) is the backdrop, and people
-    // at full brightness.
+    // by the Kinect plugin's Sequence Brightness) is the backdrop; everything
+    // at full brightness, the orbs, time and score set off with dark edges.
     bool seeThrough = false;
 };
 
@@ -104,6 +104,7 @@ public:
         depth.assign(N, 0);
         person.assign(N, 0);
         R.assign(N, 0.0f);
+        solid.assign(N, 0);
         G.assign(N, 0.0f);
         B.assign(N, 0.0f);
         rawDepth.resize(KinectPeople::MAX_W * KinectPeople::MAX_H);
@@ -195,15 +196,19 @@ public:
 
         step(dt, now);
 
-        const float k = set.brightness / 100.0f * 255.0f;
+        // Over the sequence everything is drawn at full brightness: the
+        // sequence is what's dimmed, and the game has to stand out from it.
+        const float k = set.seeThrough ? 255.0f : set.brightness / 100.0f * 255.0f;
         beginFrame();   // see beginFrame(): FPP mustn't copy a half-written frame
         for (int y = 0; y < H; ++y) {
             for (int x = 0; x < W; ++x) {
                 const int i = y * W + x;
-                model->setOverlayPixelValue(x, y,
-                                            std::min(255, (int)(R[i] * k + 0.5f)),
-                                            std::min(255, (int)(G[i] * k + 0.5f)),
-                                            std::min(255, (int)(B[i] * k + 0.5f)));
+                int r = std::min(255, (int)(R[i] * k + 0.5f)), g = std::min(255, (int)(G[i] * k + 0.5f)),
+                    b = std::min(255, (int)(B[i] * k + 0.5f));
+                if (solid[i] && !(r | g | b)) {
+                    r = g = b = 1;
+                }
+                model->setOverlayPixelValue(x, y, r, g, b);
             }
         }
         // Let FPP flush it on its own schedule, as the Kinect picture does: a
@@ -236,6 +241,20 @@ private:
         G[i] += c.g * k;
         B[i] += c.b * k;
     }
+
+    // Over the sequence (see-through), what has to stand out - orbs, the time
+    // and the score - replaces what's under it rather than adding to it, with
+    // dark LEDs round it. A dark LED is sent as the dimmest grey, not black,
+    // which would let the sequence through.
+    void over(int i, const RGB &c, float k, float cover = 1.0f) {
+        R[i] = R[i] * (1.0f - cover) + c.r * k;
+        G[i] = G[i] * (1.0f - cover) + c.g * k;
+        B[i] = B[i] * (1.0f - cover) + c.b * k;
+        if (cover > 0.5f) {
+            solid[i] = 1;
+        }
+    }
+    void blackout(int i, float cover = 1.0f) { over(i, {0.0f, 0.0f, 0.0f}, 0.0f, cover); }
 
     void startCountdown() {
         mode = Mode::Countdown;
@@ -316,6 +335,7 @@ private:
         std::fill(R.begin(), R.end(), 0.0f);
         std::fill(G.begin(), G.end(), 0.0f);
         std::fill(B.begin(), B.end(), 0.0f);
+        std::fill(solid.begin(), solid.end(), 0);
 
         // Characters changing: each LED takes a new random weight now and then.
         for (int i = 0; i < N; ++i) {
@@ -453,10 +473,10 @@ private:
             const float shade = 0.3f + 0.7f * std::sqrt(std::min<int>(dist[i], 3) / 3.0f);
             if (set.seeThrough) {
                 // Over the sequence the players are the picture: steady and at
-                // full brightness whatever Brightness says, as the Kinect
-                // picture draws them, so they're easy to see. Only the
+                // full brightness (see-through ignores Brightness), as the
+                // Kinect picture draws them, so they're easy to see. Only the
                 // sequence under them is dimmed.
-                add(i, mix(pal.nearC, pal.farC, f), (1.0f - 0.3f * f) * shade * 100.0f / set.brightness);
+                add(i, mix(pal.nearC, pal.farC, f), (1.0f - 0.3f * f) * shade);
                 continue;
             }
             add(i, mix(pal.nearC, pal.farC, f), (1.0f - 0.5f * f) * shade * (0.5f + 0.5f * glyph[i]) * peopleK);
@@ -502,11 +522,20 @@ private:
             text(s, (W - ((int)s.size() * 4 - 1) * scl) / 2, (H - 5 * scl) / 2, scl, pal.text, 1.0f);
         } else if (mode == Mode::Round) {
             const float left = 1.0f - (float)(modeMs / set.roundMs);
-            for (int x = 0; x < (int)std::ceil(left * W); ++x) {
-                add(x, pal.timer, 0.28f);
+            const int lit = (int)std::ceil(left * W);
+            for (int x = 0; x < W; ++x) {
+                if (!set.seeThrough) {
+                    if (x < lit) {
+                        add(x, pal.timer, 0.28f);
+                    }
+                } else if (x < lit) {
+                    over(x, pal.timer, 0.7f);   // a solid bar, the time used dark
+                } else {
+                    blackout(x);
+                }
             }
             const std::string s = std::to_string(score);
-            text(s, W - ((int)s.size() * 4 - 1) - 1, 2, 1, pal.text, 0.45f);
+            text(s, W - ((int)s.size() * 4 - 1) - 1, 2, 1, pal.text, set.seeThrough ? 1.0f : 0.45f);
         } else if (mode == Mode::Score) {
             const std::string s = std::to_string(score);
             const float fade = clamp01((float)((6000 - modeMs) / 600)) * clamp01((float)(modeMs / 400));
@@ -586,9 +615,25 @@ private:
                 continue;
             }
             const float rad = o.rad * (0.92f + 0.08f * std::sin(o.age * 0.006f + o.phase));
+            const float a = std::max(0.0f, o.alpha);
+            if (set.seeThrough) {
+                // A dark ring round it, apart from the players and the sequence.
+                for (int y = std::max(0, (int)(o.y - rad - 2)); y <= std::min(H - 1, (int)(o.y + rad + 2)); ++y) {
+                    for (int x = std::max(0, (int)(o.x - rad - 2)); x <= std::min(W - 1, (int)(o.x + rad + 2)); ++x) {
+                        const float d = std::hypot(x + 0.5f - o.x, y + 0.5f - o.y);
+                        if (d >= rad - 0.5f && d < rad + 1.2f) {
+                            blackout(y * W + x, a);
+                        }
+                    }
+                }
+            }
             sphere(o.x, o.y, rad, L, [&](float lam, int i) {
                 const float k = (0.35f + 1.3f * std::pow(lam, 1.2f)) * (0.75f + 0.25f * glyph[i]);
-                add(i, mix(o.col, WHITE, lam * lam * 0.6f), k);
+                if (set.seeThrough) {
+                    over(i, mix(o.col, WHITE, lam * lam * 0.6f), k, a);
+                } else {
+                    add(i, mix(o.col, WHITE, lam * lam * 0.6f), k);
+                }
                 if (o.gold && rnd() < 0.06f) {
                     add(i, WHITE, 0.8f);
                 }
@@ -656,6 +701,30 @@ private:
     }
 
     void text(const std::string &s, int x, int y, int scl, const RGB &col, float k) {
+        if (set.seeThrough) {
+            // Dark round every letter, so the players and the sequence don't
+            // run into it, then the letters over it.
+            const float cover = clamp01(k * 1.2f);
+            int cx = x;
+            for (char ch : s) {
+                auto it = FONT.find(ch);
+                for (int fy = 0; it != FONT.end() && fy < 5; ++fy) {
+                    for (int fx = 0; fx < 3; ++fx) {
+                        if (it->second[fy * 3 + fx] != '1') {
+                            continue;
+                        }
+                        for (int py = y + fy * scl - 1; py <= y + fy * scl + scl; ++py) {
+                            for (int px = cx + fx * scl - 1; px <= cx + fx * scl + scl; ++px) {
+                                if (px >= 0 && px < W && py >= 0 && py < H) {
+                                    blackout(py * W + px, cover);
+                                }
+                            }
+                        }
+                    }
+                }
+                cx += 4 * scl;
+            }
+        }
         for (char ch : s) {
             auto it = FONT.find(ch);
             if (it != FONT.end()) {
@@ -669,7 +738,11 @@ private:
                                 const int px = x + fx * scl + sx, py = y + fy * scl + sy;
                                 if (px >= 0 && px < W && py >= 0 && py < H) {
                                     const int i = py * W + px;
-                                    add(i, col, k * (0.75f + 0.25f * glyph[i]));
+                                    if (set.seeThrough) {
+                                        over(i, col, k * (0.75f + 0.25f * glyph[i]), clamp01(k * 1.2f));
+                                    } else {
+                                        add(i, col, k * (0.75f + 0.25f * glyph[i]));
+                                    }
                                 }
                             }
                         }
@@ -709,6 +782,7 @@ private:
     int W = 0, H = 0, N = 0;
 
     std::vector<float> glyph, energy, energyTmp, R, G, B;
+    std::vector<uint8_t> solid;   // see-through: LEDs that must not show the sequence
     std::vector<double> glyphNext;
     std::vector<uint8_t> prevLit, dist, person, rawFlags;
     std::vector<uint16_t> depth, rawDepth;

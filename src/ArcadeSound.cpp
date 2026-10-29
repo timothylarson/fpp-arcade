@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <atomic>
 #include <chrono>
+#include <cerrno>
 #include <cmath>
 #include <cstring>
 #include <dirent.h>
@@ -17,6 +18,7 @@
 #include <memory>
 #include <mutex>
 #include <netdb.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
@@ -341,6 +343,27 @@ public:
         }
     }
 
+    // ip:port keys for the speakers still heard from whose name or model is
+    // `who` ("" or "All": every one).
+    std::vector<std::string> speakerIps(const std::string &who) {
+        const auto now = std::chrono::steady_clock::now();
+        std::vector<std::string> out;
+        std::lock_guard<std::mutex> l(speakerMu);
+        for (auto &[key, sp] : speakers) {
+            if (now - sp.seen > std::chrono::seconds(SPEAKER_TIMEOUT_S)) {
+                continue;
+            }
+            if (who.empty() || who == "All" || sp.name == who || sp.model == who) {
+                char ip[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &sp.addr.sin_addr, ip, sizeof(ip));
+                if (std::find(out.begin(), out.end(), ip) == out.end()) {
+                    out.push_back(ip);
+                }
+            }
+        }
+        return out;
+    }
+
     std::string speakersJson() {
         const auto now = std::chrono::steady_clock::now();
         std::string o = "[";
@@ -560,6 +583,89 @@ void shutdown() {
     engine().stopListener();
 }
 std::string speakersJson() { return engine().speakersJson(); }
+std::vector<std::string> speakerIps(const std::string &who) { return engine().speakerIps(who); }
+
+namespace {
+// Waits up to ms for fd to be ready for `events`.
+bool waitFor(int fd, short events, int ms) {
+    pollfd p{fd, events, 0};
+    return poll(&p, 1, ms) == 1;
+}
+}  // namespace
+
+bool speakerRequest(const std::string &ip, const std::string &pathQuery, const std::string &form, int &status,
+                    std::string &body) {
+    status = 0;
+    body.clear();
+    const std::vector<std::string> known = speakerIps("");
+    if (std::find(known.begin(), known.end(), ip) == known.end() || pathQuery.empty() || pathQuery[0] != '/' ||
+        pathQuery.find_first_of("\r\n ") != std::string::npos) {
+        return false;
+    }
+    sockaddr_in to{};
+    to.sin_family = AF_INET;
+    to.sin_port = htons(80);
+    if (inet_pton(AF_INET, ip.c_str(), &to.sin_addr) != 1) {
+        return false;
+    }
+    const int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    if (fd < 0) {
+        return false;
+    }
+    // Short timeouts: this runs on FPP's web or command thread, and a speaker
+    // that's off shouldn't hold it up. HTTP/1.0, so the reply is the plain body
+    // and ends when the speaker closes the connection.
+    bool ok = false;
+    if (connect(fd, (const sockaddr *)&to, sizeof(to)) == 0 || (errno == EINPROGRESS && waitFor(fd, POLLOUT, 1500))) {
+        int err = 0;
+        socklen_t len = sizeof(err);
+        getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
+        if (!err) {
+            std::string req = (form.empty() ? "GET " : "POST ") + pathQuery + " HTTP/1.0\r\nHost: " + ip +
+                              "\r\nConnection: close\r\n";
+            if (!form.empty()) {
+                req += "Content-Type: application/x-www-form-urlencoded\r\nContent-Length: " + std::to_string(form.size()) +
+                       "\r\n";
+            }
+            req += "\r\n" + form;
+            size_t sent = 0;
+            while (sent < req.size() && waitFor(fd, POLLOUT, 1500)) {
+                const ssize_t n = send(fd, req.data() + sent, req.size() - sent, MSG_NOSIGNAL);
+                if (n <= 0) {
+                    break;
+                }
+                sent += (size_t)n;
+            }
+            std::string reply;
+            char buf[2048];
+            while (sent == req.size() && reply.size() < 65536 && waitFor(fd, POLLIN, 2500)) {
+                const ssize_t n = recv(fd, buf, sizeof(buf), 0);
+                if (n <= 0) {
+                    ok = n == 0;   // closed: the whole reply is in
+                    break;
+                }
+                reply.append(buf, (size_t)n);
+                // Done once Content-Length's worth is in, closed or not.
+                const size_t h = reply.find("\r\n\r\n");
+                const size_t cl = h == std::string::npos ? std::string::npos : reply.find("Content-Length:");
+                if (cl != std::string::npos && cl < h && reply.size() - (h + 4) >= (size_t)atol(reply.c_str() + cl + 15)) {
+                    ok = true;
+                    break;
+                }
+            }
+            const size_t head = reply.find("\r\n\r\n");
+            if (ok && head != std::string::npos && reply.compare(0, 5, "HTTP/") == 0) {
+                const size_t sp = reply.find(' ');
+                status = sp != std::string::npos ? atoi(reply.c_str() + sp + 1) : 0;
+                body = reply.substr(head + 4);
+            } else {
+                ok = false;
+            }
+        }
+    }
+    close(fd);
+    return ok;
+}
 
 // Every <game>/<name>.wav, the player's own and the bundled ones (the
 // player's winning), with a version (where it's from, size and modification

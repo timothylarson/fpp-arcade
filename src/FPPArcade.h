@@ -61,6 +61,16 @@ public:
     // as a timer. Called from the plugin's shutdown(), before FPP unloads it.
     virtual void release() {}
 
+    // The Sequence brightness setting: how bright the sequence under the game
+    // is while it runs, 0-100. 100 (left alone) unless its overlay is
+    // Transparent, the only way the sequence shows behind a game.
+    int sequenceBrightness() {
+        if (findOption("overlay", "Overwrite") != "Transparent") {
+            return 100;
+        }
+        return std::clamp(findIntOption("sequenceBrightness", 100), 0, 100);
+    }
+
     int getIdx() const { return idx; };
     void setIdx(int i) { idx = i; }
     const std::string &getModelName() const { return modelName; }

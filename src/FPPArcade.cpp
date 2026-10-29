@@ -178,6 +178,32 @@ public:
     FPPArcadePlugin *plugin;
 };
 
+// Sets controller speakers' volumes from a playlist or schedule: one speaker
+// by name, every speaker playing for a model, or All. Show Volume -1 leaves
+// the show music's volume as it is. Saved on the speaker, so it keeps it.
+class FPPArcadeSpeakerVolumeCommand : public Command {
+public:
+    FPPArcadeSpeakerVolumeCommand() : Command("FPP Arcade Speaker Volume") {
+        args.push_back(CommandArg("Speaker", "string", "Speaker or model").setContentListUrl("api/plugin-apis/arcade/speakernames"));
+        args.push_back(CommandArg("Volume", "int", "Game volume (%)", true).setDefaultValue("50").setAdjustable().setRange(0, 100));
+        args.push_back(CommandArg("ShowVolume", "int", "Show music volume (%, -1 leaves it)", true)
+                           .setDefaultValue("-1").setAdjustable().setRange(-1, 100));
+    }
+
+    std::unique_ptr<Command::Result> run(const std::vector<std::string> &args) override {
+        const std::string who = args.size() > 0 ? args[0] : "All";
+        const int v = std::clamp(args.size() > 1 ? atoi(args[1].c_str()) : 50, 0, 100);
+        const int show = std::clamp(args.size() > 2 ? atoi(args[2].c_str()) : -1, -1, 100);
+        std::string q = "/volume?v=" + std::to_string(v) + (show >= 0 ? "&show=" + std::to_string(show) : "") + "&save=1";
+        int n = 0, status;
+        std::string body;
+        for (const std::string &ip : ArcadeSound::speakerIps(who)) {
+            n += ArcadeSound::speakerRequest(ip, q, "", status, body) && status == 200 ? 1 : 0;
+        }
+        return std::make_unique<Command::Result>("Set " + std::to_string(n) + " speaker" + (n == 1 ? "" : "s"));
+    }
+};
+
 FPPArcadeGame::FPPArcadeGame(Json::Value &c) : modelName(c["model"].asString()), config(c), idx(0) {
     lastValues[0] = 0; lastValues[1] = 0;
 }
@@ -944,7 +970,8 @@ void FPPArcadeGameEffect::restart() {
     resetFrameTimer();
 }
 
-class FPPArcadePlugin : public FPPPlugins::Plugin, public FPPPlugins::APIProviderPlugin {
+class FPPArcadePlugin : public FPPPlugins::Plugin, public FPPPlugins::APIProviderPlugin,
+                        public FPPPlugins::ChannelDataPlugin {
 public:
     
     FPPArcadePlugin() : FPPPlugins::Plugin("fpp-arcade"), FPPPlugins::APIProviderPlugin() {
@@ -1316,6 +1343,26 @@ public:
                 callback(makeStringResponse(v, 200));
             } else if (path == "speakers") {
                 callback(makeStringResponse(ArcadeSound::speakersJson(), 200, "application/json"));
+            } else if (path == "speakernames") {
+                // For FPP Arcade Speaker Volume's list: All, each speaker, each model.
+                Json::Value names(Json::arrayValue);
+                names.append("All");
+                Json::Value list;
+                Json::Reader().parse(ArcadeSound::speakersJson(), list);
+                std::set<std::string> seen;
+                for (const char *field : {"name", "model"}) {
+                    for (const auto &s : list) {
+                        const std::string n = s[field].asString();
+                        if (!n.empty() && seen.insert(n).second) {
+                            names.append(n);
+                        }
+                    }
+                }
+                Json::StreamWriterBuilder writer;
+                writer["indentation"] = "";
+                callback(makeStringResponse(Json::writeString(writer, names), 200, "application/json"));
+            } else if (path == "speaker") {
+                callback(speakerApi(req));
             } else if (path == "sounds") {
                 callback(makeStringResponse(ArcadeSound::soundListJson(), 200, "application/json"));
             } else if (path == "sound") {
@@ -1337,6 +1384,8 @@ public:
         auto handleArcade3 = handleArcade;
         auto handleArcade4 = handleArcade;
         auto handleArcade5 = handleArcade;
+        auto handleArcade6 = handleArcade;
+        auto handleArcade7 = handleArcade;
 
         // Only the plain paths are needed: Apache rewrites
         // api/plugin-apis/arcade/* to localhost:32322/arcade/*, stripping the
@@ -1351,6 +1400,73 @@ public:
         FPPPlugins::registerPluginApi("/arcade/speakers", std::move(handleArcade3), {drogon::Get});
         FPPPlugins::registerPluginApi("/arcade/sounds", std::move(handleArcade4), {drogon::Get});
         FPPPlugins::registerPluginApi("/arcade/sound", std::move(handleArcade5), {drogon::Get});
+        FPPPlugins::registerPluginApi("/arcade/speaker", std::move(handleArcade6), {drogon::Get, drogon::Post});
+        FPPPlugins::registerPluginApi("/arcade/speakernames", std::move(handleArcade7), {drogon::Get});
+    }
+
+    // api/plugin-apis/arcade/speaker?ip=<speaker>&do=<what>: the Arcade Games
+    // page's controls for a controller speaker, passed on by FPP (see
+    // ArcadeSound::speakerRequest). do is status (its /status JSON), volume
+    // (v, show: 0-100, either; save=1 keeps it), test, sync, or save (POST:
+    // name, model, show, ledAlways, showOffset - the speaker restarts).
+    static HttpResponsePtr speakerApi(const HttpRequestPtr &req) {
+        const std::string ip = req->getParameter("ip"), what = req->getParameter("do");
+        auto pct = [&](const std::string &k) { return std::to_string(std::clamp(atoi(req->getParameter(k).c_str()), 0, 100)); };
+        auto enc = [](const std::string &s) {
+            static const char *HEX = "0123456789ABCDEF";
+            std::string o;
+            for (unsigned char c : s) {
+                if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+                    o += (char)c;
+                } else {
+                    o += '%';
+                    o += HEX[c >> 4];
+                    o += HEX[c & 15];
+                }
+            }
+            return o;
+        };
+        std::string path, form;
+        if (what == "status" || what == "test" || what == "sync") {
+            path = "/" + what;
+        } else if (what == "volume") {
+            path = "/volume?";
+            if (!req->getParameter("v").empty()) {
+                path += "v=" + pct("v") + "&";
+            }
+            if (!req->getParameter("show").empty()) {
+                path += "show=" + pct("show") + "&";
+            }
+            if (req->getParameter("save") == "1") {
+                path += "save=1";
+            }
+        } else if (what == "save") {
+            // The speaker's /save takes the whole set-up form, so keep its Wi-Fi
+            // and FPP address as they are (a blank password keeps that too).
+            int status;
+            std::string body;
+            Json::Value cur;
+            if (!ArcadeSound::speakerRequest(ip, "/status", "", status, body) || status != 200 ||
+                !Json::Reader().parse(body, cur) || cur["ssid"].asString().empty()) {
+                return makeStringResponse("The speaker didn't answer", 502);
+            }
+            const std::string name = req->getParameter("name"), model = req->getParameter("model");
+            path = "/save";
+            form = "ssid=" + enc(cur["ssid"].asString()) + "&pass=&fpp=" + enc(cur["fpp"].asString()) +
+                   "&model=" + enc(model.empty() ? cur["model"].asString() : model) +
+                   "&name=" + enc(name.empty() ? cur["name"].asString() : name) +
+                   (req->getParameter("show") == "on" ? "&show=on" : "") +
+                   (req->getParameter("ledAlways") == "on" ? "&ledAlways=on" : "") +
+                   "&showOffset=" + std::to_string(std::clamp(atoi(req->getParameter("showOffset").c_str()), -2000, 2000));
+        } else {
+            return makeStringResponse("Unknown request", 400);
+        }
+        int status;
+        std::string body;
+        if (!ArcadeSound::speakerRequest(ip, path, form, status, body)) {
+            return makeStringResponse("The speaker didn't answer", 502);
+        }
+        return makeStringResponse(body, status ? status : 502, what == "status" ? "application/json" : "text/plain");
     }
 
     void unregisterApis() override {
@@ -1362,6 +1478,8 @@ public:
         FPPPlugins::unregisterPluginApi("/arcade/speakers");
         FPPPlugins::unregisterPluginApi("/arcade/sounds");
         FPPPlugins::unregisterPluginApi("/arcade/sound");
+        FPPPlugins::unregisterPluginApi("/arcade/speaker");
+        FPPPlugins::unregisterPluginApi("/arcade/speakernames");
     }
 
 #ifdef USE_SDL_CONTROLLERS
@@ -1458,6 +1576,7 @@ public:
         addOwnedCommand(new FPPArcadeCommand(this));
         addOwnedCommand(new FPPArcadeAxisCommand(this));
         addOwnedCommand(new FPPArcadeSelectGameCommand(this));
+        addOwnedCommand(new FPPArcadeSpeakerVolumeCommand());
 
 #ifdef USE_SDL_CONTROLLERS
         SDL_Init(SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS);
@@ -1553,6 +1672,78 @@ public:
         }
     }
     
+    // ChannelDataPlugin: runs on the output thread as each frame's sequence
+    // data arrives, before overlays are laid on. A game whose overlay is
+    // Transparent shows the sequence through its black LEDs; this dims that
+    // sequence to the game's Sequence brightness while it runs, fading over a
+    // second each way. The games and models are only ever try_locked, so the
+    // output thread never waits on a button press: a frame that can't look
+    // keeps the last frame's targets.
+    void modifySequenceData(int ms, uint8_t *seqData) override {
+        std::unique_lock<std::recursive_mutex> l(gamesLock, std::try_to_lock);
+        if (l.owns_lock()) {
+            std::map<std::string, double> want;
+            for (auto &mg : games) {
+                for (FPPArcadeGame *g : mg.second) {
+                    const int pct = g->sequenceBrightness();
+                    if (pct >= 100) {
+                        continue;
+                    }
+                    const std::string &name = g->getModelName();
+                    PixelOverlayModel *m = PixelOverlayManager::INSTANCE.getModel(name);
+                    if (!m || m->getType() != "Channel") {
+                        continue;   // only a plain channel range can be dimmed
+                    }
+                    bool running;
+                    std::unique_lock<std::recursive_mutex> el(m->getRunningEffectMutex(), std::try_to_lock);
+                    if (el.owns_lock()) {
+                        running = g->isRunning();
+                    } else {
+                        auto d = seqDims.find(name);
+                        running = d != seqDims.end() && d->second.want <= pct;
+                    }
+                    if (running) {
+                        want[name] = want.count(name) ? std::min(want[name], (double)pct) : pct;
+                        SeqDim &d = seqDims[name];
+                        d.start = m->getStartChannel();
+                        d.count = m->getChannelCount();
+                    }
+                }
+            }
+            for (auto &d : seqDims) {
+                d.second.want = want.count(d.first) ? want[d.first] : 100.0;
+            }
+        }
+        const auto now = std::chrono::steady_clock::now();
+        const double dt = seqDimAt.time_since_epoch().count() ? std::chrono::duration<double, std::milli>(now - seqDimAt).count() : 0.0;
+        seqDimAt = now;
+        for (auto it = seqDims.begin(); it != seqDims.end();) {
+            SeqDim &d = it->second;
+            const double step = 100.0 * dt / 1000.0;
+            d.level = d.level > d.want ? std::max(d.want, d.level - step) : std::min(d.want, d.level + step);
+            if (d.level >= 100.0 && d.want >= 100.0) {
+                it = seqDims.erase(it);
+                continue;
+            }
+            const int pct = (int)std::lround(d.level);
+            if (d.start >= 0 && d.count > 0 && pct < 100) {
+                uint8_t *p = seqData + d.start;
+                for (int i = 0; i < d.count; ++i) {
+                    p[i] = (uint8_t)(p[i] * pct / 100);
+                }
+            }
+            ++it;
+        }
+    }
+
+    // Dimming in progress, by model; the output thread's own.
+    struct SeqDim {
+        int start = -1, count = 0;
+        double want = 100.0, level = 100.0;
+    };
+    std::map<std::string, SeqDim> seqDims;
+    std::chrono::steady_clock::time_point seqDimAt;
+
     std::map<std::string, std::list<FPPArcadeGame*>> games;
     // Input comes from more than one thread at once: FPP runs commands from
     // the web API on its own threads, the controllers come in through the SDL

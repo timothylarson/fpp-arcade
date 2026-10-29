@@ -60,6 +60,20 @@ void stopAll(const std::string &game = "", const std::string &model = "");
 
 // For the plugin's HTTP API.
 std::string speakersJson();
+
+// Controller speakers from FPP, for the Arcade Games page and the FPP
+// commands: the speakers' own pages aren't always reachable from a browser
+// (a laptop on another network), but FPP always reaches them. Each call goes
+// only to a speaker FPP has heard from - this is not a general proxy.
+//
+// speakerRequest: an HTTP request to the speaker at ip, such as "/status" or
+// "/volume?v=40&save=1"; a form body makes it a POST. False if ip isn't a
+// speaker or it didn't answer; status and body are its reply.
+bool speakerRequest(const std::string &ip, const std::string &pathQuery, const std::string &form, int &status,
+                    std::string &body);
+// The addresses of the speakers whose name or model is `who`, or of every
+// speaker for "" or "All".
+std::vector<std::string> speakerIps(const std::string &who);
 std::string soundListJson();
 // A sound as raw 16-bit mono PCM at `rate`; false if there's no such file.
 bool soundPcm(const std::string &path, int rate, std::string &out);

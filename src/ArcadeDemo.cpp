@@ -482,13 +482,20 @@ void tick(std::map<std::string, std::list<FPPArcadeGame *>> &games) {
         {
             std::lock_guard<std::recursive_mutex> el(m->getRunningEffectMutex());
             RunningEffect *re = m->getRunningEffect();
+            FPPArcadeGameEffect *e = dynamic_cast<FPPArcadeGameEffect *>(re);
             if (front->isRunning() && !kinectGame(front->getName())) {
                 game = front->getName();
-                FPPArcadeGameEffect *e = dynamic_cast<FPPArcadeGameEffect *>(re);
                 paused = e && e->isPaused();
             }
             demo = re && re->name() == "ArcadeDemo";
-            free = !re || re->name() == "KinectBlit";
+            // Orb Pop started by itself, with nobody in front of it, is as
+            // good as the sequence: it would hold the model for good. Any
+            // other game on the model is being played, buttons or not.
+            const bool waiting = e && e->waitingForPlayers();
+            if (e && !waiting) {
+                st.lastInput = now;
+            }
+            free = !re || re->name() == "KinectBlit" || waiting;
             // Under the model's effect lock, which FPP holds while the game
             // draws, so a picture is never caught half drawn (the score not
             // on it yet).

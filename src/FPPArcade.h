@@ -174,6 +174,13 @@ public:
     // EXIT was picked on the pause menu (see activatePauseSelection); true once.
     bool takeExit() { return exitWanted.exchange(false); }
 
+    // For demos (ArcadeDemo.h): true while the game is on with nobody playing
+    // it - Orb Pop's ambient mode, started by itself over the sequence, before
+    // anyone steps up - so a demo may take the model over. While any other
+    // game runs, the model is in use, buttons or not (Orb Pop is played by
+    // standing in front of the Kinect). Asked under the model's effect lock.
+    virtual bool waitingForPlayers() const { return false; }
+
     // A cheat code was entered. Button presses arrive on another thread, so
     // this only raises a flag: a game with levels takes it with takeCheat()
     // in its own update() and jumps to its last level (for an endless game,

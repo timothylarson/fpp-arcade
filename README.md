@@ -148,12 +148,17 @@ game's demo on that model, in `media/plugindata/fpp-arcade/demos/<model>/`, repl
 So: play a good game of each, saving after each one. A game's card shows its demo's length,
 with a button to play it on the wall now and one to delete it.
 
-After *Play demos after* minutes (5) without a button on a model, while it shows the sequence
+After *Play demos after* minutes (5) with nobody playing on a model, while it shows the sequence
 or the Kinect picture, its games' demos play in turn in the order of its list, with PRESS START
 coming up over them for three seconds in every fifteen; *Between demos* (0) puts that many
 minutes of the sequence between them. Any button stops the demo and shows that game's title,
 ready to play. 0 turns demos off. A recording plays back as it was, whatever has changed in the
 game since, but only on a model the same size. Orb Pop and Shape Fit have no demos.
+
+Orb Pop set to *Start Automatically* stays on the model between players, so it counts as the
+sequence while it waits with nobody in view: a demo takes over from it, and Orb Pop comes back
+when the demo ends. A round of Orb Pop is play, like a button, so the idle time starts again
+when its last round is over.
 
 ## Configuration
 

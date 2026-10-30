@@ -126,8 +126,8 @@ Saving applies straight away, without restarting FPP, and stops any game being p
 <h3>Demos</h3>
 <table class="opts" id="arcadeDemos">
 <tr><td>Play demos after (minutes idle)</td><td><input type="number" id="demoIdle" min="0" max="1440">
-    <div class="hint">When nobody has pressed a button on a model for this long and it's showing the sequence (or the Kinect
-    picture), its games' saved demos play in turn, with PRESS START coming up over them now and then. Any button stops the
+    <div class="hint">When nobody has played on a model for this long and it's showing the sequence (or the Kinect
+    picture, or Orb Pop waiting with nobody in view), its games' saved demos play in turn, with PRESS START coming up over them now and then. Any button stops the
     demo and shows that game's title. 0: no demos. To make a demo, play a good game, then click <b>Save as its demo</b>
     under the model's name below: it keeps the start of the game being played, or of the last one, sounds and all.
     Orb Pop and Shape Fit have no demos.</div></td></tr>

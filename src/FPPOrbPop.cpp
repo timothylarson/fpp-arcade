@@ -138,6 +138,9 @@ public:
         }
     }
 
+    // Attract mode with nobody in view: a demo may play instead.
+    bool waitingForPlayers() const override { return mode == Mode::Mirror && !isPaused() && !someoneInView && heldMs <= 0; }
+
     void restart() override {
         orbs.clear();
         sparks.clear();
@@ -352,6 +355,7 @@ private:
             seen += (person[i] || depth[i] > 0) ? 1 : 0;
         }
         const bool someone = present * 100.0f >= N * set.presencePct;
+        someoneInView = someone;
         // Once a round is going, anyone still in view keeps it going: a player
         // standing still, or close to the wall behind, can drop below the
         // start threshold (the Kinect learns a still body into the background
@@ -790,6 +794,7 @@ private:
     Mode mode = Mode::Mirror;
     double modeMs = 0, heldMs = 0, awayMs = 0, cooldownMs = 0, spawnInMs = 0, kinectGoneMs = 0;
     float ambientAlpha = 1.0f;
+    bool someoneInView = false;   // the last frame's, for waitingForPlayers()
     std::vector<Orb> orbs;
     std::vector<Spark> sparks;
     int score = 0;

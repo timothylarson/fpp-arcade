@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Demos play on a model where Orb Pop is set to *Start Automatically*. Orb Pop's ambient mode held the model for good, so the demos were never let on; now, while it waits with nobody in view, a demo takes over and Orb Pop comes back when it ends. A round of Orb Pop counts as play, so the idle time starts again after it.
 - Maze Chase: the maze walls are brighter (30%, 35% on a wide maze, from 12% and 18%), so the maze can be seen from a distance.
 - Pong: the ball speeds up steadily through the game, to *Fastest ball* (1.8 times its starting speed) after *Seconds to top speed* (90) of play; points don't slow it back down.
 - Demos: a model nobody has used for 5 minutes (*Play demos after*) plays recordings of its games in turn, with PRESS START coming up over them; any button stops the demo and shows that game's title. Every game played is recorded as it looks and sounds on the wall - its first *Demo length* seconds (60), not the title or pause menu - and **Save as its demo** on the Arcade Games page keeps the game being played, or the last one, as that game's demo on the model. Cards show each demo with play and delete buttons, and *Between demos* spaces them out with the sequence. Not for Orb Pop and Shape Fit. tools/host records too: D saves, `--demos MINUTES` plays them.

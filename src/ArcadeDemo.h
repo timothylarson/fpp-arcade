@@ -11,11 +11,13 @@
 // back exactly as it was, whatever the game's code has done since; it only
 // needs the model to be the same size.
 //
-// With Demos on, a model whose games haven't been touched for the idle time,
-// and that is showing nothing of the arcade's (the sequence, or the Kinect
-// picture), plays its games' demos in turn, in the order of its game list, a
-// PRESS START box coming up over them now and then. Any button on the model
-// stops the demo and shows that game's title, ready to play.
+// With Demos on, a model nobody has played on for the idle time (no button,
+// and no game on it but one waiting for players), and that is showing nothing
+// of the arcade's (the sequence, or the Kinect picture) or only Orb Pop's
+// ambient mode with nobody in view, plays its games' demos in turn, in the
+// order of its game list, a PRESS START box coming up over them now and then.
+// Any button on the model stops the demo and shows that game's title, ready
+// to play. Orb Pop, set to start automatically, comes back after it.
 //
 // Orb Pop and Shape Fit aren't recorded: they play the Kinect's people, and a
 // recording of strangers' silhouettes isn't a demo.
@@ -30,7 +32,7 @@ class PixelOverlayModel;
 
 namespace ArcadeDemo {
 
-// The Demos settings: start after idleMin minutes without a button (0: no
+// The Demos settings: start after idleMin minutes with nobody playing (0: no
 // demos), wait betweenMin minutes of the sequence between one demo and the
 // next (0: one after another), and record the first lengthSecs of a game.
 void configure(int idleMin, int betweenMin, int lengthSecs);

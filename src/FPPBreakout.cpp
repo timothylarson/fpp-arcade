@@ -121,7 +121,7 @@ static const std::vector<LevelDefinition> LEVEL_LAYOUTS = {
             "...222...222...",
             "...222...222...",
             "...222...222...",
-            "..............."
+            "...222...222..."
         }
     },
     {   // Level 9: staggered columns (mix of 1/2/3-hit)
@@ -180,13 +180,15 @@ static const std::vector<LevelDefinition> LEVEL_LAYOUTS = {
             "I.............I"
         }
     },
-    {   // Level 15: diamond core (five rows, so the bricks stay two tall)
+    {   // Level 15: diamond core (seven rows, so the bricks stay two tall)
         {
+            ".......W.......",
             "......WWW......",
             "....WWW2WWW....",
             "..W2W22222W2W..",
             "....WWW2WWW....",
-            "......WWW......"
+            "......WWW......",
+            ".......W......."
         }
     }
 };
@@ -602,7 +604,9 @@ public:
             // count: 3 LEDs on a four-row level, 1 on a nine-row one.)
             const int limit = std::max(1, (int)(paddle.y * 2 / 3) + 1);
             brickHeight = std::max(1, (int)std::lround(h * 2 / 25.0f));
-            while (brickHeight > 1 && std::min(topSpace, limit) + brickRows * brickHeight > limit) {
+            // The space above gives way first, down to 2 LEDs (still room for
+            // the ball): on a 25-tall wall that fits seven rows two tall.
+            while (brickHeight > 1 && std::min({topSpace, 2, limit}) + brickRows * brickHeight > limit) {
                 --brickHeight;
             }
             const int lowest = std::max(0, limit - brickRows * brickHeight);

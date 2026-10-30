@@ -78,6 +78,7 @@ const RGB BAT_COL = {0.65f, 0.15f, 1.0f};
 const RGB METEOR_COL = {1.0f, 0.45f, 0.1f};
 const RGB SNOW = {0.85f, 0.9f, 1.0f};
 const RGB FLAME = {1.0f, 0.55f, 0.05f};
+const RGB FACE = {1.0f, 0.62f, 0.4f};
 const RGB HUD = {0.35f, 0.35f, 0.45f};
 
 // Cheered as the climb passes each 250 rows; the last one repeats.
@@ -717,9 +718,12 @@ private:
 
     // ---------------------------------------------------------------- touching
     // Pickups are generous (a column either side, more for the big ones);
-    // enemies are only what you can see, so they're fair to dodge.
+    // enemies are only what you can see, so they're fair to dodge. The elf is
+    // three rows tall, one column wide but for its arms, a column either side
+    // on the bottom row.
     void collide(Player &p, float y0) {
-        const float lo = std::min(y0, p.y) - 0.5f, hi = std::max(y0, p.y) + 1.5f;   // body to hat, over the frame
+        const float lo = std::min(y0, p.y) - 0.5f, hi = std::max(y0, p.y) + 2.5f;   // body to hat, over the frame
+        const float armsHi = std::max(y0, p.y) + 0.5f;
         const float pc = std::floor(p.x);
         for (size_t i = 0; i < p.things.size();) {
             Thing &t = p.things[i];
@@ -739,7 +743,8 @@ private:
                 ++right;
             }
             const float bottom = t.y - 0.5f - give, top = t.y + rows - 0.5f + give;
-            if (dx < -left || dx > right || top < lo || bottom > hi) {
+            const bool byArms = dx >= -left - 1 && dx <= right + 1 && bottom <= armsHi;
+            if ((!byArms && (dx < -left || dx > right)) || top < lo || bottom > hi) {
                 ++i;
                 continue;
             }
@@ -1079,8 +1084,12 @@ private:
         } else if (!p.launched && (phase == Phase::Countdown || phaseT > GROUND_WAIT - 1.0f)) {
             put(p, x, y + 1, FLAME, 0.4f * flick);
         }
+        // Three wide: the suit with its arms out, the face, the tip of the hat.
+        put(p, x - 1, y, suit, 0.8f);
         put(p, x, y, suit, 1.0f);
-        put(p, x, y - 1, hat, 1.0f);
+        put(p, x + 1, y, suit, 0.8f);
+        put(p, x, y - 1, FACE, 0.9f);
+        put(p, x, y - 2, hat, 1.0f);
     }
 
     void drawLane(Player &p) {

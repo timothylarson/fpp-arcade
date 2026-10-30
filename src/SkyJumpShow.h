@@ -182,7 +182,8 @@ private:
     // The elf's way up: a lazy weave across the middle, through the coins.
     static float pathX(int W, float h) { return W / 2.0f + W * 0.18f * std::sin(h * 0.07f); }
 
-    // The game's elf: hat over suit, the rocket pack's flame under it.
+    // The game's elf: the hat's tip, the face and the suit with its arms out,
+    // the rocket pack's flame under it.
     void elf(ArcadeCanvas::Canvas &c, float fx, float fy, const RGB &suit, const RGB &hat, bool flame, double ms, float k) {
         const int x = (int)std::lround(fx), y = (int)std::lround(fy);
         if (flame) {
@@ -190,8 +191,11 @@ private:
             c.set(x, y + 1, {1.0f, 0.75f, 0.3f}, f * k);
             c.add(x, y + 2, {1.0f, 0.5f, 0.05f}, 0.5f * f * k);
         }
+        c.set(x - 1, y, suit, 0.8f * k);
         c.set(x, y, suit, k);
-        c.set(x, y - 1, hat, k);
+        c.set(x + 1, y, suit, 0.8f * k);
+        c.set(x, y - 1, {1.0f, 0.62f, 0.4f}, 0.9f * k);
+        c.set(x, y - 2, hat, k);
     }
 
     // After the arrival: the elves beside the star, bobbing.

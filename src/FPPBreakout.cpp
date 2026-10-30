@@ -161,17 +161,13 @@ static const std::vector<LevelDefinition> LEVEL_LAYOUTS = {
             "C.............C"
         }
     },
-    {   // Level 13: rainbow chevrons
+    {   // Level 13: rainbow chevrons (five rows, so the bricks stay two tall)
         {
-            "RRRRR..........",
-            ".YYYYY.........",
-            "..GGGGG........",
-            "...BBBBB.......",
-            "....PPPPP......",
-            "...BBBBB.......",
-            "..GGGGG........",
-            ".YYYYY.........",
-            "RRRRR.........."
+            "RRRRR...RRRRR..",
+            ".YYYYY...YYYYY.",
+            "..GGGGG...GGGGG",
+            ".BBBBB...BBBBB.",
+            "PPPPP...PPPPP.."
         }
     },
     {   // Level 14: window panes (lasers feel great here)
@@ -184,17 +180,13 @@ static const std::vector<LevelDefinition> LEVEL_LAYOUTS = {
             "I.............I"
         }
     },
-    {   // Level 15: diamond core
+    {   // Level 15: diamond core (five rows, so the bricks stay two tall)
         {
-            ".......W.......",
             "......WWW......",
-            ".....W2W2W.....",
             "....WWW2WWW....",
-            "...W2W222W2W...",
+            "..W2W22222W2W..",
             "....WWW2WWW....",
-            ".....W2W2W.....",
-            "......WWW......",
-            ".......W......."
+            "......WWW......"
         }
     }
 };
@@ -603,11 +595,13 @@ public:
             }
         } else {
             // Rows stacked edge to edge, as in Arkanoid, below an open strip
-            // the ball can get into once it breaks through. The bricks take
-            // the height the gaps would have had (twice as tall), as long as
-            // the field ends above the lower third, which is the paddle's.
+            // the ball can get into once it breaks through. Every level's
+            // bricks are the same height - two LEDs on a 25-tall wall, more on
+            // a taller one - as long as the field ends above the lower third,
+            // which is the paddle's. (They used to come from the level's row
+            // count: 3 LEDs on a four-row level, 1 on a nine-row one.)
             const int limit = std::max(1, (int)(paddle.y * 2 / 3) + 1);
-            brickHeight = std::max(1, 2 * brickHeight);
+            brickHeight = std::max(1, (int)std::lround(h * 2 / 25.0f));
             while (brickHeight > 1 && std::min(topSpace, limit) + brickRows * brickHeight > limit) {
                 --brickHeight;
             }

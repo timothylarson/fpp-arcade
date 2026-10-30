@@ -94,6 +94,25 @@ const char *const OWL[2][2] = {{"VEV", ".O."}, {".E.", "VOV"}};
 
 enum class Kind { Log, Present, Snowman, Ice, Creek, Owl, Bough, Icicles, Candy };
 
+// The reindeer drawn at the wall's own size when one player's course is zoomed
+// (each LED of the course four on the wall): the same footprint as the course
+// sprites, 14x8 standing and 16x4 ducking, with a neck, an eye, branching
+// antlers and hooves. Letters as in ReindeerRunShow.h, plus e the eye (left
+// dark) and k hooves.
+constexpr int BIG_W = 14, BIG_H = 8, BIG_DUCK_H = 4;
+#define BIG_TOP ".......a...a..", "........a.a...", ".........ahh..", "........chhehn", "t.bbbbbbbc....", "tbbbbbbbbb...."
+const char *const BIG_RUN[3][BIG_H] = {
+    {BIG_TOP, "..l.l...l.l...", "..k.k...k.k..."},   // legs under
+    {BIG_TOP, ".l.l.....l.l..", "k.k.......k.k."},   // stretched out
+    {BIG_TOP, "...l.l.l.l....", "....k.kk.k...."},   // gathered
+};
+const char *const BIG_JUMP[BIG_H] = {BIG_TOP, "kl.l.....l.lk.", ".............."};
+#undef BIG_TOP
+const char *const BIG_DUCK[2][BIG_DUCK_H] = {
+    {"..........a.a...", "t.bbbbbbbb.aahh.", "tbbbbbbbbbbchehn", "..l.l....l.l...."},
+    {"..........a.a...", "t.bbbbbbbb.aahh.", "tbbbbbbbbbbchehn", ".l...l..l...l..."},
+};
+
 }  // namespace
 
 class ReindeerRunEffect : public FPPArcadeGameEffect {
@@ -982,13 +1001,15 @@ private:
                     // Water where the snow should be, its banks bright white
                     // and glints sliding along it, so the gap can't be missed.
                     const int cx = x - screenX(*creek);
+                    // As bright as the obstacles: dimmer, on a wall turned
+                    // down, it was hard to see at all.
                     if (cx == 0 || cx == creek->w - 1) {
-                        canvas.set(x, y, {0.85f, 0.9f, 1.0f}, (y == L.ground ? 0.6f : 0.25f) * k);
+                        canvas.set(x, y, {0.85f, 0.9f, 1.0f}, (y == L.ground ? 1.0f : 0.5f) * k);
                         continue;
                     }
                     const bool glint = y == L.ground && (int)(clock * 6 + x * 2) % 7 == 0;
-                    canvas.set(x, y, glint ? RGB{0.6f, 0.85f, 1.0f} : RGB{0.05f, 0.25f, 0.9f},
-                               (glint ? 0.6f : (y == L.ground ? 0.3f : 0.12f)) * k);
+                    canvas.set(x, y, glint ? RGB{0.7f, 0.9f, 1.0f} : RGB{0.1f, 0.35f, 1.0f},
+                               (glint ? 1.0f : (y == L.ground ? 0.85f : 0.45f)) * k);
                     continue;
                 }
                 const unsigned hs = hash(x + base, y - L.ground);
@@ -1083,22 +1104,62 @@ private:
         }
     }
 
-    void drawRunner(int p, const Lane &L, float k) {
+    // A late joiner blinks while it's safe; a crashed one blinks out (and, at
+    // GAME OVER, only the last one out blinks, where it went down).
+    bool runnerShown(int p) const {
         const Runner &r = runners[p];
-        const Look &look = p == 0 ? RUDOLPH : DASHER;
-        // A late joiner blinks while it's safe; a crashed one blinks out (and,
-        // at GAME OVER, only the last one out blinks, where it went down).
-        bool show = anyJoined() ? r.joined : true;
         if (r.joined && !r.alive) {
-            show = over ? (p == lastOut && std::fmod(overT, 0.3f) < 0.15f) : (r.deadT < 0.9f && std::fmod(r.deadT, 0.3f) < 0.15f);
-        } else if (r.safeT > 0) {
-            show = std::fmod(r.safeT, 0.24f) < 0.14f;
+            return over ? (p == lastOut && std::fmod(overT, 0.3f) < 0.15f) : (r.deadT < 0.9f && std::fmod(r.deadT, 0.3f) < 0.15f);
         }
-        if (!show) {
+        if (r.safeT > 0) {
+            return std::fmod(r.safeT, 0.24f) < 0.14f;
+        }
+        return anyJoined() ? r.joined : true;
+    }
+
+    void drawRunner(int p, const Lane &L, float k) {
+        if (!runnerShown(p)) {
             return;
         }
+        const Runner &r = runners[p];
         const int n = r.ducking ? DH : RH;
-        drawSprite(canvas, poseRows(r), n, runX, L.row(feetRow(r) + n - 1), look, k);
+        drawSprite(canvas, poseRows(r), n, runX, L.row(feetRow(r) + n - 1), p == 0 ? RUDOLPH : DASHER, k);
+    }
+
+    // The big reindeer, onto the wall over the zoomed course. Its height is
+    // in the wall's LEDs, so a jump rises and falls twice as smoothly.
+    void drawBigRunner(int p) {
+        if (!runnerShown(p)) {
+            return;
+        }
+        const Runner &r = runners[p];
+        const Look &look = p == 0 ? RUDOLPH : DASHER;
+        const char *const *rows = r.ducking ? BIG_DUCK[(int)r.legs % 2]
+                                            : (r.air ? BIG_JUMP : BIG_RUN[RUN_CYCLE[(int)r.legs % 4]]);
+        const int n = r.ducking ? BIG_DUCK_H : BIG_H;
+        const int feet = 2 * laneFor(p).ground - 1 - (int)std::lround(2 * r.h);
+        const int x0 = 2 * runX, y0 = feet - n + 1;
+        for (int row = 0; row < n; ++row) {
+            for (int i = 0; rows[row][i]; ++i) {
+                const char ch = rows[row][i];
+                if (ch == '.') {
+                    continue;
+                }
+                if (ch == 'e') {
+                    wall.set(x0 + i, y0 + row, {0, 0, 0});
+                } else if (ch == 'k') {
+                    wall.set(x0 + i, y0 + row, look.legs, 0.55f);
+                } else {
+                    wall.set(x0 + i, y0 + row, colourOf(look, ch));
+                }
+                if (ch == 'n' && look.glow) {
+                    const int dx[4] = {1, 0, 0, 1}, dy[4] = {0, -1, 1, -1};
+                    for (int d = 0; d < 4; ++d) {
+                        wall.add(x0 + i + dx[d], y0 + row + dy[d], {1.0f, 0.05f, 0.02f}, 0.18f);
+                    }
+                }
+            }
+        }
     }
 
     // The score, dim, top right and behind everything; brighter for a moment at
@@ -1113,7 +1174,7 @@ private:
 
     // The zoomed course onto the wall, each LED of it two by two (an odd last
     // row or column repeats the snow or the edge), with the score at the
-    // wall's size behind the play.
+    // wall's size behind the play and the big reindeer in front.
     void writeZoomed() {
         wall.clear();
         for (int p = 0; p < 2; ++p) {
@@ -1129,6 +1190,11 @@ private:
                 } else {
                     wall.add(x, y, c);
                 }
+            }
+        }
+        for (int p = 0; p < 2; ++p) {
+            if (runners[p].joined) {
+                drawBigRunner(p);
             }
         }
         wall.writeTo(model);
@@ -1151,7 +1217,9 @@ private:
             for (const auto &t : things) {
                 drawThing(t, L, p, k);
             }
-            drawRunner(p, L, k);
+            if (!zoom) {
+                drawRunner(p, L, k);   // zoomed, the big one goes on after: writeZoomed()
+            }
             if (goT >= 0 && goT < 1.0f && r.joined && !split()) {
                 text(canvas, "GO!", (W - textW("GO!")) / 2, L.top + L.air() / 3, {1.0f, 0.85f, 0.2f}, 1.0f - goT * 0.6f);
             }

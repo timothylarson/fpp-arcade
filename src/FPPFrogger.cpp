@@ -312,7 +312,17 @@ private:
         // still "playing" in cells nobody could see. Take the size from
         // setPlayfield() instead: 0/0 fills the panel exactly, and a configured
         // Playfield Width/Height is centred on it.
-        setPlayfield(opt.playfieldW, opt.playfieldH, cellW);
+        // Left to fill the panel, the field is only as tall as its lanes
+        // need - the score row, the homes, the river, the median, the road,
+        // the start and the lives row - and centred: five lanes on a 25-row
+        // wall at Pixel Scaling 1 used to leave 12 empty rows under the start
+        // that the frog could wander into.
+        int wantH = opt.playfieldH;
+        if (wantH <= 0) {
+            const int avail = std::max(1, model->getHeight() / cellW);
+            wantH = std::min(avail, 2 * fittedLanesForGrid(avail) + 5);
+        }
+        setPlayfield(opt.playfieldW, wantH, cellW);
         cellW = cellH = scale;
         gridCols = pfW;
         gridRows = pfH;
@@ -577,7 +587,7 @@ private:
     void moveFrog(int dx, int dy) {
         const int oldX = frog.gx, oldY = frog.gy;
         frog.gx = std::clamp(frog.gx + dx, 0, gridCols - 1);
-        frog.gy = std::clamp(frog.gy + dy, 0, gridRows - 1);
+        frog.gy = std::clamp(frog.gy + dy, homeRow, startRow);   // never below the start
         if (dy < 0) score += 1; // reward forward hops
         sfx("frogger", (frog.gx == oldX && frog.gy == oldY) ? "Bump" : "Hop");
     }

@@ -126,6 +126,15 @@ Pong, Snake, Flap, Light Memory, Orb Pop and Shape Fit have no levels and ignore
 
 Install from **Content Setup → Plugins** in the FPP web UI, then restart FPPD.
 
+## On the wall
+
+Select (or *FPP Arcade Select Game*) shows a game's title. Over the next few seconds the title
+gives way to **PRESS START** and **SELECT: NEXT**, then to the game's controls in a few words
+(ARROWS: MOVE, UP OR A: TURN...), then the title again. On a wall too narrow for the controls,
+the title stays. Start plays it; Select moves on to the next game. A title nobody starts or
+changes clears after 10 seconds, giving the model back to the sequence or the Kinect picture (or
+Orb Pop's ambient mode, below); the first Select after that shows the same game again.
+
 ## Configuration
 
 Two pages are added to the FPP UI:
@@ -249,10 +258,12 @@ and the same overlay model, and reads who is standing where from it every frame.
   one. Gold orbs are smaller and quicker and score 5. A bar along the top shows the time left
   and the score is in the corner. The round ends when time is up, or 15 seconds after the Kinect
   sees no one at all, and shows the score before going back to attract mode.
-- **Start Automatically** (off by default) switches the model to Orb Pop whenever it is showing
-  the plain Kinect picture. Another game selected and started on the model takes over as usual,
-  and Orb Pop comes back about a second after it ends. If the Kinect stops sending frames for
-  10 seconds, Orb Pop hands the model back.
+- **Start Automatically** (No by default). *Yes* switches the model to Orb Pop whenever it is
+  showing the plain Kinect picture. *When it was the last game played* brings back Orb Pop's
+  ambient mode when the Kinect sees someone, but only if Orb Pop was the last game played on that
+  model; after any other game the plain Kinect picture stays. Either way another game selected and
+  started on the model takes over as usual, and Orb Pop comes back about a second after it ends.
+  If the Kinect stops sending frames for 10 seconds, Orb Pop hands the model back.
 - Options: *Brightness*, *Palette* (Frost, or Christmas), *Round Length*, *Start After*,
   *Sensitivity* (the share of the LEDs a person must cover to count as someone in view), and
   *Start Automatically*.
@@ -468,6 +479,18 @@ The plugin registers three FPP Commands:
   speaker. For a playlist or schedule: quieter late in the evening, say.
 
 Wire these to GPIO inputs, the joystick page, or any other FPP event source to provide controls.
+
+## Working on the games
+
+`tools/host` builds the games on a Mac and plays them in a window, with keys or a game controller,
+without FPP or the wall: the plugin's own sources, with stand-ins for the FPP parts they use. A
+change builds in seconds, the frames can go to the Matrix Viewer over sACN (with the sounds), and a
+build with the address and undefined-behaviour checkers finds crashes before they reach the player.
+See [tools/host/README.md](tools/host/README.md).
+
+The games' shared code (the base classes, letters, pause menu, best scores, game list and button
+handling) is in `src/FPPArcadeGame.cpp`; `src/FPPArcade.cpp` is what only FPP needs: the commands,
+the web API, the controllers and the settings.
 
 ## License
 

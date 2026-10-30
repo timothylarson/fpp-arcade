@@ -163,7 +163,20 @@ public:
         racketP1Pos = static_cast<int>(std::round(racketP1PosF));
         racketP2Pos = static_cast<int>(std::round(racketP2PosF));
     }
+    // In steps of at most half an LED. A late frame moves the ball up to five
+    // times as far, and in one jump it could land behind the paddle - hit,
+    // and then scored in the same step: through the paddle.
     void moveBall(double frameScalar) {
+        const double dist = std::fabs(ballSpeed * frameScalar);
+        const int steps = std::max(1, (int)std::ceil(dist / 0.5));
+        for (int i = 0; i < steps; ++i) {
+            if (stepBall(frameScalar / steps)) {
+                return;   // a point: it's back in the middle
+            }
+        }
+    }
+    // One step; true if someone scored.
+    bool stepBall(double frameScalar) {
         ballPosX += ballDirX * ballSpeed * frameScalar;
         ballPosY += ballDirY * ballSpeed * frameScalar;
         
@@ -182,6 +195,7 @@ public:
              }
              ballDirX = std::fabs(ballDirX);
              ballDirY = t;
+             ballPosX = std::max(ballPosX, 2.0f);   // in front of the paddle, not behind it
          }
         
          // hit by right racket?
@@ -196,6 +210,7 @@ public:
              }
              ballDirX = -std::fabs(ballDirX);
              ballDirY = t;
+             ballPosX = std::min(ballPosX, (float)(cols - 3));
          }
 
          if (ballPosX < 1) {
@@ -206,6 +221,8 @@ public:
              ballPosY = rows / 2;
              ballDirX = std::fabs(ballDirX);
              ballDirY = 0;
+             vec2_norm(ballDirX, ballDirY);
+             return true;
          }
 
          // hit right wall?
@@ -217,6 +234,8 @@ public:
              ballPosY = rows / 2;
              ballDirX = -std::fabs(ballDirX);
              ballDirY = 0;
+             vec2_norm(ballDirX, ballDirY);
+             return true;
          }
 
          if (ballPosY >= rows - 1) {
@@ -238,6 +257,7 @@ public:
 
          // make sure that length of dir stays at 1
          vec2_norm(ballDirX, ballDirY);
+         return false;
     }
     void vec2_norm(float& x, float &y) {
         // sets a vectors length to 1 (which means that x + y == 1)

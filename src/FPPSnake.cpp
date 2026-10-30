@@ -150,6 +150,17 @@ public:
         if (duel) {
             snake2.push_front(h2);
         }
+        // The way each one went this step, and a second quick turn, held back
+        // for this step, now.
+        moved = direction;
+        moved2 = direction2;
+        if (queued >= 0 && queued != (moved + 2) % 4) {
+            direction = queued;
+        }
+        if (queued2 >= 0 && queued2 != (moved2 + 2) % 4) {
+            direction2 = queued2;
+        }
+        queued = queued2 = -1;
         for (const Cell &h : {h1, h2}) {
             if ((h == h1 && ate1) || (h == h2 && ate2)) {
                 food.remove(h);
@@ -186,7 +197,8 @@ public:
             }
             if (clear) {
                 snake2 = body;
-                direction2 = sp.dir;
+                direction2 = moved2 = sp.dir;
+                queued2 = -1;
                 duel = true;
                 sfx("snake", "StartGame");
                 return;
@@ -310,22 +322,46 @@ public:
             if (!duel) {
                 joinBlue();
             } else {
-                direction2 = (direction2 + (button == "A Button - Pressed" ? 1 : 3)) % 4;
+                // Turns are from the way it last moved: two quick presses
+                // before it steps would otherwise turn it back into itself.
+                // The second waits for the next step.
+                const int turn = button == "A Button - Pressed" ? 1 : 3;
+                if (direction2 == moved2) {
+                    direction2 = (moved2 + turn) % 4;
+                } else {
+                    queued2 = (direction2 + turn) % 4;
+                }
                 sfx("snake", "Turn", 0.5f);
             }
             return;
         }
-        const int was = direction;
-        if (button == "Left - Pressed" && direction != 2) {
-            direction = 0;
-        } else if (button == "Right - Pressed" && direction != 0) {
-            direction = 2;
-        } else if (button == "Up - Pressed" && direction != 3) {
-            direction = 1;
-        } else if (button == "Down - Pressed" && direction != 1) {
-            direction = 3;
+        int want = -1;
+        if (button == "Left - Pressed") {
+            want = 0;
+        } else if (button == "Up - Pressed") {
+            want = 1;
+        } else if (button == "Right - Pressed") {
+            want = 2;
+        } else if (button == "Down - Pressed") {
+            want = 3;
         }
-        if (GameOn && direction != was) {
+        if (want < 0) {
+            return;
+        }
+        // Against the way it last moved, not the last press: heading right, a
+        // quick Up then Left before it steps used to turn it back into its
+        // own neck. A second turn in the same step waits for the next one.
+        bool turned = false;
+        if (direction == moved) {
+            if (want != moved && want != (moved + 2) % 4) {
+                direction = want;
+                turned = true;
+            }
+        } else if (want != direction && want != (direction + 2) % 4) {
+            queued = want;
+            turned = true;
+        }
+        if (GameOn && turned) {
             // Quiet: turns are frequent, and the bites should stand out.
             sfx("snake", "Turn", 0.5f);
         }
@@ -337,12 +373,14 @@ public:
 
     std::list<std::pair<int, int>> food;
     std::list<std::pair<int, int>> snake;
-    int direction = 0;
+    int direction = 0;   // 0 left, 1 up, 2 right, 3 down
+    int moved = 0;       // the way it went on its last step
+    int queued = -1;     // a second turn pressed before that step, or -1
     // The blue snake, once A or B brings it in, and the duel's result:
     // 0 a tie, 1 red won, 2 blue won.
     bool duel = false;
     std::list<std::pair<int, int>> snake2;
-    int direction2 = 0, winner = 0;
+    int direction2 = 0, moved2 = 0, queued2 = -1, winner = 0;
 
     int rows = 20;
     int cols = 20;
@@ -366,7 +404,8 @@ public:
         duel = false;
         winner = 0;
         food.clear();
-        direction = 0;
+        direction = moved = 0;
+        queued = queued2 = -1;
         snake.push_back(std::pair<int, int>(cols / 2, rows / 2));
         snake.push_back(std::pair<int, int>(cols / 2 + 1, rows / 2));
         snake.push_back(std::pair<int, int>(cols / 2 + 2, rows / 2));

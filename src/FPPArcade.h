@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <list>
 #include <set>
 #include <cstdint>
 
@@ -27,6 +28,22 @@ int arcadeGlyphWidth(char c, int scl);
 // Records score; true if it beats the best so far (any score above 0 beats
 // none). previousBest, if given, gets the best before this one.
 bool arcadeRecordBest(const std::string &model, const std::string &game, int score, int *previousBest = nullptr);
+
+class FPPArcadeGame;
+// The game's title on its model, with its GameSelected jingle (Select).
+void arcadeShowTitle(FPPArcadeGame *game);
+// A button for a model's games, front first: Select moves to the next game
+// and shows its title, Start starts the front one, anything else goes to it.
+// Also the cheat codes, and EXIT on the pause menu.
+void arcadeButton(std::list<FPPArcadeGame *> &games, const std::string &button);
+// The game last played on a model (started from its title), or "".
+void arcadeNotePlayed(const std::string &model, const std::string &game);
+std::string arcadeLastPlayed(const std::string &model);
+// The axes FPP Arcade Axis takes: Up -> Down, Left -> Right, Down -> Up, Right -> Left.
+extern std::vector<std::string> AXIS;
+// A game from its entry in the plugin's config, by its "game" name, or null.
+namespace Json { class Value; }
+FPPArcadeGame *arcadeCreateGame(Json::Value &config);
 
 // Whether a finished game gets its end show (ArcadeShow.h): mode is the End
 // Show setting (0 never, 1 after a good game, 2 after every game), good that

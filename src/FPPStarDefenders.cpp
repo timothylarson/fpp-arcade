@@ -632,7 +632,8 @@ private:
         // Extra lives are rare; the rest are equally likely.
         const float p = rnd();
         Power kind = p < 0.06f ? Power::Life : (Power)(1 + (int)(rnd() * 5) % 5);
-        capsules.push_back({std::clamp(x, 0.0f, (float)(W - 1)), y, kind});
+        // Two LEDs wide (x and x + 1), so it can't be taken for a bomb.
+        capsules.push_back({std::clamp(x - 0.5f, 0.0f, (float)(W - 2)), y, kind});
     }
 
     void moveCapsules(float dt) {
@@ -640,7 +641,7 @@ private:
             Capsule &c = capsules[k];
             c.y += 6.0f * dt;
             const int x = (int)std::lround(c.x), y = (int)std::lround(c.y);
-            if (y >= H - 2 && x >= cannonX && x <= cannonX + 2) {
+            if (y >= H - 2 && x + 1 >= cannonX && x <= cannonX + 2) {
                 collect(c.p);
                 capsules.erase(capsules.begin() + k);
             } else if (y >= H) {
@@ -811,9 +812,13 @@ private:
             canvas.add(sx + 2, 0, SAUCER, 0.9f);
         }
         for (auto &c : capsules) {
-            // Blinks between its colour and white so it reads as a pickup.
+            // Two LEDs wide, blinking between its colour and white, so it
+            // reads as a pickup and not a bomb (bombs are one LED).
             const bool flash = std::fmod(clock, 0.3f) < 0.15f;
-            canvas.add((int)std::lround(c.x), (int)std::lround(c.y), flash ? ArcadeCanvas::WHITE : POWERS[(int)c.p].colour, 1.0f);
+            const RGB col = flash ? ArcadeCanvas::WHITE : POWERS[(int)c.p].colour;
+            const int cx = (int)std::lround(c.x), cy = (int)std::lround(c.y);
+            canvas.add(cx, cy, col, 1.0f);
+            canvas.add(cx + 1, cy, col, 1.0f);
         }
         const RGB shotCol = power == Power::None ? SHOT : POWERS[(int)power].colour;
         for (auto &s : shots) {

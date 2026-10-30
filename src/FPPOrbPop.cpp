@@ -804,7 +804,10 @@ private:
 
 
 FPPOrbPop::FPPOrbPop(Json::Value &config) : FPPArcadeGame(config) {
-    if (findOption("Start Automatically", "0") == "1") {
+    // Start Automatically: 0 no, 1 whenever the model shows the Kinect
+    // picture, 2 only after a game of Orb Pop, when someone is in view.
+    autoMode = std::clamp(findIntOption("Start Automatically", 0), 0, 2);
+    if (autoMode != 0) {
         char buf[64];
         snprintf(buf, sizeof(buf), "ArcadeOrbPopAutoStart-%p", (void *)this);
         timerName = buf;
@@ -831,7 +834,10 @@ const std::string &FPPOrbPop::getName() {
 // Take the model over whenever it is showing the plain Kinect picture (or
 // nothing) and the Kinect is sending frames. Another game, or its title
 // screen, is left alone; when it ends the Kinect plugin puts its picture back
-// and Orb Pop takes over again a second later.
+// and Orb Pop takes over again a second later. In "When it was the last game
+// played", only if Orb Pop was the last game played on the model and someone
+// is in view: its ambient mode comes back for people after a game of it, and
+// the plain Kinect picture stays after any other game.
 void FPPOrbPop::autoStartTick() {
     PixelOverlayModel *m = PixelOverlayManager::INSTANCE.getModel(modelName);
     if (!m) {
@@ -850,6 +856,19 @@ void FPPOrbPop::autoStartTick() {
     static std::vector<uint8_t> f(KinectPeople::MAX_W * KinectPeople::MAX_H);
     if (!probe.read(w, h, d.data(), f.data())) {
         return;
+    }
+    if (autoMode == 2) {
+        if (arcadeLastPlayed(modelName) != getName()) {
+            return;
+        }
+        int people = 0;
+        for (int i = 0; i < w * h; ++i) {
+            people += (f[i] & KinectPeople::PERSON) ? 1 : 0;
+        }
+        const int need = std::max(1, w * h * std::clamp(findIntOption("Sensitivity", 3), 1, 100) / 100);
+        if (people < need) {
+            return;
+        }
     }
     LogInfo(VB_PLUGIN, "Orb Pop: Kinect is streaming and %s is free, starting\n", modelName.c_str());
     startEffect();

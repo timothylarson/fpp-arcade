@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstring>
 #include <dirent.h>
+#include <fcntl.h>
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
@@ -608,10 +609,12 @@ bool speakerRequest(const std::string &ip, const std::string &pathQuery, const s
     if (inet_pton(AF_INET, ip.c_str(), &to.sin_addr) != 1) {
         return false;
     }
-    const int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    const int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
         return false;
     }
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+    fcntl(fd, F_SETFD, FD_CLOEXEC);
     // Short timeouts: this runs on FPP's web or command thread, and a speaker
     // that's off shouldn't hold it up. HTTP/1.0, so the reply is the plain body
     // and ends when the speaker closes the connection.

@@ -21,6 +21,7 @@ private:
     void startEffect();
     void autoStartTick();
     std::string timerName;
+    int autoMode = 0;   // the Start Automatically setting
 };
 
 #endif

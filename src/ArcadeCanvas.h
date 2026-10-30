@@ -56,6 +56,13 @@ public:
         G[i] = c.g * k;
         B[i] = c.b * k;
     }
+    RGB get(int x, int y) const {
+        if (x < 0 || y < 0 || x >= W || y >= H) {
+            return {0.0f, 0.0f, 0.0f};
+        }
+        const int i = y * W + x;
+        return {R[i], G[i], B[i]};
+    }
     void scale(float k) {
         for (int i = 0; i < W * H; ++i) {
             R[i] *= k;

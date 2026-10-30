@@ -31,7 +31,10 @@ using namespace ReindeerRunShow;   // the reindeer sprites, shared with the end 
 // The directions run Rudolph and A/B run Dasher. Whoever presses first plays
 // on the whole wall; the other control joins at any time, which splits the
 // wall into two lanes on the same course at the same speed - Rudolph on top,
-// Dasher below - and the longer run wins.
+// Dasher below - and the longer run wins. Alone, on a wall big enough, the run
+// is one of those lanes drawn twice the size: a course half the wall's width
+// and height, each of its LEDs four on the wall, so the reindeer is big enough
+// to see from across the yard. The score stays at the wall's own size.
 //
 // Everything about the course is in LEDs and seconds of game time. On a narrow
 // wall (or a lower Speed setting) game time runs slower, so the same jump over
@@ -100,15 +103,15 @@ public:
     // speed.
     ReindeerRunEffect(PixelOverlayModel *m, int showMode, int good, int speedPct, int rampSecs)
         : FPPArcadeGameEffect(m), endShow(showMode), goodGame(good), rng(std::random_device{}()) {
-        model->getSize(W, H);
-        W = std::max(20, W);
-        H = std::max(12, H);
-        canvas.resize(W, H);
-        // A 30-wide half gives about 19 LEDs of warning to a 60-wide wall's 46,
-        // so game time runs at 85% there: still quick, but you can react.
-        timeScale = std::clamp(speedPct, 25, 300) / 100.0f * std::clamp(0.7f + 0.3f * W / 60.0f, 0.85f, 1.0f);
+        model->getSize(MW, MH);
+        MW = std::max(20, MW);
+        MH = std::max(12, MH);
+        canZoom = MW >= 40 && MH >= 24;
+        W = MW;
+        H = MH;
+        wall.resize(MW, MH);
+        speedK = std::clamp(speedPct, 25, 300) / 100.0f;
         ramp = (float)std::clamp(rampSecs, 10, 900);
-        runX = std::max(2, W / 7);
         for (int i = 0; i < std::max(8, W * H / 80); ++i) {
             flakes.push_back({rnd() * W, rnd() * H, 2.0f + rnd() * 3.0f});
         }
@@ -214,7 +217,11 @@ public:
         canvas.clear();
         render();
         beginFrame();   // the picture, then the GAME OVER box over it: see beginFrame()
-        canvas.writeTo(model);
+        if (zoom) {
+            writeZoomed();
+        } else {
+            canvas.writeTo(model);
+        }
         if (over && overT > 1.0f) {
             textBox(overLines, 255, 255, 255);
         }
@@ -279,6 +286,8 @@ private:
         for (auto &r : runners) {
             r = Runner();
         }
+        layout();
+        timeScale = targetScale();
         things.clear();
         sparks.clear();
         worldX = 0;
@@ -301,8 +310,37 @@ private:
     // Before anyone has pressed, both reindeer stand in their lanes so each
     // player can see which is theirs.
     bool twoLanes() const { return split() || !anyJoined(); }
+    // Lanes the height of two lanes' worth: split, or one zoomed. The jumps,
+    // the obstacles' heights and the candy are set for these, and the tall
+    // one-player obstacles are left out.
+    bool lowLanes() const { return twoLanes() || zoom; }
+
+    // The course's size for who's playing: half the wall each way for one
+    // player where that leaves room, the wall otherwise. The reindeer keeps
+    // its place on the course through a change (so does its score).
+    void layout() {
+        const int oldRunX = runX;
+        zoom = canZoom && anyJoined() && !split();
+        W = zoom ? MW / 2 : MW;
+        H = zoom ? MH / 2 : MH;
+        canvas.resize(W, H);
+        runX = std::max(2, W / 7);
+        worldX += oldRunX - runX;
+        for (auto &r : runners) {
+            r.fromX += oldRunX - runX;
+        }
+        for (auto &s : sparks) {
+            s.x += runX - oldRunX;
+        }
+    }
+    // A 30-wide course gives about 19 LEDs of warning to a 60-wide one's 46,
+    // so game time runs at 85% there: still quick, but you can react.
+    float targetScale() const { return speedK * std::clamp(0.7f + 0.3f * W / 60.0f, 0.85f, 1.0f); }
 
     Lane laneFor(int p) const {
+        if (zoom) {
+            return {0, H - 1, H};   // as the top one of two lanes
+        }
         if (!twoLanes()) {
             const int g = H >= 20 ? H - 3 : H - 2;
             return {0, g, H};
@@ -315,7 +353,7 @@ private:
     }
 
     Feel feel() const {
-        const float tap = twoLanes() ? 4.5f : 5.5f, high = twoLanes() ? 7.0f : 9.5f;
+        const float tap = lowLanes() ? 4.5f : 5.5f, high = lowLanes() ? 7.0f : 9.5f;
         Feel f;
         const float t = jumpTime();
         f.g = 8.0f * tap / (t * t);
@@ -358,7 +396,9 @@ private:
         r.fromX = worldX;
         r.safeT = first ? 0.0f : JOIN_SAFE;
         sfx("reindeerrun", "Start");
+        layout();
         if (first) {
+            timeScale = targetScale();
             goT = 0;
             return;
         }
@@ -381,6 +421,8 @@ private:
     }
 
     void stepGame(float realDt) {
+        // A second player unzooming the course changes the pace: eased in.
+        timeScale += (targetScale() - timeScale) * std::min(1.0f, realDt * 2.0f);
         const float dt = realDt * timeScale;
         const uint32_t h = held.load();
         const uint32_t pr = presses.exchange(0);
@@ -631,19 +673,19 @@ private:
             // TOP WINS, BOTTOM WINS or TIE GAME, and both scores top first -
             // or just the winner's where both won't fit.
             std::string line = std::to_string(s0) + ":" + std::to_string(s1);
-            if ((int)line.size() * 4 - 1 > W) {
+            if ((int)line.size() * 4 - 1 > MW) {
                 line = std::to_string(top);
             }
             overLines = {s0 == s1 ? "TIE" : (s0 > s1 ? "TOP" : "BOTTOM"), s0 == s1 ? "GAME" : "WINS", line};
             if (showDue) {
-                showConfig = ReindeerRunShow::config2(s0, s1, newBest, best, W);
+                showConfig = ReindeerRunShow::config2(s0, s1, newBest, best, MW);
                 showStory = std::make_unique<ReindeerRunShow::Story>(s1 > s0, true);
             }
         } else {
             const int who = runners[0].joined ? 0 : 1;
             overLines = {"GAME", "OVER", std::to_string(top)};
             if (showDue) {
-                showConfig = ReindeerRunShow::config(top, runners[who].candy, who == 1, newBest, best, W);
+                showConfig = ReindeerRunShow::config(top, runners[who].candy, who == 1, newBest, best, MW);
                 showStory = std::make_unique<ReindeerRunShow::Story>(who == 1, false);
             }
         }
@@ -691,7 +733,7 @@ private:
     void spawn() {
         const float v = speed();
         const int b = band();
-        const bool one = !twoLanes();
+        const bool one = !lowLanes();
         const double x = nextWX;
         double end = x;
         const float tap2a = 0.08f;   // a tap is two LEDs up about 0.08 s after it leaves the ground
@@ -750,7 +792,7 @@ private:
             // The legs (4 wide) over both logs with a fifth of a second to
             // spare, at most. Two lanes jump lower, so on the whole wall
             // allow for a second player splitting it before they get here.
-            const float held = twoLanes() ? airAbove(2, true) : 0.88f * airAbove(2, true);
+            const float held = lowLanes() ? airAbove(2, true) : 0.88f * airAbove(2, true);
             const float clear = v * (held - 0.2f) - 4 - 6;
             const int gap = (int)std::clamp(clear - rnd() * 2.0f, 2.0f, 5.0f);
             add(Kind::Log, x, 3, 2, LOG3);
@@ -860,13 +902,13 @@ private:
         return a + (b - a) * s;
     }
 
-    // 3x5 text straight into the canvas, so it can sit behind the play.
-    void text(const std::string &s, int x, int y, const RGB &col, float k) {
+    // 3x5 text straight into a canvas, so it can sit behind the play.
+    static void text(ArcadeCanvas::Canvas &c, const std::string &s, int x, int y, const RGB &col, float k) {
         for (size_t i = 0; i < s.size(); ++i) {
             for (int py = 0; py < 5; ++py) {
                 for (int px = 0; px < 3; ++px) {
                     if (arcadeGlyph(s[i], px, py)) {
-                        canvas.set(x + (int)i * 4 + px, y + py, col, k);
+                        c.set(x + (int)i * 4 + px, y + py, col, k);
                     }
                 }
             }
@@ -881,7 +923,8 @@ private:
     // reindeer, the obstacles and the candy are what you see.
     void drawBackground(const Lane &L, float k, bool moon) {
         const int air = L.air();
-        for (const auto &s : stars) {
+        for (size_t i = 0; i < stars.size(); i += zoom ? 2 : 1) {   // each one four LEDs zoomed
+            const Star &s = stars[i];
             const int x = (int)std::fmod(s.x - worldX * 0.02 + W * 100.0, (double)W);
             canvas.add(x, L.top + (int)(s.y * air), {0.85f, 0.9f, 1.0f},
                        (0.06f + 0.04f * std::sin(clock * 1.7f + s.phase)) * k);
@@ -1058,6 +1101,39 @@ private:
         drawSprite(canvas, poseRows(r), n, runX, L.row(feetRow(r) + n - 1), look, k);
     }
 
+    // The score, dim, top right and behind everything; brighter for a moment at
+    // each step of speed. right: the column it ends at.
+    void drawScore(ArcadeCanvas::Canvas &c, int p, int right, int top) {
+        const Runner &r = runners[p];
+        const std::string s = std::to_string(r.score(worldX));
+        const RGB col = twoLanes() ? (p == 0 ? RUDOLPH_TEXT : DASHER_TEXT) : RGB{1.0f, 0.85f, 0.45f};
+        const float bright = (r.alive ? 0.3f : 0.6f) + (flashT > 0 && std::fmod(flashT, 0.2f) < 0.1f ? 0.4f : 0.0f);
+        text(c, s, right - textW(s), top, col, bright);
+    }
+
+    // The zoomed course onto the wall, each LED of it two by two (an odd last
+    // row or column repeats the snow or the edge), with the score at the
+    // wall's size behind the play.
+    void writeZoomed() {
+        wall.clear();
+        for (int p = 0; p < 2; ++p) {
+            if (runners[p].joined) {
+                drawScore(wall, p, MW - 1, 1);
+            }
+        }
+        for (int y = 0; y < MH; ++y) {
+            for (int x = 0; x < MW; ++x) {
+                const RGB c = canvas.get(std::min(W - 1, x / 2), std::min(H - 1, y / 2));
+                if (std::max({c.r, c.g, c.b}) > 0.25f) {
+                    wall.set(x, y, c);
+                } else {
+                    wall.add(x, y, c);
+                }
+            }
+        }
+        wall.writeTo(model);
+    }
+
     void render() {
         const bool lanes2 = twoLanes();
         for (int p = 0; p < 2; ++p) {
@@ -1069,34 +1145,32 @@ private:
             // A lane whose reindeer is out (while the other runs on) dims.
             const float k = (split() && !r.alive && !over && r.deadT > 0.9f) ? 0.4f : 1.0f;
             drawBackground(L, k, !lanes2);
-            // The score, dim, top right and behind everything; brighter for a
-            // moment at each step of speed.
-            if (r.joined) {
-                const std::string s = std::to_string(r.score(worldX));
-                const RGB col = lanes2 ? (p == 0 ? RUDOLPH_TEXT : DASHER_TEXT) : RGB{1.0f, 0.85f, 0.45f};
-                const float bright = (r.alive ? 0.3f : 0.6f) + (flashT > 0 && std::fmod(flashT, 0.2f) < 0.1f ? 0.4f : 0.0f);
-                text(s, W - textW(s) - 1, L.top + 1, col, bright);
+            if (r.joined && !zoom) {
+                drawScore(canvas, p, W - 1, L.top + 1);
             }
             for (const auto &t : things) {
                 drawThing(t, L, p, k);
             }
             drawRunner(p, L, k);
             if (goT >= 0 && goT < 1.0f && r.joined && !split()) {
-                text("GO!", (W - textW("GO!")) / 2, L.top + L.air() / 3, {1.0f, 0.85f, 0.2f}, 1.0f - goT * 0.6f);
+                text(canvas, "GO!", (W - textW("GO!")) / 2, L.top + L.air() / 3, {1.0f, 0.85f, 0.2f}, 1.0f - goT * 0.6f);
             }
         }
         // Falling snow, drifting back past the reindeer, sparse and dim enough
         // not to be mistaken for anything.
         const float dt = frameDt;
         const float drift = anyJoined() && !over ? speed() * timeScale * 0.45f : 1.0f;
-        for (auto &f : flakes) {
+        for (size_t i = 0; i < flakes.size(); ++i) {
+            Flake &f = flakes[i];
             f.y += f.vy * dt;
             f.x -= drift * dt;
             if (f.y >= H || f.x < 0) {
                 f.y = f.y >= H ? 0 : f.y;
                 f.x = f.x < 0 ? W - 0.01f : rnd() * W;
             }
-            canvas.add((int)f.x, (int)f.y, {1, 1, 1}, 0.1f);
+            if (!zoom || i % 4 == 0) {   // each one four LEDs zoomed
+                canvas.add((int)f.x, (int)f.y, {1, 1, 1}, 0.1f);
+            }
         }
         for (const auto &s : sparks) {
             canvas.add((int)std::lround(s.x), (int)std::lround(s.y), s.col, 1.0f - s.age / s.life);
@@ -1118,9 +1192,12 @@ private:
     bool showDue = false;   // the run earned the show; it starts after the crash
 
     std::mt19937 rng;
-    ArcadeCanvas::Canvas canvas;
-    int W = 60, H = 25, runX = 8;
-    float timeScale = 1.0f, ramp = 80.0f;
+    ArcadeCanvas::Canvas canvas;   // the course
+    ArcadeCanvas::Canvas wall;     // the wall, when the course is zoomed onto it
+    int MW = 60, MH = 25;          // the wall
+    int W = 60, H = 25, runX = 8;  // the course
+    bool canZoom = false, zoom = false;
+    float speedK = 1.0f, timeScale = 1.0f, ramp = 80.0f;
 
     Runner runners[2];   // 0 Rudolph (the directions), 1 Dasher (A and B)
     std::vector<Thing> things;

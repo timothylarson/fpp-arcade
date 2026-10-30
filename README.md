@@ -56,7 +56,9 @@ choose, and Start, A or B picks. EXIT ends the game as GAME OVER would, without 
   snowmen, ice and creeks, and grab candy canes for 10 points. It speeds up in six steps over
   *Seconds to top speed* (80) and one hit ends the run. The directions run Rudolph and A/B run
   Dasher: the other control joins at any time, splitting the wall into two lanes on the same
-  course, and the longer run wins. End show (score 600): the reindeer joins Santa's team.
+  course, and the longer run wins. Alone on a wall at least 40 by 24, the run is drawn twice the
+  size (a 30 by 12 course on the 60 by 25 wall), so the reindeer is easy to see from afar; the
+  score stays small, top right. End show (score 600): the reindeer joins Santa's team.
 - **Road Race:** the road runs across the wall. Change lane with Up and Down past traffic that
   speeds up - cars and vans, then trucks, buses and a snowplough, and later oncoming cars in the
   top lane, each warned of by a blinking light at the right edge. Presents score, turbo stars make

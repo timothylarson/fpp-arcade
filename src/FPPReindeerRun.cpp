@@ -26,7 +26,7 @@ using namespace ReindeerRunShow;   // the reindeer sprites, shared with the end 
 // up in six steps over the first 80 seconds, and the obstacles get trickier
 // with it - pairs that need one long jump, a duck straight into a jump. One
 // hit ends the run. The score is the distance (an LED is half a point) plus
-// 10 for every candy cane.
+// 50 for every candy cane.
 //
 // The directions run Rudolph and A/B run Dasher. Whoever presses first plays
 // on the whole wall; the other control joins at any time, which splits the
@@ -48,7 +48,7 @@ constexpr float START_SPEED = 18.0f, TOP_SPEED = 34.0f;   // LEDs a second
 constexpr float CREEP = 0.15f, FASTEST = 60.0f;
 constexpr int BANDS = 6;                                   // steps of speed on the way up
 constexpr float LEDS_PER_POINT = 2.0f;
-constexpr int CANDY_POINTS = 10;
+constexpr int CANDY_POINTS = 50;
 // A tap's time in the air at the start. Faster, it's quicker - the square
 // root of how much faster - or the jumps would carry further and further and
 // get easier as the run sped up. Holding the button longer goes higher (and

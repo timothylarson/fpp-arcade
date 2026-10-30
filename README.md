@@ -53,7 +53,7 @@ choose, and Start, A or B picks. EXIT ends the game as GAME OVER would, without 
   and *Speed*. End show (score 600): past the moon and Santa's sleigh to the North Star.
 - **Reindeer Run:** an endless runner on a snowy night. Up (or A) jumps, and holding it jumps
   higher; Down (or B) ducks under boughs, icicles and swooping owls. Jump the logs, presents,
-  snowmen, ice and creeks, and grab candy canes for 10 points. It speeds up in six steps over
+  snowmen, ice and creeks, and grab candy canes for 50 points. It speeds up in six steps over
   *Seconds to top speed* (80) and one hit ends the run. The directions run Rudolph and A/B run
   Dasher: the other control joins at any time, splitting the wall into two lanes on the same
   course, and the longer run wins. Alone on a wall at least 40 by 24, the run is drawn twice the

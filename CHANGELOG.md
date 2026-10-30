@@ -1,5 +1,6 @@
 # FPP Arcade Changelog
 
+- Orb Pop dims the sequence only while someone is in view, like the Kinect plugin's *Only dim while someone is in view*. Its *Sequence* % (Overlay Transparent) dimmed the show the whole time Orb Pop ran, and started automatically it runs all day. New options *Dim Sequence* (only while someone is in view, the default, or the whole time it runs) and *Stay Dimmed* (10 seconds after the last person leaves, before the show fades back up).
 - Demos play on a model where Orb Pop is set to *Start Automatically*. Orb Pop's ambient mode held the model for good, so the demos were never let on; now, while it waits with nobody in view, a demo takes over and Orb Pop comes back when it ends. A round of Orb Pop counts as play, so the idle time starts again after it.
 - Maze Chase: the maze walls are brighter (30%, 35% on a wide maze, from 12% and 18%), so the maze can be seen from a distance.
 - Pong: the ball speeds up steadily through the game, to *Fastest ball* (1.8 times its starting speed) after *Seconds to top speed* (90) of play; points don't slow it back down.

@@ -181,6 +181,13 @@ public:
     // standing in front of the Kinect). Asked under the model's effect lock.
     virtual bool waitingForPlayers() const { return false; }
 
+    // Whether the sequence under the game is dimmed to its Sequence setting
+    // right now (see FPPArcadeGame::sequenceBrightness). Most games dim it the
+    // whole time they run; Orb Pop can wait for someone to step into view, as
+    // the Kinect plugin's "Only dim while someone is in view" does. Asked from
+    // the output thread under the model's effect lock.
+    virtual bool dimsSequence() const { return true; }
+
     // A cheat code was entered. Button presses arrive on another thread, so
     // this only raises a flag: a game with levels takes it with takeCheat()
     // in its own update() and jumps to its last level (for an endless game,

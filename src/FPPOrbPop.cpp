@@ -77,9 +77,14 @@ struct OrbPopSettings {
     float presencePct = 3.0f;     // % of LEDs a person must cover to count
     int endShow = 1, goodGame = 50;   // the End Show and Good Game settings
     // Overlay Transparent: no field or attract spheres, so the sequence (dimmed
-    // by the Kinect plugin's Sequence Brightness) is the backdrop; everything
-    // at full brightness, the orbs, time and score set off with dark edges.
+    // by its Sequence setting or the Kinect plugin's Sequence Brightness) is
+    // the backdrop; everything at full brightness, the orbs, time and score
+    // set off with dark edges.
     bool seeThrough = false;
+    // Dim Sequence: dim the sequence (the Sequence setting) only while someone
+    // is in view or a round is on, and for dimHoldMs after they leave.
+    bool dimWithPeople = true;
+    double dimHoldMs = 10000;
 };
 
 double steadyMs() {
@@ -140,6 +145,10 @@ public:
 
     // Attract mode with nobody in view: a demo may play instead.
     bool waitingForPlayers() const override { return mode == Mode::Mirror && !isPaused() && !someoneInView && heldMs <= 0; }
+
+    // Started by itself, Orb Pop is on the model all day: dimming the show the
+    // whole time would hide it from everyone walking past.
+    bool dimsSequence() const override { return !set.dimWithPeople || mode != Mode::Mirror || awayFromViewMs < set.dimHoldMs; }
 
     void restart() override {
         orbs.clear();
@@ -356,6 +365,7 @@ private:
         }
         const bool someone = present * 100.0f >= N * set.presencePct;
         someoneInView = someone;
+        awayFromViewMs = someone ? 0 : awayFromViewMs + dt;
         // Once a round is going, anyone still in view keeps it going: a player
         // standing still, or close to the wall behind, can drop below the
         // start threshold (the Kinect learns a still body into the background
@@ -795,6 +805,7 @@ private:
     double modeMs = 0, heldMs = 0, awayMs = 0, cooldownMs = 0, spawnInMs = 0, kinectGoneMs = 0;
     float ambientAlpha = 1.0f;
     bool someoneInView = false;   // the last frame's, for waitingForPlayers()
+    double awayFromViewMs = 1e9;  // since someone was last in view, for dimsSequence()
     std::vector<Orb> orbs;
     std::vector<Spark> sparks;
     int score = 0;
@@ -898,6 +909,8 @@ void FPPOrbPop::startEffect() {
     s.endShow = endShowOption();
     s.goodGame = goodGameOption(50);
     s.seeThrough = findOption("overlay", "Overwrite") == "Transparent";
+    s.dimWithPeople = findIntOption("Dim Sequence", 1) != 0;
+    s.dimHoldMs = std::clamp(findIntOption("Stay Dimmed", 10), 0, 600) * 1000.0;
     m->setRunningEffect(new OrbPopEffect(m, s), 1);
 }
 

@@ -947,7 +947,8 @@ public:
     // ChannelDataPlugin: runs on the output thread as each frame's sequence
     // data arrives, before overlays are laid on. A game whose overlay is
     // Transparent shows the sequence through its black LEDs; this dims that
-    // sequence to the game's Sequence brightness while it runs, fading over a
+    // sequence to the game's Sequence brightness while it runs (Orb Pop: while
+    // someone is in view, if it's set to; see dimsSequence()), fading over a
     // second each way. The games and models are only ever try_locked, so the
     // output thread never waits on a button press: a frame that can't look
     // keeps the last frame's targets.
@@ -970,6 +971,10 @@ public:
                     std::unique_lock<std::recursive_mutex> el(m->getRunningEffectMutex(), std::try_to_lock);
                     if (el.owns_lock()) {
                         running = g->isRunning();
+                        if (running) {
+                            FPPArcadeGameEffect *e = dynamic_cast<FPPArcadeGameEffect *>(m->getRunningEffect());
+                            running = !e || e->dimsSequence();
+                        }
                     } else {
                         auto d = seqDims.find(name);
                         running = d != seqDims.end() && d->second.want <= pct;

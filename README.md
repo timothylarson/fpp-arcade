@@ -290,17 +290,22 @@ and the same overlay model, and reads who is standing where from it every frame.
   started on the model takes over as usual, and Orb Pop comes back about a second after it ends.
   If the Kinect stops sending frames for 10 seconds, Orb Pop hands the model back.
 - Options: *Brightness*, *Palette* (Frost, or Christmas), *Round Length*, *Start After*,
-  *Sensitivity* (the share of the LEDs a person must cover to count as someone in view), and
-  *Start Automatically*.
+  *Sensitivity* (the share of the LEDs a person must cover to count as someone in view),
+  *Start Automatically*, *Dim Sequence* and *Stay Dimmed* (below).
 - **Overlay Transparent** (the default for Orb Pop) plays it over the running sequence: the dim
   field and the attract-mode orbs are left out, so the sequence is the backdrop, and the
   fpp-kinect plugin's *Sequence Brightness* dims it under the players as it does for the plain
   Kinect picture, or Orb Pop's own *Sequence* setting does (use one or the other: both at once
-  multiply). Everything Orb Pop draws is at full brightness (*Brightness* is for Overwrite): the
-  players steady, as the Kinect picture draws them, and the orbs drawn over them with a dark ring
-  round each, the time bar as a solid row along the top and the score and countdown outlined in
-  dark, so they stand out from the players and the sequence. Overwrite keeps Orb Pop's own field over
-  the whole matrix. Every other game is meant to be played with Overwrite.
+  multiply). Orb Pop's, like the Kinect plugin's *Only dim while someone is in view*, by default
+  dims the sequence only while someone is in view or a round is on, and fades it back up *Stay
+  Dimmed* seconds (10) after the last person leaves; set *Dim Sequence* to *The whole time it
+  runs* to dim it for as long as Orb Pop is on the model. Started automatically, Orb Pop is on the
+  model all day, so dimming the whole time would dim the show for everyone walking past.
+  Everything Orb Pop draws is at full brightness (*Brightness* is for Overwrite): the players
+  steady, as the Kinect picture draws them, and the orbs drawn over them with a dark ring round
+  each, the time bar as a solid row along the top and the score and countdown outlined in dark, so
+  they stand out from the players and the sequence. Overwrite keeps Orb Pop's own field over the
+  whole matrix. Every other game is meant to be played with Overwrite.
 
 Only something nearer than the Kinect's learned empty scene starts rounds and pops orbs, so a
 wall or fence inside the distance range doesn't. Someone standing perfectly still for the

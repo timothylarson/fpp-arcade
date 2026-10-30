@@ -345,13 +345,18 @@ Climb to the top while an ape rolls barrels down at you, after the classic girde
 - Reach the top girder to rescue the person there; the bonus that counts down while you
   climb is added to the score. Lives left show as little people in the top right corner.
 - Each level gets harder: new ladder positions, barrels thrown sooner (down to the fastest
-  rate) and rolling faster, more of them taking ladders down. From level 2 some barrels are
-  blue: quicker, and they nearly always take a ladder down toward you. From level 3 the ape
-  sometimes throws two in a row.
+  rate) and rolling faster, more of them taking ladders down (a quarter on level 1, up to
+  two in five, so more still roll past than go down). From level 2 some barrels (up to three
+  in ten) are blue: quicker, and two in three take a ladder down toward you. From level 3 the
+  ape sometimes throws two in a row.
+- From level 6 (*Short From*) the climber, and the person at the top, are two LEDs tall and
+  the girders four rows apart instead of five: six girders to climb on a 25-tall wall instead
+  of five.
 - On a model 40 or more wide there are two ladders between girders, otherwise one.
 - Options: *Lives*, *Barrels Every* (seconds between barrels on level 1, default 6),
-  *Barrels Sooner* (how much sooner each level, default 0.6) and *Fastest Barrels* (the
-  quickest it gets, default 3.2).
+  *Barrels Sooner* (how much sooner each level, default 0.6), *Fastest Barrels* (the
+  quickest it gets, default 3.2) and *Short From* (the first level with two-LED climbers and
+  more girders, default 6; 0 never).
 
 ## Star Defenders
 

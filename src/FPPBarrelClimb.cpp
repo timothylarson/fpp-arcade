@@ -19,7 +19,9 @@ using ArcadeCanvas::RGB;
 // Girders are one LED thick, five rows apart, each with a one-row step in the
 // middle so it slopes. They alternate direction, with a gap at the low end
 // that barrels drop through to the girder below. People are three LEDs tall
-// (a two-LED body and a head) and a barrel is one. Positions are whole LEDs; speeds
+// (a two-LED body and a head) and a barrel is one. From the Short From level
+// people are two LEDs tall (a body and a head) and the girders four rows
+// apart, so there are more of them to climb. Positions are whole LEDs; speeds
 // are LEDs per second, stepped one LED at a time.
 
 namespace {
@@ -48,9 +50,12 @@ public:
     // startEvery: seconds between barrels on level 1. Each level throws them
     // perLevel seconds sooner, down to fastestEvery.
     // showMode and goodLevel: the End Show and Good Game settings.
+    // shortFrom: the first level with two-LED people and girders four rows
+    // apart (0: never).
     BarrelClimbEffect(PixelOverlayModel *m, int lives, float startEvery, float fastestEvery, float perLevel,
-                      int showMode = 1, int goodLevel = 3)
+                      int shortFromLevel = 6, int showMode = 1, int goodLevel = 3)
         : FPPArcadeGameEffect(m), rng(std::random_device{}()), endShow(showMode), goodGame(goodLevel) {
+        shortFrom = std::max(0, shortFromLevel);
         sooner = std::clamp(perLevel, 0.0f, 10.0f);
         fastest = std::clamp(fastestEvery, 0.8f, 20.0f);
         slowest = std::clamp(startEvery, fastest, 30.0f);
@@ -58,10 +63,6 @@ public:
         W = std::max(16, W);
         H = std::max(14, H);
         canvas.resize(W, H);
-        for (int y = H - 1; y >= 4; y -= 5) {
-            base.push_back(y);
-        }
-        top = (int)base.size() - 1;
         startLives = std::clamp(lives, 1, 9);
         newGame();
     }
@@ -180,13 +181,25 @@ private:
         float acc;
         BMode mode;
         bool scored;
-        bool blue;   // faster, and nearly always takes a ladder down
+        bool blue;   // faster, and more often takes a ladder down
     };
 
     float rnd() { return std::uniform_real_distribution<float>(0.0f, 1.0f)(rng); }
     void sound(const char *n, float gain = 1.0f) { sfx("barrelclimb", n, gain); }
 
     // ---------------------------------------------------------------- the level
+    // The girders for this level: five rows apart for three-LED people, four
+    // for two-LED ones. The top one is at row 4 or below, leaving the rows
+    // above it for the ape.
+    void buildGirders() {
+        tall = shortFrom > 0 && level >= shortFrom ? 2 : 3;
+        base.clear();
+        for (int y = H - 1; y >= 4; y -= tall + 2) {
+            base.push_back(y);
+        }
+        top = (int)base.size() - 1;
+    }
+
     // Barrels roll right on the top girder, and each girder below the other way.
     bool rollsRight(int k) const { return ((top - k) % 2) == 0; }
     int spanLo(int k) const { return (k == 0 || rollsRight(k)) ? 0 : 3; }
@@ -258,6 +271,7 @@ private:
     }
 
     void startLevel() {
+        buildGirders();
         buildLadders();
         resetRun();
         state = State::Intro;
@@ -372,15 +386,15 @@ private:
     float barrelEvery() const { return std::max(fastest, slowest - sooner * (level - 1)); }
 
     // From level 2 some barrels are blue: quicker, and they head down
-    // ladders - toward you - far more often.
+    // ladders - toward you - more often.
     void throwBarrel() {
         const int x = rollsRight(top) ? apeX + 3 : apeX - 1;
-        const bool blue = level >= 2 && rnd() < std::min(0.4f, 0.12f * (level - 1));
+        const bool blue = level >= 2 && rnd() < std::min(0.3f, 0.1f * (level - 1));
         barrels.push_back({x, surface(top, x) - 1, top, rollsRight(top) ? 1 : -1, 0, BMode::Roll, false, blue});
         sound("Throw");
     }
 
-    bool hitsPlayer(int x, int y) const { return x == px && y <= feet && y >= feet - 2; }
+    bool hitsPlayer(int x, int y) const { return x == px && y <= feet && y > feet - tall; }
 
     bool touchingBarrel() const {
         for (auto &b : barrels) {
@@ -503,7 +517,7 @@ private:
                     if (onSpan(k, px) && feet == surface(k, px) - 1) {
                         pk = k;
                         mode = Mode::Ground;
-                        if (feet - fallFrom > 3) {
+                        if (feet - fallFrom > tall) {
                             die();   // too far
                             return;
                         }
@@ -543,7 +557,10 @@ private:
 
     void moveBarrels(float dt) {
         const float rollSpeed = std::min(16.0f, 8.0f + 1.0f * (level - 1));
-        const float ladderChance = std::min(0.55f, 0.3f + 0.05f * (level - 1));
+        // Even at their most, barrels roll past a ladder more often than they
+        // take it: with two ladders a girder, more down them made every girder
+        // a wait for a gap.
+        const float ladderChance = std::min(0.4f, 0.25f + 0.03f * (level - 1));
         for (size_t j = 0; j < barrels.size();) {
             Barrel &b = barrels[j];
             const float speed = b.mode == BMode::Roll ? rollSpeed * (b.blue ? 1.35f : 1.0f) : (b.mode == BMode::Fall ? FALL : 6.0f);
@@ -553,7 +570,7 @@ private:
                 b.acc -= 1.0f;
                 if (b.mode == BMode::Roll) {
                     // At the top of a ladder down, sometimes take it.
-                    if (b.k > 0 && barrelLadderAt(b.x, b.k - 1) && rnd() < (b.blue ? 0.85f : ladderChance)) {
+                    if (b.k > 0 && barrelLadderAt(b.x, b.k - 1) && rnd() < (b.blue ? 0.65f : ladderChance)) {
                         b.mode = BMode::Ladder;
                         continue;
                     }
@@ -624,11 +641,12 @@ private:
         }
         // Who you're climbing for.
         const int gy = surface(top, goalX) - 1;
-        canvas.set(goalX, gy, DRESS, 0.9f);
-        canvas.set(goalX, gy - 1, DRESS, 0.9f);
-        canvas.set(goalX, gy - 2, HEAD, 0.9f);
-        if (std::fmod(clock, 2.0f) < 0.5f && gy - 3 >= 0) {
-            canvas.set(goalX + (rollsRight(top) ? 1 : -1), gy - 3, DRESS, 0.6f);   // waving for help
+        for (int y = 0; y < tall - 1; ++y) {
+            canvas.set(goalX, gy - y, DRESS, 0.9f);
+        }
+        canvas.set(goalX, gy - tall + 1, HEAD, 0.9f);
+        if (std::fmod(clock, 2.0f) < 0.5f && gy - tall >= 0) {
+            canvas.set(goalX + (rollsRight(top) ? 1 : -1), gy - tall, DRESS, 0.6f);   // waving for help
         }
         for (auto &b : barrels) {
             canvas.set(b.x, b.y, b.blue ? BLUE_BARREL : BARREL, (b.x & 1) ? 0.9f : 0.6f);
@@ -636,10 +654,13 @@ private:
         const bool showPlayer = state != State::Over && !(state == State::Dying && std::fmod(stateT, 0.2f) < 0.1f);
         if (showPlayer) {
             // Red shirt over blue overalls; all blue on a ladder, back to you.
+            // Two LEDs tall, just the shirt (blue on a ladder) under the head.
             const bool climbing = mode == Mode::Climb;
-            canvas.set(px, feet, RGB{0.2f, 0.3f, 1.0f}, 1.0f);
-            canvas.set(px, feet - 1, climbing ? RGB{0.2f, 0.3f, 1.0f} : BODY, 1.0f);
-            canvas.set(px, feet - 2, HEAD, 1.0f);
+            if (tall == 3) {
+                canvas.set(px, feet, RGB{0.2f, 0.3f, 1.0f}, 1.0f);
+            }
+            canvas.set(px, feet - tall + 2, climbing ? RGB{0.2f, 0.3f, 1.0f} : BODY, 1.0f);
+            canvas.set(px, feet - tall + 1, HEAD, 1.0f);
         }
         // Lives left, as little people in the top right corner.
         for (int k = 0; k < lives && k < 9; ++k) {
@@ -661,6 +682,7 @@ private:
     std::mt19937 rng;
     ArcadeCanvas::Canvas canvas;
     int W = 0, H = 0, top = 0;
+    int tall = 3, shortFrom = 6;   // people's height this level; the level they get shorter
     std::vector<int> base;
     std::vector<Ladder> ladders;
     int apeX = 1, goalX = 0;
@@ -709,7 +731,7 @@ void FPPBarrelClimb::button(const std::string &button) {
         try { fastestEvery = std::stof(findOption("Fastest Barrels", "3.2")); } catch (...) {}
         try { perLevel = std::stof(findOption("Barrels Sooner", "0.6")); } catch (...) {}
         effect = new BarrelClimbEffect(m, findIntOption("Lives", 3), every, fastestEvery, perLevel,
-                                       endShowOption(), goodGameOption(3));
+                                       findIntOption("Short From", 6), endShowOption(), goodGameOption(3));
         m->setRunningEffect(effect, 25);
     }
     // The starting press counts (a held direction walks straight away) -

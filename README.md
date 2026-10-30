@@ -342,8 +342,11 @@ Climb to the top while an ape rolls barrels down at you, after the classic girde
 - Barrels roll downhill, drop off the low end of each girder to the one below, and
   sometimes take a ladder down. Touching one costs a life, and so does walking off the end
   of a girder: it's too far to fall.
-- Reach the top girder to rescue the person there; the bonus that counts down while you
-  climb is added to the score. Lives left show as little people in the top right corner.
+- Reach the person on the top girder to rescue them - within two LEDs of them (beside them on
+  a model under 40 wide), not just onto the girder: the ladder up to it comes out at least 8
+  LEDs away (less on a small model) and clear of the ape, so the last girder, with the barrels
+  rolling along it, is played too. A heart, then the bonus that counts down while you climb
+  is added to the score. Lives left show as little people in the top right corner.
 - Each level gets harder: new ladder positions, barrels thrown sooner (down to the fastest
   rate) and rolling faster, more of them taking ladders down (a quarter on level 1, up to
   two in five, so more still roll past than go down). From level 2 some barrels (up to three

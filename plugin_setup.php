@@ -266,7 +266,7 @@ var ARCADE_GAMES = {
     'Maze Chase': { about: 'Eat the dots, dodge the ghosts. A new maze every level.', controls: ['Directions turn'],
         options: [LIVES, { name: 'Narrow From', label: 'Narrow maze from level', type: 'number', def: 4, min: 0, max: 99,
                            hint: 'Levels before this have paths two LEDs wide; from this level on, one LED. 0 keeps them wide.' }] },
-    'Barrel Climb': { about: 'Climb the girders to the top while barrels roll down.',
+    'Barrel Climb': { about: 'Climb the girders and reach the person at the top while barrels roll down.',
         controls: ['Left/Right walk (hold)', 'Up/Down climb', 'A jump'],
         options: [LIVES,
                   { name: 'Barrels Every', label: 'Barrels every (seconds)', type: 'number', def: 6, min: 1, max: 30, step: 0.1,

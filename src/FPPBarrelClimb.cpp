@@ -35,6 +35,10 @@ const RGB BODY = {1.0f, 0.08f, 0.08f};
 const RGB DRESS = {1.0f, 0.3f, 0.75f};
 const RGB BARREL = {0.95f, 0.5f, 0.1f};
 const RGB BLUE_BARREL = {0.2f, 0.6f, 1.0f};
+const RGB HEART = {1.0f, 0.08f, 0.3f};
+
+// Shown over the wall when the climber reaches the person at the top.
+const char *const HEART_ART[] = {".##.##.", "#######", "#######", ".#####.", "..###..", "...#..."};
 
 enum : uint32_t { UP = 1, DOWN = 2, LEFT = 4, RIGHT = 8 };
 
@@ -169,6 +173,7 @@ public:
 
 private:
     static constexpr int FRAME_MS = 25;
+    static constexpr float HEART_SECS = 1.0f;   // the heart, then the score
     enum class State { Intro, Play, Dying, Clear, Over };
     enum class Mode { Ground, Climb, Jump, Fall };
     enum class BMode { Roll, Fall, Ladder };
@@ -233,8 +238,22 @@ private:
         return false;
     }
 
+    // The ladder up to the top girder comes up clear of the ape - at least
+    // three LEDs from it, arms and all - and a walk from the person there, so
+    // the last girder is played, not just landed on. How well x does at that
+    // (negative: it doesn't).
+    int topLadderFit(int x) const {
+        const int apeLo = apeX - 1, apeHi = apeX + 3;   // with its arms out
+        const int apeGap = x > apeHi ? x - apeHi - 1 : (x + 1 < apeLo ? apeLo - x - 2 : -1);
+        const int walk = std::min(std::abs(x - goalX), std::abs(x + 1 - goalX));
+        const int walkNeed = std::max(3, std::min(8, W / 6));
+        return std::min(apeGap - 3, walk - walkNeed);
+    }
+
     void buildLadders() {
         ladders.clear();
+        apeX = rollsRight(top) ? 1 : W - 4;
+        goalX = rollsRight(top) ? std::min(spanHi(top) - 1, W * 3 / 5) : std::max(spanLo(top) + 1, W * 2 / 5);
         const int perLevel = W >= 40 ? 2 : 1;
         std::vector<int> below;
         for (int k = 0; k < top; ++k) {
@@ -246,9 +265,20 @@ private:
                 bool ok = x != W / 2 - 1;   // both columns on the same side of the step
                 for (int o : here) ok = ok && std::abs(o - x) >= 9;
                 for (int o : below) ok = ok && std::abs(o - x) >= 5;   // make them walk between ladders
+                ok = ok && (k < top - 1 || topLadderFit(x) >= 0);
                 if (ok) {
                     here.push_back(x);
                 }
+            }
+            if (here.empty() && k == top - 1) {
+                // A wall too small for both: the best there is.
+                int best = lo;
+                for (int x = lo; x <= hi; ++x) {
+                    if (x != W / 2 - 1 && topLadderFit(x) > topLadderFit(best)) {
+                        best = x;
+                    }
+                }
+                here.push_back(best);
             }
             if (here.empty()) {
                 here.push_back(rollsRight(k + 1) ? hi : lo);
@@ -258,8 +288,6 @@ private:
             }
             below = here;
         }
-        apeX = rollsRight(top) ? 1 : W - 4;
-        goalX = rollsRight(top) ? std::min(spanHi(top) - 1, W * 3 / 5) : std::max(spanLo(top) + 1, W * 2 / 5);
     }
 
     // ---------------------------------------------------------------- game flow
@@ -336,7 +364,7 @@ private:
             }
             return;
         case State::Clear:
-            if (stateT > 2.5f) {
+            if (stateT > 2.9f) {
                 ++level;
                 startLevel();
             }
@@ -374,7 +402,10 @@ private:
             return;
         }
         moveBarrels(dt);
-        if (state == State::Play && mode == Mode::Ground && pk == top) {
+        // Reaching the person at the top clears the level: beside her on a
+        // wall under 40 wide, within two LEDs on a bigger one.
+        const int reach = W >= 40 ? 2 : 1;
+        if (state == State::Play && mode == Mode::Ground && pk == top && std::abs(px - goalX) <= reach) {
             score += bonus;
             state = State::Clear;
             stateT = 0;
@@ -668,11 +699,29 @@ private:
             canvas.set(lx, 0, HEAD, 0.6f);
             canvas.set(lx, 1, BODY, 0.6f);
         }
+        if (state == State::Clear && stateT <= HEART_SECS) {
+            // A heart over the wall, beating, on a black card so it reads over
+            // the girders; then the score.
+            const int hw = 7, hh = 6, x0 = (W - hw) / 2, y0 = (H - hh) / 2;
+            for (int y = y0 - 1; y <= y0 + hh; ++y) {
+                for (int x = x0 - 1; x <= x0 + hw; ++x) {
+                    canvas.set(x, y, RGB{0, 0, 0});
+                }
+            }
+            const float beat = std::fmod(stateT, 0.5f) < 0.15f ? 1.0f : 0.7f;
+            for (int y = 0; y < hh; ++y) {
+                for (int x = 0; x < hw; ++x) {
+                    if (HEART_ART[y][x] == '#') {
+                        canvas.set(x0 + x, y0 + y, HEART, beat);
+                    }
+                }
+            }
+        }
         canvas.writeTo(model);
 
         if (state == State::Intro) {
             textBox({"LEVEL", std::to_string(level)}, 255, 255, 255);
-        } else if (state == State::Clear && stateT > 0.6f) {
+        } else if (state == State::Clear && stateT > HEART_SECS) {
             textBox({std::to_string(score)}, 255, 220, 0);
         } else if (state == State::Over && stateT > 1.0f) {
             textBox({"GAME", "OVER", std::to_string(score)}, 255, 255, 255);

@@ -36,6 +36,7 @@
 
 #include "FPPArcade.h"
 #include "ArcadeSound.h"
+#include "ArcadeDemo.h"
 #include "HostJson.h"
 #include "Timers.h"
 #include "common.h"
@@ -89,6 +90,7 @@ struct Options {
     std::string soundHost = "127.0.0.1";
     int soundPort = 5570;
     int cell = 16;
+    int demoIdle = 0, demoBetween = 0;   // minutes, as the Demos settings
     // Headless runs, for checks: no window; presses at given times; the last
     // frame printed as text.
     bool headless = false;
@@ -111,6 +113,7 @@ void usage() {
                  "  --sound-host HOST    stream the sounds there (default 127.0.0.1); --no-sound for none\n"
                  "  --sound-port N       (default 5570, the Matrix Viewer's)\n"
                  "  --cell N             LED size in the window, in points (default 16)\n"
+                 "  --demos IDLE[,GAP]   play saved demos after IDLE minutes idle, GAP minutes apart; D saves the last run\n"
                  "  --headless --run-ms N --press MS:BUTTON ...   run without a window and print the last frame\n");
 }
 
@@ -161,6 +164,11 @@ bool parseArgs(int argc, char **argv, Options &o) {
             o.sound = false;
         } else if (a == "--cell") {
             o.cell = std::max(2, std::atoi(next().c_str()));
+        } else if (a == "--demos") {
+            const std::string v = next();
+            o.demoIdle = std::max(0, std::atoi(v.c_str()));
+            const size_t c = v.find(',');
+            o.demoBetween = c == std::string::npos ? 0 : std::max(0, std::atoi(v.c_str() + c + 1));
         } else if (a == "--headless") {
             o.headless = true;
         } else if (a == "--run-ms") {
@@ -404,7 +412,9 @@ int main(int argc, char **argv) {
 
     PixelOverlayModel *model = PixelOverlayManager::INSTANCE.addModel(o.model, o.width, o.height);
     std::vector<Json::Value> configs = gameConfigs(o);
-    std::list<FPPArcadeGame *> games;
+    std::map<std::string, std::list<FPPArcadeGame *>> allGames;   // as the plugin keeps them, by model
+    std::list<FPPArcadeGame *> &games = allGames[o.model];
+    ArcadeDemo::configure(o.demoIdle, o.demoBetween);
     int idx = 1;
     for (auto &c : configs) {
         FPPArcadeGame *g = arcadeCreateGame(c);
@@ -450,7 +460,7 @@ int main(int argc, char **argv) {
         }
         std::fprintf(stderr,
                      "FPP Arcade host: %s on %s (%dx%d)%s%s\n"
-                     "  Arrows move, Z = A, X = B, Return/Space = Start, Tab = Select (next game), Esc quits.\n",
+                     "  Arrows move, Z = A, X = B, Return/Space = Start, Tab = Select (next game), D saves the last run as its demo, Esc quits.\n",
                      o.game.c_str(), o.model.c_str(), o.width, o.height,
                      o.sacn ? ", sACN to " : "", o.sacn ? o.sacnHost.c_str() : "");
     }
@@ -462,7 +472,20 @@ int main(int argc, char **argv) {
     size_t nextPress = 0;
     int64_t nextOutput = 0;
     bool quit = false;
-    auto press = [&](const std::string &button) { arcadeButton(games, button); };
+    auto press = [&](const std::string &button) {
+        if (button == "Save Demo") {   // D, or --press MS:Save Demo
+            std::string err;
+            const ArcadeDemo::Info last = ArcadeDemo::lastRun(o.model);
+            if (ArcadeDemo::saveLastRun(o.model, err)) {
+                std::fprintf(stderr, "Saved the last run (%s, %.0f s) as its demo\n", last.game.c_str(), last.seconds);
+            } else {
+                std::fprintf(stderr, "%s\n", err.c_str());
+            }
+            return;
+        }
+        arcadeButton(games, button);
+    };
+    int64_t nextDemoTick = 0;
 
     while (!quit) {
         const int64_t now = nowMs(t0);
@@ -482,6 +505,10 @@ int main(int argc, char **argv) {
                 case SDL_EVENT_KEY_UP:
                     if (e.key.key == SDLK_ESCAPE || (e.key.key == SDLK_Q && (e.key.mod & SDL_KMOD_GUI))) {
                         quit = true;
+                    } else if (!e.key.repeat && e.key.key == SDLK_D) {
+                        if (e.type == SDL_EVENT_KEY_DOWN) {
+                            press("Save Demo");
+                        }
                     } else if (!e.key.repeat) {
                         if (const char *b = keyButton(e.key.key)) {
                             press(std::string(b) + (e.type == SDL_EVENT_KEY_DOWN ? " - Pressed" : " - Released"));
@@ -506,6 +533,10 @@ int main(int argc, char **argv) {
         }
 
         Timers::INSTANCE.run(now);
+        if (now >= nextDemoTick) {
+            nextDemoTick = now + 40;   // as the plugin's timer
+            ArcadeDemo::tick(allGames);
+        }
         model->hostRun(now);
         if (now >= nextOutput) {
             // FPP's output step, 40 times a second.

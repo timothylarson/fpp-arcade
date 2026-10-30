@@ -137,6 +137,23 @@ the title stays. Start plays it; Select moves on to the next game. A title nobod
 changes clears after 10 seconds, giving the model back to the sequence or the Kinect picture (or
 Orb Pop's ambient mode, below); the first Select after that shows the same game again.
 
+## Demos
+
+A model nobody has used for a while plays recordings of its games, to show passers-by what the
+wall does. Every game played is recorded as it looks on the wall, about 25 pictures a second
+(not its title or pause menu, and only its last three minutes). On the Arcade Games page, under
+the model's name, **Save as its demo** keeps the game being played, or else the last one, as that
+game's demo on that model, in `media/plugindata/fpp-arcade/demos/<model>/`, replacing any it had.
+So: play a good game of each, saving after each one. A game's card shows its demo's length,
+with a button to play it on the wall now and one to delete it.
+
+After *Play demos after* minutes (5) without a button on a model, while it shows the sequence
+or the Kinect picture, its games' demos play in turn in the order of its list, with PRESS START
+coming up over them for three seconds in every fifteen; *Between demos* (0) puts that many
+minutes of the sequence between them. Any button stops the demo and shows that game's title,
+ready to play. 0 turns demos off. A recording plays back as it was, whatever has changed in the
+game since, but only on a model the same size. Orb Pop and Shape Fit have no demos.
+
 ## Configuration
 
 Two pages are added to the FPP UI:

@@ -66,6 +66,7 @@ extern "C" {
 #include "FPPShapeFit.h"
 #include "FPPSimpleGames.h"
 #include "ArcadeSound.h"
+#include "ArcadeDemo.h"
 
 static std::vector<std::string> BUTTONS({
     "Up - Pressed", "Up - Released",
@@ -225,6 +226,11 @@ public:
         FileMonitor::INSTANCE.AddFile(name, FPP_DIR_CONFIG("/plugin.fpp-arcade.json"), reload);
 
         loadGames();
+        // Demos (ArcadeDemo.h): record what's played, and play them on idle models.
+        Timers::INSTANCE.addPeriodicTimer("ArcadeDemo", 40, [this]() {
+            std::lock_guard<std::recursive_mutex> l(gamesLock);
+            ArcadeDemo::tick(games);
+        });
         
         if (FileExists(FPP_DIR_CONFIG("/joysticks.json"))) {
             Json::Value root;
@@ -279,6 +285,9 @@ public:
         ArcadeSound::configure(haveConfig ? root["sound"] : Json::Value());
         // And the end shows' theme.
         arcadeSetShowTheme(haveConfig && root.isMember("shows") ? root["shows"]["theme"].asString() : "date");
+        // And the demos'.
+        ArcadeDemo::configure(haveConfig && root.isMember("demos") ? root["demos"]["idle"].asInt() : 5,
+                              haveConfig && root.isMember("demos") ? root["demos"]["between"].asInt() : 0);
         {
             if (haveConfig && root.isMember("games")) {
                 for (int x = 0; x < root["games"].size(); x++) {
@@ -298,6 +307,7 @@ public:
     virtual std::function<bool()> shutdown() override {
         FileMonitor::INSTANCE.RemoveFile(name, FPP_DIR_CONFIG("/plugin.fpp-arcade.json"));
         ArcadeSound::shutdown();   // its mixer thread runs code in this library
+        Timers::INSTANCE.stopPeriodicTimer("ArcadeDemo");
         std::lock_guard<std::recursive_mutex> l(gamesLock);
         for (auto &a : games) {
             for (auto &g : a.second) {
@@ -344,6 +354,7 @@ public:
     }
 
     virtual ~FPPArcadePlugin() {
+        Timers::INSTANCE.stopPeriodicTimer("ArcadeDemo");
 #ifdef USE_SDL_CONTROLLERS
         // Belt and braces if teardown never went through shutdown().
         Timers::INSTANCE.stopPeriodicTimer("ArcadeSDLEventPump");
@@ -397,14 +408,10 @@ public:
         int value = args.size() > 2 ? std::atoi(args[2].c_str()) : 0;
 
         if (model != "") {
-            if (!games[model].empty()) {
-                games[model].front()->axis(axis, value);
-            }
+            arcadeAxis(games[model], axis, value);
         } else {
             for (auto &a : games) {
-                if (!a.second.empty()) {
-                    a.second.front()->axis(axis, value);
-                }
+                arcadeAxis(a.second, axis, value);
             }
         }
         return std::make_unique<Command::Result>("FPP Arcade Axis Processed");
@@ -429,7 +436,7 @@ public:
     
     void registerApis() override {
         LogInfo(VB_PLUGIN, "Registering Arcade Plugin APIs\n");
-        auto handleArcade = [](const HttpRequestPtr& req,
+        auto handleArcade = [this](const HttpRequestPtr& req,
                                    std::function<void(const HttpResponsePtr&)>&& callback) {
             std::string path = getArcadePath(req);
             LogDebug(VB_PLUGIN, "Arcade API Request: %s\n", path.c_str());
@@ -478,6 +485,8 @@ public:
                 callback(makeStringResponse(Json::writeString(writer, names), 200, "application/json"));
             } else if (path == "speaker") {
                 callback(speakerApi(req));
+            } else if (path == "demos") {
+                callback(demosApi(req));
             } else if (path == "sounds") {
                 callback(makeStringResponse(ArcadeSound::soundListJson(), 200, "application/json"));
             } else if (path == "sound") {
@@ -501,6 +510,7 @@ public:
         auto handleArcade5 = handleArcade;
         auto handleArcade6 = handleArcade;
         auto handleArcade7 = handleArcade;
+        auto handleArcade8 = handleArcade;
 
         // Only the plain paths are needed: Apache rewrites
         // api/plugin-apis/arcade/* to localhost:32322/arcade/*, stripping the
@@ -517,6 +527,57 @@ public:
         FPPPlugins::registerPluginApi("/arcade/sound", std::move(handleArcade5), {drogon::Get});
         FPPPlugins::registerPluginApi("/arcade/speaker", std::move(handleArcade6), {drogon::Get, drogon::Post});
         FPPPlugins::registerPluginApi("/arcade/speakernames", std::move(handleArcade7), {drogon::Get});
+        FPPPlugins::registerPluginApi("/arcade/demos", std::move(handleArcade8), {drogon::Get, drogon::Post});
+    }
+
+    // api/plugin-apis/arcade/demos?model=<model>: that model's last run and
+    // saved demos, as {"last": {game, seconds}, "demos": [{game, seconds}]}.
+    // POST with do=save keeps the last run as its game's demo, do=delete&game=
+    // removes one, and do=play&game= plays it now.
+    HttpResponsePtr demosApi(const HttpRequestPtr &req) {
+        const std::string model = req->getParameter("model"), what = req->getParameter("do"), game = req->getParameter("game");
+        if (model.empty()) {
+            return makeStringResponse("No model", 400);
+        }
+        if (what == "save") {
+            std::string err;
+            if (!ArcadeDemo::saveLastRun(model, err)) {
+                return makeStringResponse(err, 409);
+            }
+        } else if (what == "delete") {
+            if (!ArcadeDemo::remove(model, game)) {
+                return makeStringResponse("No " + game + " demo on " + model, 404);
+            }
+        } else if (what == "play") {
+            std::string overlay = "Overwrite";
+            {
+                std::lock_guard<std::recursive_mutex> l(gamesLock);
+                for (FPPArcadeGame *g : games[model]) {
+                    if (g->getName() == game) {
+                        overlay = g->overlayMode();
+                    }
+                }
+            }
+            if (!ArcadeDemo::play(model, game, overlay)) {
+                return makeStringResponse("No " + game + " demo on " + model + " that fits it", 404);
+            }
+        } else if (!what.empty()) {
+            return makeStringResponse("Unknown request", 400);
+        }
+        Json::Value v;
+        const ArcadeDemo::Info last = ArcadeDemo::lastRun(model);
+        v["last"]["game"] = last.game;
+        v["last"]["seconds"] = last.seconds;
+        v["demos"] = Json::Value(Json::arrayValue);
+        for (const auto &d : ArcadeDemo::demos(model)) {
+            Json::Value e;
+            e["game"] = d.game;
+            e["seconds"] = d.seconds;
+            v["demos"].append(e);
+        }
+        Json::StreamWriterBuilder writer;
+        writer["indentation"] = "";
+        return makeStringResponse(Json::writeString(writer, v), 200, "application/json");
     }
 
     // api/plugin-apis/arcade/speaker?ip=<speaker>&do=<what>: the Arcade Games
@@ -595,6 +656,7 @@ public:
         FPPPlugins::unregisterPluginApi("/arcade/sound");
         FPPPlugins::unregisterPluginApi("/arcade/speaker");
         FPPPlugins::unregisterPluginApi("/arcade/speakernames");
+        FPPPlugins::unregisterPluginApi("/arcade/demos");
     }
 
 #ifdef USE_SDL_CONTROLLERS

@@ -62,6 +62,9 @@ $pluginName = basename(dirname(__FILE__));
 #arcadePage .spkRow input[type=range] { width: 160px; vertical-align: middle; display: inline-block; }
 #arcadePage .spkSet { margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(128,128,128,0.3); }
 #arcadePage .spkMsg { font-size: 0.88em; opacity: 0.8; }
+#arcadePage .demoBar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#arcadePage .gDemo { font-size: 0.9em; opacity: 0.85; white-space: nowrap; }
+#arcadePage .gDemo .buttons { min-width: 0; padding: 0 6px; }
 #arcadePage summary { cursor: pointer; font-weight: bold; font-size: 1.15em; }
 /* Phones: labels above controls, and the card header wraps. */
 @media (max-width: 640px) {
@@ -120,6 +123,18 @@ Saving applies straight away, without restarting FPP, and stops any game being p
     when it changes.</div></td></tr>
 </table>
 
+<h3>Demos</h3>
+<table class="opts" id="arcadeDemos">
+<tr><td>Play demos after (minutes idle)</td><td><input type="number" id="demoIdle" min="0" max="1440">
+    <div class="hint">When nobody has pressed a button on a model for this long and it's showing the sequence (or the Kinect
+    picture), its games' saved demos play in turn, with PRESS START coming up over them now and then. Any button stops the
+    demo and shows that game's title. 0: no demos. To make a demo, play a good game, then click <b>Save as its demo</b>
+    under the model's name below: it keeps the game being played, or the last one (up to its last three minutes).
+    Orb Pop and Shape Fit have no demos.</div></td></tr>
+<tr><td>Between demos (minutes)</td><td><input type="number" id="demoBetween" min="0" max="1440">
+    <div class="hint">How long the sequence plays between one demo and the next. 0: one straight after another.</div></td></tr>
+</table>
+
 <div id="arcadeModels"></div>
 
 <h3>Add a game</h3>
@@ -137,6 +152,9 @@ var arcadeConfig = <?= json_encode($arcadeConfig) ?>;
 var ARCADE_SOUND_DEFAULTS = { enabled: false, device: 'auto', volume: 80, streamHost: '', streamPort: 5570 };
 arcadeConfig.sound = $.extend({}, ARCADE_SOUND_DEFAULTS, arcadeConfig.sound || {});
 arcadeConfig.shows = $.extend({ theme: 'date' }, arcadeConfig.shows || {});
+arcadeConfig.demos = $.extend({ idle: 5, between: 0 }, arcadeConfig.demos || {});
+var arcadeDemoInfo = {};   // by model: {last: {game, seconds}, demos: [{game, seconds}]}
+var ARCADE_NO_DEMO = ['Orb Pop', 'Shape Fit'];
 var arcadeModels = [];
 
 // Every game, what it is, how it's played, and its options. Option names are
@@ -282,6 +300,7 @@ Object.keys(ENDSHOW_GOOD).forEach(function (g) {
 // The running effect's name, as FPP reports it, in words.
 var ARCADE_EFFECTS = {
     KinectBlit: 'showing the Kinect picture', ArcadeTitle: 'showing a game title', Clear: 'clearing',
+    ArcadeDemo: 'playing a demo',
     OrbPop: 'playing Orb Pop', ShapeFit: 'playing Shape Fit', AsteroidOrbit: 'playing Asteroid Orbit',
     MazeChase: 'playing Maze Chase', BarrelClimb: 'playing Barrel Climb', StarDefenders: 'playing Star Defenders',
     LightMemory: 'playing Light Memory', BreakoutVersus: 'playing Breakout Versus', StickBridge: 'playing Stick Bridge',
@@ -334,6 +353,12 @@ $('#arcadeSound').on('change input', 'input, select', function () {
     arcadeSetDirty(true);
 });
 
+$('#arcadeDemos').on('change input', 'input', function () {
+    arcadeConfig.demos.idle = Math.max(0, parseInt($('#demoIdle').val(), 10) || 0);
+    arcadeConfig.demos.between = Math.max(0, parseInt($('#demoBetween').val(), 10) || 0);
+    arcadeSetDirty(true);
+});
+
 $('#showTheme').on('change', function () {
     arcadeConfig.shows.theme = $(this).val();
     arcadeSetDirty(true);
@@ -356,6 +381,7 @@ function arcadeRender() {
         var missing = arcadeModels.indexOf(model) < 0;
         html += '<h3>' + arcadeEsc(model) + '<span class="count">' + list.length + (list.length === 1 ? ' game' : ' games') + '</span></h3>';
         if (missing) html += '<div class="modelHint" style="color:#d9534f">This model isn\'t in FPP\'s overlay models any more.</div>';
+        html += '<div class="modelHint demoBar" data-model="' + arcadeEsc(model) + '"></div>';
         var n = 0;
         list.forEach(function (i, k) {
             var g = arcadeConfig.games[i];
@@ -375,6 +401,7 @@ function arcadeRender() {
                         '<input type="number" class="gSeq" min="0" max="100" style="width:4.5em" value="' +
                         (g.sequenceBrightness === undefined ? 100 : g.sequenceBrightness) + '"> %</label>';
             }
+            html += '<span class="gDemo"></span>';
             html += '<span class="spacer"></span>';
             html += '<button type="button" class="buttons gPlay" title="Save first, then start it on the wall"><i class="fas fa-play"></i> Play</button>';
             html += '<button type="button" class="buttons gUp" title="Move up"' + (k === 0 ? ' disabled' : '') + '><i class="fas fa-chevron-up"></i></button>';
@@ -417,7 +444,68 @@ function arcadeRender() {
         html = '<h3>No games yet</h3><div class="hint">Add one below.</div>';
     }
     $('#arcadeModels').html(html);
+    Object.keys(arcadeDemoInfo).forEach(arcadeShowDemos);
 }
+
+// Demos (see ArcadeDemo.h in the plugin), through api/plugin-apis/arcade/demos.
+function arcadeTime(s) { s = Math.round(s); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+function arcadeDemoApi(model, what, game) {
+    var url = 'api/plugin-apis/arcade/demos?model=' + encodeURIComponent(model);
+    if (what) url += '&do=' + what + (game ? '&game=' + encodeURIComponent(game) : '');
+    return what ? $.post(url) : $.get(url);
+}
+function arcadeRefreshDemos() {
+    arcadeModelNames().forEach(function (model) {
+        if (!arcadeConfig.games.some(function (g) { return g.model === model; })) return;
+        arcadeDemoApi(model).done(function (d) {
+            arcadeDemoInfo[model] = d;
+            arcadeShowDemos(model);
+        });
+    });
+}
+function arcadeShowDemos(model) {
+    var d = arcadeDemoInfo[model];
+    if (!d) return;
+    var bar = $('#arcadeModels .demoBar').filter(function () { return $(this).attr('data-model') === model; });
+    if (d.last && d.last.game) {
+        bar.html('Last game: <b>' + arcadeEsc(d.last.game) + '</b>, ' + arcadeTime(d.last.seconds) +
+                 ' <button type="button" class="buttons dSave" title="Keep it as this game\'s demo on ' + arcadeEsc(model) +
+                 ', replacing any it had">Save as its demo</button>');
+    } else {
+        bar.text('Play a game here, then save it as that game\'s demo.');
+    }
+    $('#arcadeModels .game').each(function () {
+        var g = arcadeConfig.games[$(this).data('i')];
+        if (!g || g.model !== model) return;
+        var dm = (d.demos || []).filter(function (x) { return x.game === g.game; })[0];
+        var html = '';
+        if (dm) {
+            html = 'Demo ' + arcadeTime(dm.seconds) +
+                   ' <button type="button" class="buttons dPlay" title="Play it on the wall now"><i class="fas fa-film"></i></button>' +
+                   ' <button type="button" class="buttons dDelete" title="Delete this demo"><i class="fas fa-times"></i></button>';
+        } else if (ARCADE_NO_DEMO.indexOf(g.game) < 0) {
+            html = '<span style="opacity:0.6">No demo</span>';
+        }
+        $(this).find('.gDemo').html(html);
+    });
+}
+$('#arcadeModels').on('click', '.dSave', function () {
+    var model = $(this).closest('.demoBar').attr('data-model');
+    arcadeDemoApi(model, 'save').done(function () {
+        $.jGrowl('Saved as its demo', { themeState: 'success' });
+    }).fail(function (x) {
+        $('#arcadeError').text(x.responseText || 'Couldn\'t save the demo.');
+    }).always(arcadeRefreshDemos);
+}).on('click', '.dPlay', function () {
+    var g = arcadeConfig.games[arcadeIndex(this)];
+    arcadeDemoApi(g.model, 'play', g.game).fail(function (x) {
+        $('#arcadeError').text(x.responseText || 'Couldn\'t play the demo.');
+    }).always(function () { setTimeout(arcadeRefresh, 500); });
+}).on('click', '.dDelete', function () {
+    var g = arcadeConfig.games[arcadeIndex(this)];
+    if (!confirm('Delete the ' + g.game + ' demo on ' + g.model + '?')) return;
+    arcadeDemoApi(g.model, 'delete', g.game).always(arcadeRefreshDemos);
+});
 
 // The cards' row number in arcadeConfig.games.
 function arcadeIndex(el) { return parseInt($(el).closest('.game').data('i'), 10); }
@@ -652,6 +740,7 @@ $('#sndSpeakers').on('input change', '.spkVol, .spkShowVol', function (e) {
 // What each model is doing right now.
 function arcadeRefresh() {
     arcadeRefreshSpeakers();
+    arcadeRefreshDemos();
     var names = arcadeModelNames().filter(function (m) {
         return arcadeConfig.games.some(function (g) { return g.model === m; });
     });
@@ -684,6 +773,8 @@ $.get('api/models').done(function (data) {
     arcadeRender();
     arcadeShowSound();
     $('#showTheme').val(arcadeConfig.shows.theme);
+    $('#demoIdle').val(arcadeConfig.demos.idle);
+    $('#demoBetween').val(arcadeConfig.demos.between);
     arcadeRefresh();
     setInterval(arcadeRefresh, 3000);
 });

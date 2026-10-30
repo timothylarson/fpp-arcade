@@ -35,6 +35,7 @@ build/arcade-host --game "Sky Jump" --theme halloween --opt "End Show=2"
 | Z / X | A / B |
 | Return or Space | Start (start, pause) |
 | Tab | Select (the next game, as on the wall) |
+| D | Save the game being played (or the last one) as its demo |
 | Esc | Quit |
 
 A game controller works too: its D-pad, A, B, Start and Back (Select).
@@ -50,6 +51,9 @@ next game, and the pause menu's EXIT ends a game.
 - `--theme` picks the end shows' season: date (the default), christmas,
   halloween or everyday.
 - `--size 30x25` and `--model Matrix-Left` stand in for the halves.
+- `--demos 1` plays the saved demos after a minute without a key, as *Play demos after* does
+  on the wall (`--demos 1,2` with two minutes between them). They're kept in the data folder,
+  below, under `demos/<model>/`.
 
 ## In the Matrix Viewer, with sound
 

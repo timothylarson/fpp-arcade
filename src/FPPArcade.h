@@ -36,6 +36,8 @@ void arcadeShowTitle(FPPArcadeGame *game);
 // and shows its title, Start starts the front one, anything else goes to it.
 // Also the cheat codes, and EXIT on the pause menu.
 void arcadeButton(std::list<FPPArcadeGame *> &games, const std::string &button);
+// A joystick axis for a model's games, to the front one (see FPPArcadeGame::axis).
+void arcadeAxis(std::list<FPPArcadeGame *> &games, const std::string &axis, int value);
 // The game last played on a model (started from its title), or "".
 void arcadeNotePlayed(const std::string &model, const std::string &game);
 std::string arcadeLastPlayed(const std::string &model);
@@ -87,6 +89,9 @@ public:
         }
         return std::clamp(findIntOption("sequenceBrightness", 100), 0, 100);
     }
+
+    // Its Overlay setting: Overwrite or Transparent.
+    std::string overlayMode() { return findOption("overlay", "Overwrite"); }
 
     int getIdx() const { return idx; };
     void setIdx(int i) { idx = i; }

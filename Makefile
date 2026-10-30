@@ -6,7 +6,7 @@ all: libfpp-arcade.$(SHLIB_EXT)
 debug: all
 
 CFLAGS+=-I.
-OBJECTS_fpp_arcade_so += src/FPPArcade.o src/FPPArcadeGame.o src/FPPTetris.o src/FPPPong.o src/FPPSnake.o src/FPPBreakout.o src/FPPBreakoutVersus.o src/FPPFrogger.o src/FPPOrbPop.o src/FPPAsteroidOrbit.o src/FPPMazeChase.o src/FPPBarrelClimb.o src/FPPStarDefenders.o src/FPPShapeFit.o src/FPPSimpleGames.o src/FPPStickBridge.o src/FPPSkyJump.o src/FPPReindeerRun.o src/FPPRoadRace.o src/FPPSnowballFight.o src/ArcadeSound.o
+OBJECTS_fpp_arcade_so += src/FPPArcade.o src/FPPArcadeGame.o src/FPPTetris.o src/FPPPong.o src/FPPSnake.o src/FPPBreakout.o src/FPPBreakoutVersus.o src/FPPFrogger.o src/FPPOrbPop.o src/FPPAsteroidOrbit.o src/FPPMazeChase.o src/FPPBarrelClimb.o src/FPPStarDefenders.o src/FPPShapeFit.o src/FPPSimpleGames.o src/FPPStickBridge.o src/FPPSkyJump.o src/FPPReindeerRun.o src/FPPRoadRace.o src/FPPSnowballFight.o src/ArcadeSound.o src/ArcadeDemo.o
 LIBS_fpp_arcade_so += -L$(SRCDIR) -lfpp -ljsoncpp -ldrogon -ltrantor
 CXXFLAGS_src/FPPArcade.o += -I$(SRCDIR)
 

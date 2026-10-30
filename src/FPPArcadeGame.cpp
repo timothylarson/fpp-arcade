@@ -24,6 +24,7 @@
 #include "overlays/PixelOverlay.h"
 
 #include "ArcadeSound.h"
+#include "ArcadeDemo.h"
 #include "FPPTetris.h"
 #include "FPPPong.h"
 #include "FPPSnake.h"
@@ -950,9 +951,48 @@ void arcadeShowTitle(FPPArcadeGame *game) {
 }
 
 
+// Input on a model: it's in use (no demo for a while), and if a demo is
+// playing, that press stops it and shows its game's title instead of doing
+// anything else. True if the press was taken that way. pressed: the button
+// whose release to ignore, as the title would take it for a press.
+static bool demoTakeover(std::list<FPPArcadeGame *> &games, const std::string &pressed) {
+    const std::string model = games.front()->getModelName();
+    ArcadeDemo::noteInput(model);
+    const std::string game = ArcadeDemo::stopDemo(model);
+    if (game.empty()) {
+        return false;
+    }
+    for (size_t k = 0; k < games.size() && games.front()->getName() != game; ++k) {
+        games.push_back(games.front());
+        games.pop_front();
+    }
+    games.front()->releaseToIgnore = pressed;
+    arcadeShowTitle(games.front());
+    return true;
+}
+
+void arcadeAxis(std::list<FPPArcadeGame *> &games, const std::string &axis, int value) {
+    if (games.empty()) {
+        return;
+    }
+    if (value != 0 && demoTakeover(games, "")) {
+        return;   // the axis stays where the game last saw it, so its return to centre does nothing
+    }
+    ArcadeDemo::noteInput(games.front()->getModelName());
+    games.front()->axis(axis, value);
+}
+
 void arcadeButton(std::list<FPPArcadeGame *> &games, const std::string &button) {
     if (games.empty()) {
         return;
+    }
+    if (button.find(" - Released") != std::string::npos) {
+        ArcadeDemo::noteInput(games.front()->getModelName());
+    } else {
+        const size_t dash = button.find(" - Pressed");
+        if (demoTakeover(games, dash == std::string::npos ? "" : button.substr(0, dash))) {
+            return;
+        }
     }
     std::string &ignore = games.front()->releaseToIgnore;
     if (!ignore.empty()) {

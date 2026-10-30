@@ -741,7 +741,10 @@ private:
                         edge = isOpen(x + ex[d], y + ey[d]);
                     }
                     if (edge) {
-                        unit(x, y, clearFlash ? ArcadeCanvas::WHITE : WALL, clearFlash ? 0.45f : (wide ? 0.18f : 0.12f));
+                        // Bright enough to see the maze from across the yard
+                        // (it was 12-18% and faded into the dark), and still
+                        // well under the player and ghosts.
+                        unit(x, y, clearFlash ? ArcadeCanvas::WHITE : WALL, clearFlash ? 0.6f : (wide ? 0.35f : 0.3f));
                     }
                     continue;
                 }

@@ -2,10 +2,11 @@
 // Demos: recordings of real games that play on a model nobody has used for a
 // while, to show passers-by what the wall does.
 //
-// Every game played is recorded as it looks on the wall - the model's pixels,
-// about 25 times a second - while it runs (not its title, nor its pause menu).
-// The last run on each model is kept in memory until the next one, and the
-// Arcade Games page saves it as that game's demo on that model, in
+// Every game played is recorded as it looks and sounds on the wall - the
+// model's pixels, about 25 times a second, and the sounds it plays - from its
+// start, for the Demo length (not its title, nor its pause menu). The last
+// run on each model is kept in memory until the next one, and the Arcade
+// Games page saves it as that game's demo on that model, in
 // media/plugindata/fpp-arcade/demos/<model>/<game>.demo. A recording plays
 // back exactly as it was, whatever the game's code has done since; it only
 // needs the model to be the same size.
@@ -30,9 +31,13 @@ class PixelOverlayModel;
 namespace ArcadeDemo {
 
 // The Demos settings: start after idleMin minutes without a button (0: no
-// demos), and wait betweenMin minutes of the sequence between one demo and
-// the next (0: one after another).
-void configure(int idleMin, int betweenMin);
+// demos), wait betweenMin minutes of the sequence between one demo and the
+// next (0: one after another), and record the first lengthSecs of a game.
+void configure(int idleMin, int betweenMin, int lengthSecs);
+
+// A sound played (or stopped, every one of game's, or all if game is "") on a
+// model, from ArcadeSound: a run being recorded there keeps it.
+void noteSound(const std::string &model, bool stop, const std::string &game, const std::string &name, float gain);
 
 // A button on a model: it's in use, so no demo for the idle time.
 void noteInput(const std::string &model);

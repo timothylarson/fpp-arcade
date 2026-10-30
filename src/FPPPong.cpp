@@ -18,8 +18,12 @@ FPPPong::~FPPPong() {
 
 class PongEffect : public FPPArcadeGameEffect {
 public:
-    PongEffect(int sc, int c, int pfw, int pfh, PixelOverlayModel *m, int showMode = 1, int goodMargin = 3)
-        : FPPArcadeGameEffect(m), controls(c), endShow(showMode), goodGame(goodMargin) {
+    // top: the Top Speed setting, how many times its starting speed the ball
+    // gets to; rampSecs: Speed Up, the seconds of play it takes to get there.
+    PongEffect(int sc, int c, int pfw, int pfh, PixelOverlayModel *m, int showMode = 1, int goodMargin = 3,
+               float top = 1.8f, float rampSecs = 90.0f)
+        : FPPArcadeGameEffect(m), controls(c), endShow(showMode), goodGame(goodMargin),
+          topSpeed(std::clamp(top, 1.0f, 5.0f)), rampSecs(std::clamp(rampSecs, 5.0f, 1800.0f)) {
         // 0/0 keeps the historical behaviour of playing across the whole panel;
         // a configured size is centred on it.
         setPlayfield(pfw, pfh, sc);
@@ -102,6 +106,10 @@ public:
                 elapsedMs = static_cast<double>(timer);
             }
             frameScalar = std::clamp(elapsedMs / static_cast<double>(timer), 0.1, 5.0);
+            // The ball gets steadily faster over the game (points don't reset
+            // it), up to Top Speed after Speed Up seconds of play.
+            playSecs += (float)(elapsedMs / 1000.0);
+            ballSpeed = 1.0f + (topSpeed - 1.0f) * std::min(1.0f, playSecs / rampSecs);
         } else {
             // Ensure timer resets when restarting after game over.
             resetFrameTimer();
@@ -368,6 +376,7 @@ public:
     float ballDirX = 1;
     float ballDirY = 0;
     float ballSpeed = 1;
+    float topSpeed = 1.8f, rampSecs = 90.0f, playSecs = 0;
 
     
     bool GameOn = true;
@@ -394,6 +403,8 @@ public:
         ballPosY = rows / 2;
         ballDirX = 1;
         ballDirY = 0;
+        playSecs = 0;
+        ballSpeed = 1;
         GameOn = true;
         WaitingUntilOutput = false;
         resetFrameTimer();
@@ -419,9 +430,11 @@ void FPPPong::button(const std::string &button) {
             }
             int pixelScaling = std::stoi(findOption("Pixel Scaling", "1"));
             int controls = std::stoi(findOption("Controls", "1"));
+            float top = 1.8f;
+            try { top = std::stof(findOption("Top Speed", "1.8")); } catch (...) {}
             effect = new PongEffect(pixelScaling, controls,
                                     playfieldWidthOption(), playfieldHeightOption(), m,
-                                    endShowOption(), goodGameOption(3));
+                                    endShowOption(), goodGameOption(3), top, (float)findIntOption("Speed Up", 90));
             // Creating the effect IS the response to Start. Forwarding that same
             // press into the fresh effect reaches the base class pause handler,
             // which pauses the game on its first frame - it took two Start

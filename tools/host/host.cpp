@@ -414,7 +414,7 @@ int main(int argc, char **argv) {
     std::vector<Json::Value> configs = gameConfigs(o);
     std::map<std::string, std::list<FPPArcadeGame *>> allGames;   // as the plugin keeps them, by model
     std::list<FPPArcadeGame *> &games = allGames[o.model];
-    ArcadeDemo::configure(o.demoIdle, o.demoBetween);
+    ArcadeDemo::configure(o.demoIdle, o.demoBetween, 60);
     int idx = 1;
     for (auto &c : configs) {
         FPPArcadeGame *g = arcadeCreateGame(c);

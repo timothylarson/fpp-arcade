@@ -1,6 +1,7 @@
 #include <fpp-pch.h>
 
 #include "ArcadeSound.h"
+#include "ArcadeDemo.h"
 #include "ShowTheme.h"
 
 #include <algorithm>
@@ -575,10 +576,14 @@ Engine &engine() {
 
 void configure(const Json::Value &cfg) { engine().configure(cfg); }
 void play(const std::string &game, const std::string &name, float gain, const std::string &model) {
+    ArcadeDemo::noteSound(model, false, game, name, gain);   // for a demo being recorded there
     engine().play(game, name, gain, model);
 }
 int lengthMs(const std::string &game, const std::string &name) { return engine().lengthMs(game, name); }
-void stopAll(const std::string &game, const std::string &model) { engine().stopAll(game, model); }
+void stopAll(const std::string &game, const std::string &model) {
+    ArcadeDemo::noteSound(model, true, game, "", 0);
+    engine().stopAll(game, model);
+}
 void shutdown() {
     engine().stop();
     engine().stopListener();

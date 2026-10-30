@@ -286,8 +286,11 @@ public:
         // And the end shows' theme.
         arcadeSetShowTheme(haveConfig && root.isMember("shows") ? root["shows"]["theme"].asString() : "date");
         // And the demos'.
-        ArcadeDemo::configure(haveConfig && root.isMember("demos") ? root["demos"]["idle"].asInt() : 5,
-                              haveConfig && root.isMember("demos") ? root["demos"]["between"].asInt() : 0);
+        {
+            const Json::Value d = haveConfig ? root["demos"] : Json::Value();
+            ArcadeDemo::configure(d.isMember("idle") ? d["idle"].asInt() : 5, d.isMember("between") ? d["between"].asInt() : 0,
+                                  d.isMember("length") ? d["length"].asInt() : 60);
+        }
         {
             if (haveConfig && root.isMember("games")) {
                 for (int x = 0; x < root["games"].size(); x++) {

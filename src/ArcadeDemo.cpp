@@ -2,6 +2,7 @@
 
 #include "ArcadeDemo.h"
 #include "FPPArcade.h"
+#include "ArcadeSound.h"
 
 #include <algorithm>
 #include <atomic>
@@ -12,6 +13,7 @@
 #include <dirent.h>
 #include <fstream>
 #include <mutex>
+#include <set>
 #include <sys/stat.h>
 
 #include "common.h"
@@ -27,16 +29,22 @@ namespace {
 using Clock = std::chrono::steady_clock;
 
 constexpr int SAMPLE_MS = 40;         // 25 pictures a second
-constexpr double MAX_SECS = 180.0;    // a long run keeps its last three minutes, GAME OVER and all
 constexpr double MIN_SECS = 5.0;      // anything shorter isn't worth showing
-const char MAGIC[] = "FPPARCADEDEMO1\n";
+const char MAGIC[] = "FPPARCADEDEMO2\n";
 
 // One picture: how long it was up (ms), and its pixels run-length coded -
 // runs of up to 255 of the same colour as [count, r, g, b] - which makes a
 // mostly black wall a few hundred bytes.
+// A sound, played or stopped, as ArcadeSound::play() and stopAll() take it.
+struct Sound {
+    bool stop;
+    std::string game, name;
+    float gain;
+};
 struct Frame {
     uint32_t ms = 0;
     std::string rle;
+    std::vector<Sound> sounds;   // started as it comes up
 };
 struct Recording {
     std::string game;
@@ -55,6 +63,23 @@ struct ModelState {
 std::recursive_mutex lock;
 std::map<std::string, ModelState> models;
 int idleMinutes = 0, betweenMinutes = 0;
+double lengthSecs = 60;
+
+// Sounds since the last picture, by model. Their own lock, taken with no
+// other held: sounds come from the games' own thread, which holds the model's
+// effect lock, while tick() holds ours and then takes that one.
+std::mutex soundLock;
+std::map<std::string, std::vector<Sound>> pendingSounds;
+std::vector<Sound> takeSounds(const std::string &model) {
+    std::lock_guard<std::mutex> l(soundLock);
+    auto it = pendingSounds.find(model);
+    if (it == pendingSounds.end()) {
+        return {};
+    }
+    std::vector<Sound> out = std::move(it->second);
+    pendingSounds.erase(it);
+    return out;
+}
 
 bool kinectGame(const std::string &g) { return g == "Orb Pop" || g == "Shape Fit"; }
 
@@ -117,6 +142,16 @@ void decode(PixelOverlayModel *m, int w, int h, const std::string &rle) {
 void put32(std::string &o, uint32_t v) {
     for (int k = 0; k < 4; ++k) o += (char)((v >> (8 * k)) & 255);
 }
+void putStr(std::string &o, const std::string &s) {
+    o += (char)std::min<size_t>(s.size(), 255);
+    o += s.substr(0, 255);
+}
+bool getStr(std::istream &in, std::string &s) {
+    char n;
+    if (!in.get(n)) return false;
+    s.resize((unsigned char)n);
+    return !n || (bool)in.read(&s[0], (unsigned char)n);
+}
 bool get32(std::istream &in, uint32_t &v) {
     unsigned char b[4];
     if (!in.read((char *)b, 4)) return false;
@@ -125,7 +160,8 @@ bool get32(std::istream &in, uint32_t &v) {
 }
 
 // The header: MAGIC, then width, height, frame count, total ms and the game's
-// name (length first); then each frame's ms, length and bytes.
+// name (length first); then each frame's ms, length and bytes, and its
+// sounds: how many, then each one's stop flag, game, name and gain (x1000).
 bool readHeader(std::istream &in, Recording &r, uint32_t &count, double &secs) {
     char magic[sizeof(MAGIC) - 1];
     uint32_t w, h, ms, len;
@@ -154,6 +190,17 @@ bool load(const std::string &file, Recording &r) {
         if (!get32(in, f.ms) || !get32(in, len) || len > 1u << 20) return false;
         f.rle.resize(len);
         if (len && !in.read(&f.rle[0], len)) return false;
+        char n;
+        if (!in.get(n)) return false;
+        for (int k = 0; k < (unsigned char)n; ++k) {
+            char stop;
+            Sound s;
+            uint32_t gain;
+            if (!in.get(stop) || !getStr(in, s.game) || !getStr(in, s.name) || !get32(in, gain)) return false;
+            s.stop = stop != 0;
+            s.gain = gain / 1000.0f;
+            f.sounds.push_back(std::move(s));
+        }
         r.frames.push_back(std::move(f));
     }
     return true;
@@ -174,6 +221,15 @@ bool save(const std::string &model, const Recording &r) {
         put32(o, f.ms);
         put32(o, (uint32_t)f.rle.size());
         o += f.rle;
+        const size_t n = std::min<size_t>(f.sounds.size(), 255);
+        o += (char)n;
+        for (size_t k = 0; k < n; ++k) {
+            const Sound &s = f.sounds[k];
+            o += (char)(s.stop ? 1 : 0);
+            putStr(o, s.game);
+            putStr(o, s.name);
+            put32(o, (uint32_t)std::lround(std::clamp(s.gain, 0.0f, 4.0f) * 1000));
+        }
     }
     const std::string file = fileFor(model, r.game), tmp = file + ".tmp";
     {
@@ -203,6 +259,9 @@ public:
             return EFFECT_DONE;
         }
         if (next >= rec.frames.size() || stopNow) {
+            for (const std::string &g : played) {
+                ArcadeSound::stopAll(g, model->getName());   // the end show's music, say
+            }
             model->clearOverlayBuffer();
             model->flushOverlayBuffer();
             ending = true;
@@ -210,6 +269,14 @@ public:
         }
         const Frame &f = rec.frames[next++];
         decode(model, rec.w, rec.h, f.rle);
+        for (const Sound &s : f.sounds) {
+            if (s.stop) {
+                ArcadeSound::stopAll(s.game, model->getName());
+            } else {
+                ArcadeSound::play(s.game, s.name, s.gain, model->getName());
+                played.insert(s.game);
+            }
+        }
         // PRESS START for three seconds of every fifteen, from the fourth.
         const int cycle = (int)(playedMs % 15000);
         if (cycle >= 4000 && cycle < 7000) {
@@ -253,6 +320,7 @@ private:
     }
 
     Recording rec;
+    std::set<std::string> played;   // the games' sound folders it has played from
     size_t next = 0;
     uint64_t playedMs = 0;
     bool ending = false;
@@ -285,18 +353,25 @@ void finishRun(ModelState &st) {
 }
 
 void record(ModelState &st, PixelOverlayModel *m, const std::string &game, bool paused, Clock::time_point now) {
+    std::vector<Sound> sounds = takeSounds(m->getName());
     if (game != st.cur.game) {
         finishRun(st);
         st.cur.game = game;
     }
-    if (game.empty() || paused) {
-        st.sampled = false;   // the time on the pause menu isn't kept
+    if (game.empty() || paused || st.cur.secs >= lengthSecs) {
+        st.sampled = false;   // the time on the pause menu isn't kept, nor its jingles
         return;
     }
     int dt = SAMPLE_MS;
     if (st.sampled) {
         dt = (int)std::chrono::duration_cast<std::chrono::milliseconds>(now - st.lastSample).count();
         if (dt < SAMPLE_MS - 5) {
+            if (!st.cur.frames.empty()) {   // too soon for a picture: its sounds go with the last one
+                auto &to = st.cur.frames.back().sounds;
+                for (auto &s : sounds) {
+                    if (s.game != "arcade") to.push_back(std::move(s));
+                }
+            }
             return;
         }
         dt = std::min(dt, 1000);
@@ -310,18 +385,17 @@ void record(ModelState &st, PixelOverlayModel *m, const std::string &game, bool 
     }
     std::string rle = encode(m, w, h);
     Recording &r = st.cur;
+    // The pause menu's jingles (sounds/arcade) aren't the game's.
+    sounds.erase(std::remove_if(sounds.begin(), sounds.end(), [](const Sound &s) { return s.game == "arcade"; }),
+                 sounds.end());
     if (!r.frames.empty()) {
         r.frames.back().ms += dt;   // the last picture was up until now
         r.secs += dt / 1000.0;
-        if (r.frames.back().rle == rle) {
+        if (r.frames.back().rle == rle && sounds.empty()) {
             return;
         }
     }
-    r.frames.push_back({0, std::move(rle)});
-    while (r.secs > MAX_SECS && r.frames.size() > 1) {
-        r.secs -= r.frames.front().ms / 1000.0;
-        r.frames.pop_front();
-    }
+    r.frames.push_back({0, std::move(rle), std::move(sounds)});
 }
 
 // --------------------------------------------------------------- taking turns
@@ -367,10 +441,22 @@ void schedule(ModelState &st, const std::string &model, PixelOverlayModel *m, st
 
 }  // namespace
 
-void configure(int idleMin, int betweenMin) {
+void configure(int idleMin, int betweenMin, int lengthSec) {
     std::lock_guard<std::recursive_mutex> l(lock);
     idleMinutes = std::clamp(idleMin, 0, 24 * 60);
     betweenMinutes = std::clamp(betweenMin, 0, 24 * 60);
+    lengthSecs = std::clamp(lengthSec, 10, 600);
+}
+
+void noteSound(const std::string &model, bool stop, const std::string &game, const std::string &name, float gain) {
+    if (model.empty()) {
+        return;
+    }
+    std::lock_guard<std::mutex> l(soundLock);
+    std::vector<Sound> &v = pendingSounds[model];
+    if (v.size() < 64) {   // nobody's recording takes them otherwise; don't pile up
+        v.push_back({stop, game, name, gain});
+    }
 }
 
 void noteInput(const std::string &model) {

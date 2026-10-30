@@ -12,7 +12,7 @@ the games.
 | Game | Input used |
 |------|-----------|
 | **Tetris** | The four directional "Pressed" events. "Up" rotates the block. |
-| **Pong** | "Pressed" and "Released" events. Player one uses Up/Down; player two uses Left/Right, or B (up) and A (down) with the *Up/Down and B/A* controls setting. |
+| **Pong** | "Pressed" and "Released" events. Player one uses Up/Down; player two uses Left/Right, or B (up) and A (down) with the *Up/Down and B/A* controls setting. The ball speeds up steadily through the game, to *Fastest ball* (1.8 times its start) after *Seconds to top speed* (90). |
 | **Snake** | The four directional "Pressed" events; A or B brings in a second snake for a duel (B turns it left, A right). |
 | **Breakout** | Directional "Pressed"/"Released" events. |
 | **Frogger** | The four directional "Pressed" events hop; A speeds the traffic up a step, B slows it back down to the level's own speed. |
@@ -140,8 +140,9 @@ Orb Pop's ambient mode, below); the first Select after that shows the same game 
 ## Demos
 
 A model nobody has used for a while plays recordings of its games, to show passers-by what the
-wall does. Every game played is recorded as it looks on the wall, about 25 pictures a second
-(not its title or pause menu, and only its last three minutes). On the Arcade Games page, under
+wall does. Every game played is recorded as it looks and sounds on the wall, about 25 pictures a
+second with its sounds, from its start for *Demo length* seconds (60); not its title or pause
+menu. On the Arcade Games page, under
 the model's name, **Save as its demo** keeps the game being played, or else the last one, as that
 game's demo on that model, in `media/plugindata/fpp-arcade/demos/<model>/`, replacing any it had.
 So: play a good game of each, saving after each one. A game's card shows its demo's length,

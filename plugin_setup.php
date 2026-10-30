@@ -129,8 +129,10 @@ Saving applies straight away, without restarting FPP, and stops any game being p
     <div class="hint">When nobody has pressed a button on a model for this long and it's showing the sequence (or the Kinect
     picture), its games' saved demos play in turn, with PRESS START coming up over them now and then. Any button stops the
     demo and shows that game's title. 0: no demos. To make a demo, play a good game, then click <b>Save as its demo</b>
-    under the model's name below: it keeps the game being played, or the last one (up to its last three minutes).
+    under the model's name below: it keeps the start of the game being played, or of the last one, sounds and all.
     Orb Pop and Shape Fit have no demos.</div></td></tr>
+<tr><td>Demo length (seconds)</td><td><input type="number" id="demoLength" min="10" max="600">
+    <div class="hint">How much of the start of a game is recorded for its demo.</div></td></tr>
 <tr><td>Between demos (minutes)</td><td><input type="number" id="demoBetween" min="0" max="1440">
     <div class="hint">How long the sequence plays between one demo and the next. 0: one straight after another.</div></td></tr>
 </table>
@@ -152,7 +154,7 @@ var arcadeConfig = <?= json_encode($arcadeConfig) ?>;
 var ARCADE_SOUND_DEFAULTS = { enabled: false, device: 'auto', volume: 80, streamHost: '', streamPort: 5570 };
 arcadeConfig.sound = $.extend({}, ARCADE_SOUND_DEFAULTS, arcadeConfig.sound || {});
 arcadeConfig.shows = $.extend({ theme: 'date' }, arcadeConfig.shows || {});
-arcadeConfig.demos = $.extend({ idle: 5, between: 0 }, arcadeConfig.demos || {});
+arcadeConfig.demos = $.extend({ idle: 5, between: 0, length: 60 }, arcadeConfig.demos || {});
 var arcadeDemoInfo = {};   // by model: {last: {game, seconds}, demos: [{game, seconds}]}
 var ARCADE_NO_DEMO = ['Orb Pop', 'Shape Fit'];
 var arcadeModels = [];
@@ -175,7 +177,11 @@ var ARCADE_GAMES = {
         options: [PS, { name: 'Controls', label: 'Controls', type: 'select', def: '1',
                         choices: [['1', 'Up/Down and Left/Right'], ['2', 'Up-Left/Down-Left and Up-Right/Down-Right'], ['3', 'Up/Left and Right/Down'],
                                   ['4', 'Up/Down and B/A (B up, A down)']],
-                        hint: 'Which buttons move each paddle. Needs the Released events too.' }, PW, PH] },
+                        hint: 'Which buttons move each paddle. Needs the Released events too.' },
+                  { name: 'Top Speed', label: 'Fastest ball', type: 'number', def: 1.8, min: 1, max: 5, step: 0.1,
+                    hint: 'The ball speeds up steadily as the game goes on, to this many times its starting speed. 1 keeps it the same.' },
+                  { name: 'Speed Up', label: 'Seconds to top speed', type: 'number', def: 90, min: 5, max: 1800,
+                    hint: 'Seconds of play before the ball is at its fastest. Points don\'t slow it back down.' }, PW, PH] },
     'Snake': { about: 'Eat, grow, and don\'t hit yourself. A second player joins with A or B for a duel.',
         controls: ['Directions steer', 'A/B: the second snake (B turns left, A right)'], options: [PS, PW, PH] },
     'Breakout': { about: 'Bat the ball into the bricks, with power-ups.', controls: ['Left/Right move', 'A/B release or fire'],
@@ -356,6 +362,7 @@ $('#arcadeSound').on('change input', 'input, select', function () {
 $('#arcadeDemos').on('change input', 'input', function () {
     arcadeConfig.demos.idle = Math.max(0, parseInt($('#demoIdle').val(), 10) || 0);
     arcadeConfig.demos.between = Math.max(0, parseInt($('#demoBetween').val(), 10) || 0);
+    arcadeConfig.demos.length = Math.max(10, Math.min(600, parseInt($('#demoLength').val(), 10) || 60));
     arcadeSetDirty(true);
 });
 
@@ -775,6 +782,7 @@ $.get('api/models').done(function (data) {
     $('#showTheme').val(arcadeConfig.shows.theme);
     $('#demoIdle').val(arcadeConfig.demos.idle);
     $('#demoBetween').val(arcadeConfig.demos.between);
+    $('#demoLength').val(arcadeConfig.demos.length);
     arcadeRefresh();
     setInterval(arcadeRefresh, 3000);
 });

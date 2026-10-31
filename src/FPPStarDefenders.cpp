@@ -79,8 +79,11 @@ enum : uint32_t { LEFT = 1, RIGHT = 2, FIRE = 4 };
 
 class StarDefendersEffect : public FPPArcadeGameEffect {
 public:
-    StarDefendersEffect(PixelOverlayModel *m, int lives, int firstWave, int showMode = 1, int goodWave = 5)
+    // extraLifeEvery: the Extra Life setting.
+    StarDefendersEffect(PixelOverlayModel *m, int lives, int firstWave, int extraLifeEvery = 3, int showMode = 1,
+                        int goodWave = 5)
         : FPPArcadeGameEffect(m), endShow(showMode), goodGame(goodWave), rng(std::random_device{}()) {
+        extraEvery = std::max(0, extraLifeEvery);
         startWaveNumber = std::clamp(firstWave, 1, 99);
         model->getSize(W, H);
         W = std::max(20, W);
@@ -158,6 +161,7 @@ public:
         const float dt = (float)(consumeElapsedMs(FRAME_MS, 100.0) / 1000.0);
         clock += dt;
         stateT += dt;
+        lifeBlinkT = std::max(0.0f, lifeBlinkT - dt);
         const int cheat = state != State::Over ? takeCheat() : 0;
         if (cheat == CHEAT_NEXT_LEVEL) {
             ++wave;
@@ -220,6 +224,9 @@ private:
 
     // ---------------------------------------------------------------- game flow
     void newGame() {
+        wavesCleared = 0;
+        lifeDue = false;
+        lifeBlinkT = 0;
         wave = startWaveNumber;
         score = 0;
         lives = startLives;
@@ -312,6 +319,14 @@ private:
                 stateT = 0;
                 fireNow.store(false);   // the press that started the game isn't a shot
                 laserNow.store(false);
+                if (lifeDue) {
+                    lifeDue = false;
+                    if (lives < 9) {
+                        ++lives;
+                        lifeBlinkT = LIFE_BLINK_SECS;
+                        sfx("stardefenders", "ExtraLife");
+                    }
+                }
             }
             return;
         case State::Dying:
@@ -343,6 +358,7 @@ private:
             return;
         case State::Clear:
             if (stateT > 2.0f) {
+                lifeDue = earnsExtraLife(extraEvery, ++wavesCleared);
                 ++wave;
                 startWave();
             }
@@ -667,6 +683,7 @@ private:
             break;
         case Power::Life:
             lives = std::min(9, lives + 1);
+            lifeBlinkT = LIFE_BLINK_SECS;
             break;
         default:
             power = p;   // a new weapon replaces the old one
@@ -861,6 +878,9 @@ private:
             }
         }
         for (int k = 0; k < lives - 1; ++k) {
+            if (k == lives - 2 && lifeBlinkOff(lifeBlinkT)) {
+                continue;
+            }
             canvas.add(W - 1 - 2 * k, 0, ArcadeCanvas::WHITE, 0.3f);
         }
         canvas.writeTo(model);
@@ -890,6 +910,9 @@ private:
     State state = State::Intro;
     float stateT = 0, clock = 0;
     int wave = 1, score = 0, lives = 3, startLives = 3, startWaveNumber = 1;
+    int extraEvery = 3, wavesCleared = 0;   // the Extra Life setting, and waves cleared this game
+    bool lifeDue = false;                   // a wave cleared earns one, given as the next starts
+    float lifeBlinkT = 0;
 
     std::vector<Alien> aliens;
     std::vector<uint8_t> shield;
@@ -941,7 +964,7 @@ void FPPStarDefenders::button(const std::string &button) {
         } else {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
         }
-        effect = new StarDefendersEffect(m, findIntOption("Lives", 3), findIntOption("Start Wave", 1), endShowOption(),
+        effect = new StarDefendersEffect(m, findIntOption("Lives", 3), findIntOption("Start Wave", 1), extraLifeOption(), endShowOption(),
                                          goodGameOption(5));
         m->setRunningEffect(effect, 25);
     }

@@ -106,6 +106,9 @@ protected:
     // level or score that makes a game a good one (def is the game's own).
     int endShowOption() { return std::clamp(findIntOption("End Show", 1), 0, 2); }
     int goodGameOption(int def) { return std::max(0, findIntOption("Good Game", def)); }
+    // The Extra Life setting of the games with levels and lives: a life for
+    // every so many levels (waves, sectors) cleared, 0 for none.
+    int extraLifeOption() { return std::clamp(findIntOption("Extra Life", 3), 0, 99); }
     // The two universal sizing options. 0 means "fill the panel"; see
     // FPPArcadeGameEffect::setPlayfield().
     int playfieldWidthOption()  { return findIntOption("Playfield Width", 0); }
@@ -187,6 +190,16 @@ public:
     // the Kinect plugin's "Only dim while someone is in view" does. Asked from
     // the output thread under the model's effect lock.
     virtual bool dimsSequence() const { return true; }
+
+    // Extra lives (the Extra Life setting): whether clearing a level, with
+    // `cleared` levels cleared in all, earns one - every `every` levels. The
+    // games give it as play starts on the next level, after its tune, with
+    // their own ExtraLife sound, and its icon blinks for LIFE_BLINK_SECS.
+    // Lives are shown the same way in every game: the spare ones, waiting
+    // after the one being played, so the last life shows none.
+    static bool earnsExtraLife(int every, int cleared) { return every > 0 && cleared > 0 && cleared % every == 0; }
+    static constexpr float LIFE_BLINK_SECS = 2.4f;
+    static bool lifeBlinkOff(float t) { return t > 0 && std::fmod(t, 0.3f) < 0.15f; }
 
     // A cheat code was entered. Button presses arrive on another thread, so
     // this only raises a flag: a game with levels takes it with takeCheat()

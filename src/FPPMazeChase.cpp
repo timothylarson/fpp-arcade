@@ -44,7 +44,9 @@ public:
     // narrowFrom: the first level drawn with one-LED paths; before it they
     // are two LEDs wide. 0 keeps them wide. showMode and goodLevel are the End
     // Show and Good Game settings.
-    MazeChaseEffect(PixelOverlayModel *m, int lives, int narrowFrom, int showMode = 1, int goodLevel = 3)
+    // extraLifeEvery: the Extra Life setting.
+    MazeChaseEffect(PixelOverlayModel *m, int lives, int narrowFrom, int extraLifeEvery = 3, int showMode = 1,
+                    int goodLevel = 3)
         : FPPArcadeGameEffect(m), rng(std::random_device{}()), narrowLevel(std::max(0, narrowFrom)),
           endShow(showMode), goodGame(goodLevel) {
         int w = 0, h = 0;
@@ -107,6 +109,7 @@ public:
         const float dt = (float)(consumeElapsedMs(FRAME_MS, 100.0) / 1000.0);
         clock += dt;
         stateT += dt;
+        lifeBlinkT = std::max(0.0f, lifeBlinkT - dt);
         const int cheat = state != State::Over ? takeCheat() : 0;
         if (cheat == CHEAT_NEXT_LEVEL) {
             ++level;
@@ -399,6 +402,8 @@ private:
     int wrapX(int x) const { return x < 0 ? mw - 1 : (x >= mw ? 0 : x); }
 
     void newGame() {
+        lifeDue = false;
+        lifeBlinkT = 0;
         level = 1;
         score = 0;
         lives = startLives;
@@ -444,6 +449,14 @@ private:
             if (stateT > 2.0f) {
                 state = State::Play;
                 stateT = 0;
+                if (lifeDue) {
+                    lifeDue = false;
+                    if (lives < 9) {
+                        ++lives;
+                        lifeBlinkT = LIFE_BLINK_SECS;
+                        sfx("mazechase", "ExtraLife");
+                    }
+                }
             }
             return;
         case State::Dying:
@@ -469,6 +482,7 @@ private:
             return;
         case State::Clear:
             if (stateT > 2.0f) {
+                lifeDue = earnsExtraLife(extraEvery, level);
                 ++level;
                 buildMaze();
                 resetActors();
@@ -793,6 +807,17 @@ private:
             const float f = (state == State::Play && passable(px + DX[pdir], py + DY[pdir], false)) ? std::min(1.0f, pacc) : 0.0f;
             sprite(px + DX[pdir] * f, py + DY[pdir] * f, flashT > 0 ? ArcadeCanvas::WHITE : PLAYER, chomp);
         }
+        // Spare lives, as dots in the player's colour down the margin left of
+        // the maze, from the top, stopping short of the tunnel. A maze that
+        // fills the wall has no margin and shows none.
+        if (ox > 0) {
+            const int tunnelTop = oy + screenStart(tunnelY);
+            for (int k = 0; k < lives - 1 && oy + 2 * k < tunnelTop - 1; ++k) {
+                if (!(k == lives - 2 && lifeBlinkOff(lifeBlinkT))) {
+                    canvas.add(ox - 1, oy + 2 * k, PLAYER, 0.5f);
+                }
+            }
+        }
         canvas.writeTo(model);
 
         if (state == State::Ready) {
@@ -850,6 +875,9 @@ private:
     float wakaT = -1;
     bool wakaB = false;
     int level = 1, score = 0, lives = 3, startLives = 3, combo = 0;
+    int extraEvery = 3;     // the Extra Life setting
+    bool lifeDue = false;   // a level cleared earns one, given as the next starts
+    float lifeBlinkT = 0;
 
     int px = 0, py = 0, pdir = 1;
     float pacc = 0;
@@ -877,7 +905,7 @@ void FPPMazeChase::button(const std::string &button) {
         } else {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
         }
-        effect = new MazeChaseEffect(m, findIntOption("Lives", 3), findIntOption("Narrow From", 4), endShowOption(),
+        effect = new MazeChaseEffect(m, findIntOption("Lives", 3), findIntOption("Narrow From", 4), extraLifeOption(), endShowOption(),
                                      goodGameOption(3));
         m->setRunningEffect(effect, 25);
     }

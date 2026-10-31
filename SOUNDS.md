@@ -50,6 +50,7 @@ See the table under Sound in [README.md](README.md).
 | Hop, Bump | A hop; a hop into the edge, or A/B at the speed limit |
 | SpeedUp, SpeedDown | A / B changes the traffic speed |
 | Home, LevelClear | Reaching a home; the fifth home |
+| ExtraLife | A frog earned for clearing levels (*Extra life every*), a moment after LevelClear |
 | Splash, Squash | A life lost in the water; under a car |
 | GameOver | The last life lost |
 | EndShow | The end show after a good game |
@@ -62,6 +63,7 @@ See the table under Sound in [README.md](README.md).
 | PowerPellet, Scared | A power pellet; the ghosts turn blue |
 | EatGhost | A scared ghost caught |
 | Death, LevelClear, GameOver | Caught; the last dot; the last life |
+| ExtraLife | A life earned for clearing levels (*Extra life every*), as the next level starts |
 | EndShow | The end show after a good game |
 
 ## Asteroid Orbit
@@ -77,6 +79,7 @@ See the table under Sound in [README.md](README.md).
 | Shockwave | B |
 | Crash | The ship crashes |
 | HoleOpen, Warp | The black hole opens; going through it |
+| ExtraLife | A ship earned for clearing sectors (*Extra life every*), as the next sector starts |
 | GameOver | The last life lost |
 | EndShow | The end show after a good game |
 
@@ -88,7 +91,8 @@ See the table under Sound in [README.md](README.md).
 | Jump, Score | A jump; clearing a barrel (+100) |
 | Throw, BarrelLand | The ape throws; a barrel lands on the girder below |
 | Fall, Die | Walking or jumping off an edge; death |
-| Rescue, GameOver | Reaching the top; the last life lost |
+| Rescue, GameOver | Reaching the person at the top; the last life lost |
+| ExtraLife | A life earned for clearing levels (*Extra life every*), as the next level starts |
 | EndShow | The end show after a good game |
 
 ## Star Defenders
@@ -100,6 +104,7 @@ See the table under Sound in [README.md](README.md).
 | ArmourHit, AlienKill, DiverKill | Armour knocked off; an alien killed; a diver killed |
 | Saucer *(quiet)*, SaucerHit | While the saucer is on screen; shooting it |
 | PowerDouble, PowerRapid, PowerPierce, PowerShields, PowerLaser, ExtraLife | Catching each capsule |
+| ExtraLife | Also a life earned for clearing waves (*Extra life every*), as the next wave starts |
 | ShieldHit *(quiet)*, BombShot | A bomb hits a shield; a shot hits a bomb |
 | Death, WaveClear, GameOver | The cannon destroyed; the last alien; the last life |
 | EndShow | The end show after a good game |

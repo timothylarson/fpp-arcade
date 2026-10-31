@@ -64,9 +64,11 @@ enum : uint32_t { UP = 1, DOWN = 2, LEFT = 4, RIGHT = 8, FIRE = 16 };
 
 class AsteroidOrbitEffect : public FPPArcadeGameEffect {
 public:
-    AsteroidOrbitEffect(PixelOverlayModel *m, int startRocks, int gravityPct, int lives, int showMode = 1,
-                        int goodSector = 4)
+    // extraLifeEvery: the Extra Life setting.
+    AsteroidOrbitEffect(PixelOverlayModel *m, int startRocks, int gravityPct, int lives, int extraLifeEvery = 3,
+                        int showMode = 1, int goodSector = 4)
         : FPPArcadeGameEffect(m), rng(std::random_device{}()), endShow(showMode), goodGame(goodSector) {
+        extraEvery = std::max(0, extraLifeEvery);
         model->getSize(W, H);
         W = std::max(8, W);
         H = std::max(8, H);
@@ -159,6 +161,7 @@ public:
         const float dt = (float)(consumeElapsedMs(FRAME_MS, 100.0) / 1000.0);
         clock += dt;
         stateT += dt;
+        lifeBlinkT = std::max(0.0f, lifeBlinkT - dt);
         const int cheat = state != State::Over ? takeCheat() : 0;
         if (cheat == CHEAT_NEXT_LEVEL) {
             ++sector;
@@ -258,6 +261,8 @@ private:
 
     // ---------------------------------------------------------------- game flow
     void newGame() {
+        lifeDue = false;
+        lifeBlinkT = 0;
         sector = 1;
         score = 0;
         lives = startLives;
@@ -417,6 +422,15 @@ private:
             if (stateT > 2.0f) {
                 state = State::Play;
                 stateT = 0;
+                // Five at most: all that fit on row 0 beside the shockwaves.
+                if (lifeDue) {
+                    lifeDue = false;
+                    if (lives < 5) {
+                        ++lives;
+                        lifeBlinkT = LIFE_BLINK_SECS;
+                        sfx("asteroidorbit", "ExtraLife");
+                    }
+                }
             }
             return;
         case State::Dead:
@@ -548,6 +562,7 @@ private:
                     // Through to the next sector.
                     sfx("asteroidorbit", "Warp");
                     score += 500;
+                    lifeDue = earnsExtraLife(extraEvery, sector);
                     ++sector;
                     pulses = std::min(9, pulses + 1);
                     placeShip(W / 2.0f, top + PH / 2.0f);
@@ -849,9 +864,13 @@ private:
         for (int x = 0; x < (int)std::ceil((float)ammo / MAX_AMMO * third); ++x) {
             status(W - 1 - x, AMMO, 0.25f);
         }
-        int x = W / 2 - (lives + pulses);
-        for (int k = 0; k < lives; ++k, x += 2) {
-            status(x, WHITE, 0.35f);
+        // Spare lives, white, then the shockwaves.
+        const int spare = std::max(0, lives - 1);
+        int x = W / 2 - (spare + pulses);
+        for (int k = 0; k < spare; ++k, x += 2) {
+            if (!(k == spare - 1 && lifeBlinkOff(lifeBlinkT))) {
+                status(x, WHITE, 0.35f);
+            }
         }
         for (int k = 0; k < pulses; ++k, x += 2) {
             status(x, PULSE, 0.35f);
@@ -892,6 +911,9 @@ private:
     State state = State::Intro;
     float stateT = 0, clock = 0;
     int sector = 1, score = 0, lives = 3, ammo = MAX_AMMO, pulses = 2, nextId = 1;
+    int extraEvery = 3;     // the Extra Life setting
+    bool lifeDue = false;   // a sector cleared earns one, given as the next starts
+    float lifeBlinkT = 0;
     float fuel = 1.0f;
 
     float shipX = 0, shipY = 0, shipVX = 0, shipVY = 0, headX = 0, headY = -1;
@@ -941,7 +963,7 @@ void FPPAsteroidOrbit::button(const std::string &button) {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
         }
         effect = new AsteroidOrbitEffect(m, findIntOption("Asteroids", 0), findIntOption("Gravity", 100),
-                                         findIntOption("Lives", 3), endShowOption(), goodGameOption(4));
+                                         findIntOption("Lives", 3), extraLifeOption(), endShowOption(), goodGameOption(4));
         m->setRunningEffect(effect, 25);
     }
     // The button that starts the game counts too, so a direction held from

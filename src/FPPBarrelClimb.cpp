@@ -55,11 +55,12 @@ public:
     // perLevel seconds sooner, down to fastestEvery.
     // showMode and goodLevel: the End Show and Good Game settings.
     // shortFrom: the first level with two-LED people and girders four rows
-    // apart (0: never).
+    // apart (0: never). extraLifeEvery: the Extra Life setting.
     BarrelClimbEffect(PixelOverlayModel *m, int lives, float startEvery, float fastestEvery, float perLevel,
-                      int shortFromLevel = 6, int showMode = 1, int goodLevel = 3)
+                      int shortFromLevel = 6, int extraLifeEvery = 3, int showMode = 1, int goodLevel = 3)
         : FPPArcadeGameEffect(m), rng(std::random_device{}()), endShow(showMode), goodGame(goodLevel) {
         shortFrom = std::max(0, shortFromLevel);
+        extraEvery = std::max(0, extraLifeEvery);
         sooner = std::clamp(perLevel, 0.0f, 10.0f);
         fastest = std::clamp(fastestEvery, 0.8f, 20.0f);
         slowest = std::clamp(startEvery, fastest, 30.0f);
@@ -140,6 +141,7 @@ public:
         const float dt = (float)(consumeElapsedMs(FRAME_MS, 100.0) / 1000.0);
         clock += dt;
         stateT += dt;
+        lifeBlinkT = std::max(0.0f, lifeBlinkT - dt);
         const int cheat = state != State::Over ? takeCheat() : 0;
         if (cheat == CHEAT_NEXT_LEVEL) {
             ++level;
@@ -292,6 +294,8 @@ private:
 
     // ---------------------------------------------------------------- game flow
     void newGame() {
+        lifeDue = false;
+        lifeBlinkT = 0;
         level = 1;
         score = 0;
         lives = startLives;
@@ -338,6 +342,14 @@ private:
             if (stateT > 1.8f) {
                 state = State::Play;
                 stateT = 0;
+                if (lifeDue) {
+                    lifeDue = false;
+                    if (lives < 9) {
+                        ++lives;
+                        lifeBlinkT = LIFE_BLINK_SECS;
+                        sound("ExtraLife");
+                    }
+                }
             }
             return;
         case State::Dying:
@@ -365,6 +377,7 @@ private:
             return;
         case State::Clear:
             if (stateT > 2.9f) {
+                lifeDue = earnsExtraLife(extraEvery, level);
                 ++level;
                 startLevel();
             }
@@ -693,8 +706,11 @@ private:
             canvas.set(px, feet - tall + 2, climbing ? RGB{0.2f, 0.3f, 1.0f} : BODY, 1.0f);
             canvas.set(px, feet - tall + 1, HEAD, 1.0f);
         }
-        // Lives left, as little people in the top right corner.
-        for (int k = 0; k < lives && k < 9; ++k) {
+        // Spare lives, as little people in the top right corner.
+        for (int k = 0; k < lives - 1 && k < 8; ++k) {
+            if (k == lives - 2 && lifeBlinkOff(lifeBlinkT)) {
+                continue;
+            }
             const int lx = W - 1 - 2 * k;
             canvas.set(lx, 0, HEAD, 0.6f);
             canvas.set(lx, 1, BODY, 0.6f);
@@ -732,6 +748,9 @@ private:
     ArcadeCanvas::Canvas canvas;
     int W = 0, H = 0, top = 0;
     int tall = 3, shortFrom = 6;   // people's height this level; the level they get shorter
+    int extraEvery = 3;            // the Extra Life setting
+    bool lifeDue = false;          // a level cleared earns one, given as the next starts
+    float lifeBlinkT = 0;
     std::vector<int> base;
     std::vector<Ladder> ladders;
     int apeX = 1, goalX = 0;
@@ -780,7 +799,7 @@ void FPPBarrelClimb::button(const std::string &button) {
         try { fastestEvery = std::stof(findOption("Fastest Barrels", "3.2")); } catch (...) {}
         try { perLevel = std::stof(findOption("Barrels Sooner", "0.6")); } catch (...) {}
         effect = new BarrelClimbEffect(m, findIntOption("Lives", 3), every, fastestEvery, perLevel,
-                                       findIntOption("Short From", 6), endShowOption(), goodGameOption(3));
+                                       findIntOption("Short From", 6), extraLifeOption(), endShowOption(), goodGameOption(3));
         m->setRunningEffect(effect, 25);
     }
     // The starting press counts (a held direction walks straight away) -

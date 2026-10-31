@@ -99,6 +99,21 @@ goes up when one is gone, the balls quicken a little with every goal, and the fi
 to win* (5) wins. Its end show (after a win by Good Game goals, 3) has the winner's paddle smash
 a rainbow ball through the wall.
 
+### Lives
+
+Every game with lives shows the spare ones, the lives left after the one being played, so the
+last life shows none: Barrel Climb as little people top right, Star Defenders as white dots top
+right, Maze Chase as dots down the margin left of the maze (when it has one: the narrow maze
+fills a 60-wide wall), Frogger along the bottom, Asteroid Orbit as white dots in the middle of the
+top row, Road Race on each road, Breakout above the bricks and Sky Jump as red dots.
+
+The games with levels give an extra life for every *Extra life every* levels cleared (default 3,
+0 for none): Barrel Climb's, Maze Chase's and Frogger's levels, Star Defenders' waves and Asteroid
+Orbit's sectors. It comes as play starts on the next level (in Frogger, which has no level card,
+a moment after the level's tune), with an ExtraLife jingle, and the new life's icon blinks. Lives
+go up to 9 (Asteroid Orbit 5, all that fit on its top row). Star Defenders' rare Life capsule,
+and Breakout's two lives a level and its extra-life capsule, are as they were.
+
 ### Cheat codes
 
 Entered during a game (not on the pause menu), each press within 2 seconds of the last:
@@ -331,7 +346,8 @@ the corridors, the walls, you (yellow) and the ghosts.
 - The first levels have paths two LEDs wide, with 2x2 characters; from the *Narrow maze from
   level* setting on (default 4) the maze is one LED per path, wall and character, which fits
   about twice as many turns. 0 keeps the wide paths.
-- Options: *Lives* and *Narrow maze from level*.
+- Options: *Lives*, *Extra life every* (levels, default 3; see Lives) and *Narrow maze from
+  level*.
 
 ## Barrel Climb
 
@@ -346,7 +362,7 @@ Climb to the top while an ape rolls barrels down at you, after the classic girde
   a model under 40 wide), not just onto the girder: the ladder up to it comes out at least 8
   LEDs away (less on a small model) and clear of the ape, so the last girder, with the barrels
   rolling along it, is played too. A heart, then the bonus that counts down while you climb
-  is added to the score. Lives left show as little people in the top right corner.
+  is added to the score. Spare lives show as little people in the top right corner.
 - Each level gets harder: new ladder positions, barrels thrown sooner (down to the fastest
   rate) and rolling faster, more of them taking ladders down (a quarter on level 1, up to
   two in five, so more still roll past than go down). From level 2 some barrels (up to three
@@ -356,7 +372,8 @@ Climb to the top while an ape rolls barrels down at you, after the classic girde
   the girders four rows apart instead of five: six girders to climb on a 25-tall wall instead
   of five.
 - On a model 40 or more wide there are two ladders between girders, otherwise one.
-- Options: *Lives*, *Barrels Every* (seconds between barrels on level 1, default 6),
+- Options: *Lives*, *Extra life every* (levels, default 3; see Lives), *Barrels Every* (seconds
+  between barrels on level 1, default 6),
   *Barrels Sooner* (how much sooner each level, default 0.6), *Fastest Barrels* (the
   quickest it gets, default 3.2) and *Short From* (the first level with two-LED climbers and
   more girders, default 6; 0 never).
@@ -385,7 +402,7 @@ Hold off a marching alien formation from behind four shields, after the classic 
   **Life**.
 - Shots from either side wear holes in the shields, and the aliens flatten them as they march
   through.
-- Options: *Lives* and *Start at wave*.
+- Options: *Lives*, *Extra life every* (waves, default 3; see Lives) and *Start at wave*.
 
 ## Shape Fit (Kinect)
 
@@ -449,7 +466,7 @@ A thruster ship in a field of asteroids that each pull on it, after the Asteroid
 - Clear the sector and a black hole opens and starts pulling you in, harder every second;
   through it is the next sector, with more and faster asteroids and stronger gravity.
 - Options: *Asteroids* at the start (0 fits the model: 3 on 60x25, 2 on a 30x25 half),
-  *Gravity* (%), and *Lives*.
+  *Gravity* (%), *Lives* and *Extra life every* (sectors, default 3; see Lives).
 
 It needs the Released events as well as the Pressed ones, which joysticks and
 `tools/arcade-keyboard.html` both send.

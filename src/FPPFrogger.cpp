@@ -70,6 +70,7 @@ public:
         float variability  = 0.20f; // 0..1 lane-to-lane speed spread
         int   endShow      = 1;    // the End Show setting
         int   goodGame     = 4;    // the Good Game setting: the level reached
+        int   extraLife    = 3;    // the Extra Life setting: a frog every so many levels
     };
 
     explicit FroggerEffect(PixelOverlayModel *m, const Options &opts)
@@ -164,6 +165,16 @@ public:
             sfx("frogger", "LevelClear");
         }
 
+        // An extra frog earned by the last level: once its tune has played.
+        lifeBlinkT = std::max(0.0f, lifeBlinkT - (float)(elapsedMs / 1000.0));
+        if (lifeDueMs > 0 && (lifeDueMs -= elapsedMs) <= 0) {
+            if (lives < 8) {   // spare frogs: nine in all
+                ++lives;
+                lifeBlinkT = LIFE_BLINK_SECS;
+                sfx("frogger", "ExtraLife");
+            }
+        }
+
         // Which log is the frog standing on, and where along it, BEFORE anything
         // moves. Deciding this after the movers advance is what made a hop onto a
         // log that the player could see under the frog sometimes drown instantly.
@@ -213,6 +224,9 @@ public:
                 score += 50;
                 resetFrog();
                 if (std::all_of(homeFilled.begin(), homeFilled.end(), [](bool f){ return f; })) {
+                    if (earnsExtraLife(opt.extraLife, level)) {
+                        lifeDueMs = 1500;
+                    }
                     level++;
                     score += 100;
                     initLevel();
@@ -361,6 +375,8 @@ private:
         level  = 1;
         score  = 0;
         lives  = 3;
+        lifeDueMs = 0;
+        lifeBlinkT = 0;
         paused = false;
         gameOn = true;
         waitingUntilOutput = false;
@@ -816,7 +832,8 @@ private:
         int yLives = offsetY + panelH - 1;
         int xLives = 0;
         for (int i=0; i<std::max(0,lives); ++i) {
-            pxRaw(offsetX + xLives, yLives, 255,255,255);
+            if (!(i == lives - 1 && lifeBlinkOff(lifeBlinkT)))   // one just earned blinks
+                pxRaw(offsetX + xLives, yLives, 255,255,255);
             xLives += 2; // spacing
             if (xLives >= panelW) break;
         }
@@ -872,7 +889,9 @@ private:
     static constexpr float BOOST_STEP = 0.25f;
     static constexpr float MAX_BOOST = 3.0f;
     float  speedBoost = 1.0f;
-    int    lives=3;
+    int    lives=3;   // spare frogs: the game ends when one is lost with none left
+    double lifeDueMs=0;   // an extra frog earned, given when this runs out
+    float  lifeBlinkT=0;
     int    score=0;
     bool   paused=false;
     bool   gameOn=true;
@@ -929,6 +948,7 @@ void FPPFrogger::button(const std::string &button) {
 
         opts.endShow = endShowOption();
         opts.goodGame = goodGameOption(4);
+        opts.extraLife = extraLifeOption();
 
         if (findOption("overlay", "Overwrite") == "Transparent") {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::TransparentRGB));

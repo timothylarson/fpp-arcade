@@ -167,6 +167,11 @@ var PS = { name: 'Pixel Scaling', label: 'Pixel scaling', type: 'number', def: 1
 var PW = { name: 'Playfield Width', label: 'Playfield width', type: 'number', def: 0, min: 0, max: 500, hint: 'In game cells. 0 fills the model.' };
 var PH = { name: 'Playfield Height', label: 'Playfield height', type: 'number', def: 0, min: 0, max: 500, hint: 'In game cells. 0 fills the model.' };
 var LIVES = { name: 'Lives', label: 'Lives', type: 'number', def: 3, min: 1, max: 9 };
+// Extra Life, for the games with levels and lives; what = 'levels', 'waves'...
+function EXTRA(what) {
+    return { name: 'Extra Life', label: 'Extra life every (' + what + ')', type: 'number', def: 3, min: 0, max: 99,
+             hint: 'A life for every so many ' + what + ' cleared, given as the next one starts. 0 for none.' };
+}
 var YESNO = [['1', 'Yes'], ['0', 'No']];
 
 var ARCADE_GAMES = {
@@ -239,7 +244,7 @@ var ARCADE_GAMES = {
                   { name: 'River Speed', label: 'River speed', type: 'number', def: 1, min: 1, max: 10 },
                   { name: 'Road Speed', label: 'Road speed', type: 'number', def: 1, min: 1, max: 10 },
                   { name: 'Speed Variability', label: 'Speed variety (%)', type: 'number', def: 20, min: 0, max: 100, hint: 'How much lanes differ from each other.' },
-                  PW, PH] },
+                  EXTRA('levels'), PW, PH] },
     'Orb Pop': { about: 'Kinect: pop drifting orbs by touching them. Shows people as flickering light between rounds. Needs the FPP Kinect plugin on the same model. Overlay Transparent plays it over the sequence, dimmed by its Sequence setting (or the Kinect plugin\'s Sequence Brightness: use one, not both).',
         controls: ['Stand in view to start', 'A start now', 'Start pause'],
         options: [{ name: 'Brightness', label: 'Brightness (%)', type: 'number', def: 50, min: 1, max: 100 },
@@ -262,13 +267,14 @@ var ARCADE_GAMES = {
     'Asteroid Orbit': { about: 'Fly through asteroids that pull on you. Land gently to reload; a black hole leads to the next sector.',
         controls: ['Directions thrust (hold)', 'A fire', 'B shockwave'],
         options: [{ name: 'Asteroids', label: 'Asteroids at the start', type: 'number', def: 0, min: 0, max: 12, hint: '0 fits the model.' },
-                  { name: 'Gravity', label: 'Gravity (%)', type: 'number', def: 100, min: 0, max: 300 }, LIVES] },
+                  { name: 'Gravity', label: 'Gravity (%)', type: 'number', def: 100, min: 0, max: 300 }, LIVES,
+                  EXTRA('sectors')] },
     'Maze Chase': { about: 'Eat the dots, dodge the ghosts. A new maze every level.', controls: ['Directions turn'],
-        options: [LIVES, { name: 'Narrow From', label: 'Narrow maze from level', type: 'number', def: 4, min: 0, max: 99,
+        options: [LIVES, EXTRA('levels'), { name: 'Narrow From', label: 'Narrow maze from level', type: 'number', def: 4, min: 0, max: 99,
                            hint: 'Levels before this have paths two LEDs wide; from this level on, one LED. 0 keeps them wide.' }] },
     'Barrel Climb': { about: 'Climb the girders and reach the person at the top while barrels roll down.',
         controls: ['Left/Right walk (hold)', 'Up/Down climb', 'A jump'],
-        options: [LIVES,
+        options: [LIVES, EXTRA('levels'),
                   { name: 'Barrels Every', label: 'Barrels every (seconds)', type: 'number', def: 6, min: 1, max: 30, step: 0.1,
                     hint: 'How often the ape throws on level 1.' },
                   { name: 'Barrels Sooner', label: 'Sooner each level (seconds)', type: 'number', def: 0.6, min: 0, max: 10, step: 0.1,
@@ -279,7 +285,7 @@ var ARCADE_GAMES = {
                     hint: 'From this level the climber is two LEDs tall and the girders closer together, so there are more of them to climb (six on a 25-tall wall, from five). 0 keeps three-LED climbers.' }] },
     'Star Defenders': { about: 'Hold off the marching aliens from behind the shields. A new formation each wave, armoured aliens from wave 4, divers from wave 3, and capsules to catch for new weapons.',
         controls: ['Left/Right move (hold)', 'A fire', 'B laser'],
-        options: [LIVES, { name: 'Start Wave', label: 'Start at wave', type: 'number', def: 1, min: 1, max: 99,
+        options: [LIVES, EXTRA('waves'), { name: 'Start Wave', label: 'Start at wave', type: 'number', def: 1, min: 1, max: 99,
                            hint: 'Higher starts harder: later formations, armour and divers.' }] },
     'Stacker': { about: 'Drop the sliding row onto the stack; the overhang falls off. Two players race side by side.',
         controls: ['Directions or A/B drop', 'The other control at a level start: a race'], options: [] },

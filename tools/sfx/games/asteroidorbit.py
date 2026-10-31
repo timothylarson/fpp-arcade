@@ -97,4 +97,9 @@ SOUNDS = {
         melody([("G5", 2), ("Eb5", 2), ("C5", 2), ("G4", 2), ("Ab4", 3), ("G4", 5)], 0.11, wave="triangle", vol=0.6),
         melody([("C3", 4), ("Ab2", 4), ("G2", 8)], 0.11, wave="square", duty=0.25, vol=0.2),
     ),
+    # A ship earned for clearing sectors: a shimmering rise.
+    "ExtraLife": lambda: mix(
+        melody([("C6", 1), ("E6", 1), ("G6", 1), ("C7", 1), ("E7", 3)], 0.07, wave="square", duty=0.25, vol=0.4),
+        tone("C5", 0.5, wave="sine", vol=0.4, freq_end="C6", vibrato=0.4, vib_rate=16, decay=0.3),
+    ),
 }

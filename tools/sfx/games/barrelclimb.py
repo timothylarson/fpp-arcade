@@ -66,4 +66,9 @@ SOUNDS = {
     "GameOver": lambda: with_bass(
         melody([("G4", 1), ("F#4", 1), ("F4", 1), ("E4", 1), ("-", 0.5), ("C4", 3)], 0.2, duty=0.25, vibrato=0.2),
         melody([("C3", 2), ("B2", 2), ("C2", 3.5)], 0.2, wave="triangle", vol=0.7)),
+    # A life earned for clearing levels: a bright rising run with a trill.
+    "ExtraLife": lambda: with_bass(
+        melody([("E5", 1), ("G5", 1), ("C6", 1), ("E6", 1), ("G6", 1), ("E6", 0.5), ("G6", 0.5), ("C7", 3)],
+               0.07, duty=0.25, vol=0.5),
+        melody([("C3", 2), ("G3", 2), ("C4", 4)], 0.07, wave="triangle", vol=0.6, legato=0.7)),
 }

@@ -1096,7 +1096,7 @@ private:
             text(s, 0, r.y0, col, 0.3f);
         }
         if (r.kerbTop > r.top && !r.out) {
-            for (int i = 0; i < std::min(r.lives, 9); ++i) {
+            for (int i = 0; i < std::min(r.lives - 1, 8); ++i) {   // the spare ones
                 canvas.set(2 * i, r.top, {0, 0, 0});
                 canvas.set(2 * i, r.top, r.colour, 0.5f);
             }

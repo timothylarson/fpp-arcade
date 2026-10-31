@@ -63,7 +63,7 @@ See the table under Sound in [README.md](README.md).
 | PowerPellet, Scared | A power pellet; the ghosts turn blue |
 | EatGhost | A scared ghost caught |
 | Death, LevelClear, GameOver | Caught; the last dot; the last life |
-| ExtraLife | A life earned for clearing levels (*Extra life every*), as the next level starts |
+| ExtraLife | Lives earned for clearing a level (*Extra lives each level*), as the next level starts |
 | EndShow | The end show after a good game |
 
 ## Asteroid Orbit

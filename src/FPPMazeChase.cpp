@@ -44,8 +44,8 @@ public:
     // narrowFrom: the first level drawn with one-LED paths; before it they
     // are two LEDs wide. 0 keeps them wide. showMode and goodLevel are the End
     // Show and Good Game settings.
-    // extraLifeEvery: the Extra Life setting.
-    MazeChaseEffect(PixelOverlayModel *m, int lives, int narrowFrom, int extraLifeEvery = 3, int showMode = 1,
+    // livesPerLevel: the Extra lives each level setting.
+    MazeChaseEffect(PixelOverlayModel *m, int lives, int narrowFrom, int livesPerLevel = 2, int showMode = 1,
                     int goodLevel = 3)
         : FPPArcadeGameEffect(m), rng(std::random_device{}()), narrowLevel(std::max(0, narrowFrom)),
           endShow(showMode), goodGame(goodLevel) {
@@ -53,6 +53,7 @@ public:
         model->getSize(w, h);
         canvas.resize(w, h);
         startLives = std::clamp(lives, 1, 9);
+        perLevel = std::clamp(livesPerLevel, 0, 9);
         newGame();
     }
 
@@ -146,6 +147,8 @@ public:
 
 private:
     static constexpr int FRAME_MS = 25;
+    static constexpr float EATEN_WAIT = 5.0f;   // seconds an eaten ghost stays in the box
+    static constexpr int SPARSE_LEVELS = 3;     // narrow levels with a dot every other LED
     enum class State { Ready, Play, Dying, Clear, Over };
     enum class GState { House, Leaving, Active, Eyes, Entering };
 
@@ -204,6 +207,9 @@ private:
             } else {
                 wide = false;   // too small for wide paths
             }
+        }
+        if (!wide && narrowSince == 0) {
+            narrowSince = level;
         }
         if (!wide) {
             mw = std::max(19, w - ((w - 3) % 4 + 4) % 4);
@@ -320,11 +326,14 @@ private:
 
         dots.assign(mw * mh, 0);
         dotsLeft = 0;
+        // The first SPARSE_LEVELS narrow levels have a dot every other LED,
+        // as the wide ones look, rather than one on every LED of the paths.
+        const bool sparse = !wide && level < narrowSince + SPARSE_LEVELS;
         for (int y = 0; y < mh; ++y) {
             for (int x = 1; x < mw - 1; ++x) {
                 // Wide paths get a dot per cell, not per logical unit, or
                 // they'd sit a LED and a half apart.
-                if (isOpen(x, y) && !inHouseArea(x, y) && !(x == c && y == tunnelY) && (!wide || isCell(x, y))) {
+                if (isOpen(x, y) && !inHouseArea(x, y) && !(x == c && y == tunnelY) && (!(wide || sparse) || isCell(x, y))) {
                     dots[y * mw + x] = 1;
                     ++dotsLeft;
                 }
@@ -402,6 +411,7 @@ private:
     int wrapX(int x) const { return x < 0 ? mw - 1 : (x >= mw ? 0 : x); }
 
     void newGame() {
+        narrowSince = 0;
         lifeDue = false;
         lifeBlinkT = 0;
         level = 1;
@@ -451,8 +461,9 @@ private:
                 stateT = 0;
                 if (lifeDue) {
                     lifeDue = false;
-                    if (lives < 9) {
-                        ++lives;
+                    lifeGained = std::min(perLevel, 9 - lives);
+                    if (lifeGained > 0) {
+                        lives += lifeGained;
                         lifeBlinkT = LIFE_BLINK_SECS;
                         sfx("mazechase", "ExtraLife");
                     }
@@ -482,7 +493,7 @@ private:
             return;
         case State::Clear:
             if (stateT > 2.0f) {
-                lifeDue = earnsExtraLife(extraEvery, level);
+                lifeDue = perLevel > 0;   // every level cleared
                 ++level;
                 buildMaze();
                 resetActors();
@@ -562,7 +573,7 @@ private:
                     // One sound for the whole fright rather than a siren loop.
                     sfx("mazechase", "PowerPellet");
                     sfx("mazechase", "Scared");
-                    scaredT = std::max(1.5f, 6.0f - (level - 1));
+                    scaredT = std::max(4.0f, 9.0f - 0.5f * (level - 1));   // 9 s on level 1, 4 s from level 11
                     combo = 0;
                     for (auto &g : ghosts) {
                         if (g.st == GState::Active || g.st == GState::Leaving || g.st == GState::House) {
@@ -652,7 +663,12 @@ private:
                 if (g.y < r) {
                     ++g.y;
                 } else {
-                    g.st = GState::Leaving;
+                    // Back in the box, whole again: it waits there a while
+                    // before coming out.
+                    g.st = GState::House;
+                    g.releaseAt = playT + EATEN_WAIT;
+                    g.acc = 0;
+                    return;
                 }
             } else {
                 if (g.st == GState::Eyes && g.x == c && g.y == r - 3) {
@@ -807,14 +823,16 @@ private:
             const float f = (state == State::Play && passable(px + DX[pdir], py + DY[pdir], false)) ? std::min(1.0f, pacc) : 0.0f;
             sprite(px + DX[pdir] * f, py + DY[pdir] * f, flashT > 0 ? ArcadeCanvas::WHITE : PLAYER, chomp);
         }
-        // Spare lives, as dots in the player's colour down the margin left of
-        // the maze, from the top, stopping short of the tunnel. A maze that
-        // fills the wall has no margin and shows none.
-        if (ox > 0) {
+        // Spare lives, as dots in the player's colour down a margin beside
+        // the maze - the left, or the right when the maze starts at the left
+        // edge, as the narrow one does - from the top, stopping short of the
+        // tunnel. A maze that fills the wall has no margin and shows none.
+        const int livesX = ox > 0 ? ox - 1 : (ox + screenSize(mw) < canvas.W ? ox + screenSize(mw) : -1);
+        if (livesX >= 0) {
             const int tunnelTop = oy + screenStart(tunnelY);
             for (int k = 0; k < lives - 1 && oy + 2 * k < tunnelTop - 1; ++k) {
-                if (!(k == lives - 2 && lifeBlinkOff(lifeBlinkT))) {
-                    canvas.add(ox - 1, oy + 2 * k, PLAYER, 0.5f);
+                if (!(k >= lives - 1 - lifeGained && lifeBlinkOff(lifeBlinkT))) {   // the ones just earned blink
+                    canvas.add(livesX, oy + 2 * k, PLAYER, 0.5f);
                 }
             }
         }
@@ -867,6 +885,7 @@ private:
     int endShow = 1, goodGame = 3;   // the End Show and Good Game settings
     ArcadeShowPlayer show;
     bool wide = true;
+    int narrowSince = 0;   // the first narrow level this game (0: none yet)
     std::vector<uint8_t> grid, dots;
     int dotsLeft = 0;
 
@@ -875,8 +894,9 @@ private:
     float wakaT = -1;
     bool wakaB = false;
     int level = 1, score = 0, lives = 3, startLives = 3, combo = 0;
-    int extraEvery = 3;     // the Extra Life setting
-    bool lifeDue = false;   // a level cleared earns one, given as the next starts
+    int perLevel = 2;       // the Extra lives each level setting
+    bool lifeDue = false;   // a level cleared earns them, given as the next starts
+    int lifeGained = 0;     // how many came last time, to blink
     float lifeBlinkT = 0;
 
     int px = 0, py = 0, pdir = 1;
@@ -905,7 +925,7 @@ void FPPMazeChase::button(const std::string &button) {
         } else {
             m->setState(PixelOverlayState(PixelOverlayState::PixelState::Enabled));
         }
-        effect = new MazeChaseEffect(m, findIntOption("Lives", 3), findIntOption("Narrow From", 4), extraLifeOption(), endShowOption(),
+        effect = new MazeChaseEffect(m, findIntOption("Lives", 3), findIntOption("Narrow From", 4), findIntOption("Lives Per Level", 2), endShowOption(),
                                      goodGameOption(3));
         m->setRunningEffect(effect, 25);
     }

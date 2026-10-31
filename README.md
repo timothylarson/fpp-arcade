@@ -103,13 +103,13 @@ a rainbow ball through the wall.
 
 Every game with lives shows the spare ones, the lives left after the one being played, so the
 last life shows none: Barrel Climb as little people top right, Star Defenders as white dots top
-right, Maze Chase as dots down the margin left of the maze (when it has one: the narrow maze
-fills a 60-wide wall), Frogger along the bottom, Asteroid Orbit as white dots in the middle of the
+right, Maze Chase as dots down the margin beside the maze (left, or right on the narrow maze),
+Frogger along the bottom, Asteroid Orbit as white dots in the middle of the
 top row, Road Race on each road, Breakout above the bricks and Sky Jump as red dots.
 
 The games with levels give an extra life for every *Extra life every* levels cleared (default 3,
-0 for none): Barrel Climb's, Maze Chase's and Frogger's levels, Star Defenders' waves and Asteroid
-Orbit's sectors. It comes as play starts on the next level (in Frogger, which has no level card,
+0 for none): Barrel Climb's and Frogger's levels, Star Defenders' waves and Asteroid Orbit's
+sectors. Maze Chase gives *Extra lives each level* (default 2) for every level it clears. It comes as play starts on the next level (in Frogger, which has no level card,
 a moment after the level's tune), with an ExtraLife jingle, and the new life's icon blinks. Lives
 go up to 9 (Asteroid Orbit 5, all that fit on its top row). Star Defenders' rare Life capsule,
 and Breakout's two lives a level and its extra-life capsule, are as they were.
@@ -336,8 +336,9 @@ Eat every dot while four ghosts hunt you, after the arcade maze games. Everythin
 the corridors, the walls, you (yellow) and the ghosts.
 
 - The last direction pressed is where you turn next, so it doesn't need holding.
-- The blinking corner dots turn the ghosts blue for a few seconds; catch them then for 200,
-  400, 800, 1600. Their eyes go back to the house in the middle and they come out again.
+- The blinking corner dots turn the ghosts blue - for 9 seconds on level 1, half a second less
+  each level, down to 4; catch them then for 200, 400, 800, 1600. Their eyes go back to the
+  house in the middle, where they wait 5 seconds before coming out again.
 - The ghosts take turns at scattering to their corners and chasing, and each chases its own
   way: red heads straight for you, pink aims ahead of you, cyan works with red, and orange
   loses interest up close.
@@ -345,9 +346,10 @@ the corridors, the walls, you (yellow) and the ghosts.
   (mirrored, no dead ends), and a bit faster.
 - The first levels have paths two LEDs wide, with 2x2 characters; from the *Narrow maze from
   level* setting on (default 4) the maze is one LED per path, wall and character, which fits
-  about twice as many turns. 0 keeps the wide paths.
-- Options: *Lives*, *Extra life every* (levels, default 3; see Lives) and *Narrow maze from
-  level*.
+  about twice as many turns, and its first three levels have a dot on every other LED, as the
+  wide ones look, before a dot on every LED. 0 keeps the wide paths.
+- Options: *Lives*, *Extra lives each level* (default 2, given as the next level starts; see
+  Lives) and *Narrow maze from level*.
 
 ## Barrel Climb
 
